@@ -1,24 +1,36 @@
-const botService = require('../services/botService');
+const botService = require('../services/botServcice');
 const whatsappService = require('../services/whatsappService');
-
-// Main webhook controller
 exports.receiveMessage = async (req, res) => {
   try {
-    // For Twilio: message comes in `Body` and `From`
-    // For other APIs: adjust accordingly
-    const incomingMsg = req.body.Body || req.body.message || '';
-    const from = req.body.From || req.body.phone || '';
+    const { From: from, Body: body } = req.body;
 
-    console.log(`👉 Incoming from ${from}: ${incomingMsg}`);
+    console.log(`👉 Incoming from ${from}: ${body}`);
 
-    // Let botService handle the logic & get response text
-    const replyText = await botService.handleMessage(from, incomingMsg);
+    // Run bot logic
+    const reply = await botService.handleMessage(from, body);
 
-    // Send it back via your WhatsApp API
-    await whatsappService.sendMessage(from, replyText);
+    // ✅ 1️⃣ Send to WhatsApp (ONLY in real webhook)
+    if (process.env.NODE_ENV !== 'test') {
+      await whatsappService.sendMessage(from, reply.text);
 
-    // Respond to webhook (Twilio expects 200 OK with no extra text)
-    res.status(200).send('OK');
+      if (reply.venuesToShow) {
+        for (const venue of reply.venuesToShow) {
+          if (venue.images?.length) {
+            for (const img of venue.images) {
+              await whatsappService.sendImage(from, img, venue.name);
+            }
+          }
+        }
+      }
+    }
+
+    // ✅ 2️⃣ For Postman: return the bot reply JSON
+    res.status(200).json({
+      success: true,
+      text: reply.text,
+      venues: reply.venuesToShow || []
+    });
+
   } catch (error) {
     console.error('❌ Error in receiveMessage:', error);
     res.status(500).send('Server Error');

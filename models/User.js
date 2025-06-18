@@ -6,22 +6,27 @@ const userSchema = new mongoose.Schema({
   profilePic: { type: String }, // optional, if you fetch via WhatsApp API
   currentState: {
     type: String,
-    enum: [
+      enum: [
       'new',
       'greeted',
       'awaiting_option',
-      'booking',
+      'choosing_venue_type',
+      'booking_venue',
+      'booking_venue_date',
+      'choosing_farm_type',
+      'booking_farm',
+      'booking_farm_date',
       'checking_availability',
       'cancelling',
       'done'
     ],
     default: 'new'
   },
-  metaData: {
-    // Extra data to carry temp info in a conversation, like selected venue ID before confirmation
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
-  },
+metaData: {
+  type: mongoose.Schema.Types.Mixed,
+  default: {},
+},
+
   lastInteraction: { type: Date, default: Date.now },
 }, { timestamps: true });
 
