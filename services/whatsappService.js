@@ -1,45 +1,44 @@
-const twilio = require('twilio');
-require("dotenv").config();
+const axios = require('axios');
 
-console.log("SID:", process.env.TWILIO_ACCOUNT_SID);
-console.log("TOKEN:", process.env.TWILIO_AUTH_TOKEN);
-console.log("FROM:", process.env.TWILIO_WHATSAPP_FROM);
-
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const from = process.env.TWILIO_WHATSAPP_FROM;
-
-const client = twilio(accountSid, authToken);
 
 const whatsappService = {};
 
-// ✅ Send plain text
-whatsappService.sendMessage = async (to, message) => {
-  console.log(`💬 Sending to ${to}: ${message}`);
-  const formattedTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+const META_URL = `https://graph.facebook.com/${process.env.META_WA_API_VERSION}/${process.env.META_WA_PHONE_NUMBER_ID}/messages`;
 
-  await client.messages.create({
-    body: message,
-    from,
-    to: formattedTo,
-  });
-
-  console.log(`✅ Text message sent via Twilio`);
+const headers = {
+  'Authorization': `Bearer ${process.env.META_WA_ACCESS_TOKEN}`,
+  'Content-Type': 'application/json'
 };
 
-// ✅ Send image
-whatsappService.sendImage = async (to, imageUrl, caption = '') => {
-  console.log(`🖼️ Sending image to ${to}: ${imageUrl} (caption: ${caption})`);
-  const formattedTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+whatsappService.sendMessage = async (to, message) => {
+  console.log(`💬 Sending to ${to}: ${message}`);
+  
+  const payload = {
+    messaging_product: "whatsapp",
+    to: to.replace("whatsapp:", ""), // Meta wants number only
+    type: "text",
+    text: { body: message }
+  };
 
-  await client.messages.create({
-    from,
-    to: formattedTo,
-    mediaUrl: [imageUrl],
-    body: caption || '', // Optional: Twilio supports image with text caption
-  });
+  const response = await axios.post(META_URL, payload, { headers });
+  console.log(`✅ Meta Text Sent:`, response.data);
+};
 
-  console.log(`✅ Image sent via Twilio`);
+whatsappService.sendImage = async (to, imageUrl, caption = "") => {
+  console.log(`🖼️ Sending image to ${to}: ${imageUrl}`);
+  
+  const payload = {
+    messaging_product: "whatsapp",
+    to: to.replace("whatsapp:", ""),
+    type: "image",
+    image: {
+      link: imageUrl,
+      caption: caption
+    }
+  };
+
+  const response = await axios.post(META_URL, payload, { headers });
+  console.log(`✅ Meta Image Sent:`, response.data);
 };
 
 module.exports = whatsappService;

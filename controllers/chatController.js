@@ -1,38 +1,61 @@
-const botService = require('../services/botServcice');
-const whatsappService = require('../services/whatsappService');
+const botService = require("../services/botServcice")
+const whatsappService = require("../services/whatsappService")
+// ✅ Meta webhook: handshake + receive messages
 exports.receiveMessage = async (req, res) => {
-  try {
-    const { From: from, Body: body } = req.body;
+  // ✅ 1) Verification handshake
+  if (req.method === 'GET') {
+    const VERIFY_TOKEN = process.env.META_WA_VERIFY_TOKEN;
 
-    console.log(`👉 Incoming from ${from}: ${body}`);
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
 
-    // Run bot logic
-    const reply = await botService.handleMessage(from, body);
+    if (mode && token) {
+      if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+        console.log('✅ WEBHOOK VERIFIED!');
+        return res.status(200).send(challenge);
+      } else {
+        return res.sendStatus(403);
+      }
+    }
+  }
 
-    // ✅ 1️⃣ Send to WhatsApp (ONLY in real webhook)
-    if (process.env.NODE_ENV !== 'test') {
-      await whatsappService.sendMessage(from, reply.text);
+  // ✅ 2) Handle incoming messages (POST)
+  if (req.method === 'POST') {
+    try {
+      console.log(JSON.stringify(req.body, null, 2));
+
+      const entry = req.body.entry?.[0];
+      const changes = entry?.changes?.[0];
+      const value = changes?.value;
+      const message = value?.messages?.[0];
+
+      if (!message) return res.sendStatus(200);
+
+      const from = message.from;
+      const body = message.text?.body || '';
+
+      console.log(`👉 Incoming from ${from}: ${body}`);
+
+      const reply = await botService.handleMessage(`whatsapp:${from}`, body);
+
+      await whatsappService.sendMessage(`whatsapp:${from}`, reply.text);
 
       if (reply.venuesToShow) {
         for (const venue of reply.venuesToShow) {
           if (venue.images?.length) {
             for (const img of venue.images) {
-              await whatsappService.sendImage(from, img, venue.name);
+              await whatsappService.sendImage(`whatsapp:${from}`, img, venue.name);
             }
           }
         }
       }
+
+      res.sendStatus(200);
+
+    } catch (err) {
+      console.error('❌ Error in receiveMessage:', err);
+      res.sendStatus(500);
     }
-
-    // ✅ 2️⃣ For Postman: return the bot reply JSON
-    res.status(200).json({
-      success: true,
-      text: reply.text,
-      venues: reply.venuesToShow || []
-    });
-
-  } catch (error) {
-    console.error('❌ Error in receiveMessage:', error);
-    res.status(500).send('Server Error');
   }
 };
