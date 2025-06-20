@@ -1,12 +1,14 @@
 const mongoose = require('mongoose');
 
-const userSchema = new mongoose.Schema({
-  phone: { type: String, required: true, unique: true },
-  name: { type: String },
-  profilePic: { type: String }, // optional, if you fetch via WhatsApp API
+const chatSessionSchema = new mongoose.Schema({
+  phone: {
+    type: String,
+    required: true,
+    unique: true
+  },
   currentState: {
     type: String,
-      enum: [
+    enum: [
       'new',
       'greeted',
       'awaiting_option',
@@ -22,12 +24,14 @@ const userSchema = new mongoose.Schema({
     ],
     default: 'new'
   },
-metaData: {
-  type: mongoose.Schema.Types.Mixed,
-  default: {},
-},
-
-  lastInteraction: { type: Date, default: Date.now },
+  metaData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  lastInteraction: {
+    type: Date,
+    default: Date.now
+  }
 }, { timestamps: true });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model('ChatSession', chatSessionSchema);

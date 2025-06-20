@@ -1,4 +1,4 @@
-const Venue = require('../models/Venue');
+const Venue = require('../models/VenueModel');
 
 // Only business logic
 exports.addVenue = async (req, res) => {

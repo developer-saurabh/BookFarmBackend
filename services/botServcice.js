@@ -1,195 +1,282 @@
-const User = require('../models/User');
-const Venue = require('../models/Venue');
-const Farm = require('../models/Farm');
-const Booking = require('../models/Booking');
+const ChatSession = require('./models/ChatSession');
+const Customer = require('./models/Customer');
+const Venue = require('./models/Venue');
+const Farm = require('./models/Farm');
+const VenueBooking = require('./models/VenueBooking');
+const FarmBooking = require('./models/FarmBooking');
+const Message = require('./models/Message');
+const T = require('./messageTemplate');
 
 const botService = {};
 
 botService.handleMessage = async (phone, message) => {
-  let user = await User.findOne({ phone });
-  if (!user) {
-    user = new User({ phone, currentState: 'new' });
-    await user.save();
+  // 1️⃣ Log incoming message
+  await Message.create({ phone, sender: 'customer', message });
+
+  // 2️⃣ Get or create session
+  let session = await ChatSession.findOne({ phone });
+  if (!session) {
+    session = await ChatSession.create({ phone });
   }
 
-  const ERRORS = {
-    INVALID_OPTION: "❗️ Invalid option. Please pick a valid number from the list.",
-    NO_RESULTS: (type) => `😔 Sorry, no ${type}s found right now. Please reply 0 to go back.`,
-  };
-
-  let response = '';
   const lowerMsg = message.trim().toLowerCase();
+  let responseText = '';
 
-  // 1️⃣ Greeting & main menu
-  if (lowerMsg === 'hi' || user.currentState === 'new') {
-    response = `👋 Hey there! Welcome to *Venue & Farm Booking Bot*.
-
-Reply with:
-1️⃣ Book a Venue
-2️⃣ Book a Farm
-3️⃣ Cancel a Booking
-4️⃣ Check Availability
-5️⃣ Help`;
-
-    user.currentState = 'awaiting_option';
-    user.metaData = {};
-    await user.save();
-    return { text: response };
+  // 3️⃣ Greeting
+  if (lowerMsg === 'hi' || session.currentState === 'new') {
+    session.currentState = 'awaiting_option';
+    session.metaData = {};
+    await session.save();
+    responseText = T.GREETING;
+    await Message.create({ phone, sender: 'bot', message: responseText });
+    return { text: responseText };
   }
 
-  // 2️⃣ Main options
-  if (user.currentState === 'awaiting_option') {
+  // 4️⃣ Main Menu
+  if (session.currentState === 'awaiting_option') {
     switch (lowerMsg) {
-      case '1':
-        user.currentState = 'choosing_venue_type';
-        user.metaData = {};
-        await user.save();
-        response = `🏛️ What type of venue would you like?
-1️⃣ Wedding Hall
-2️⃣ Banquet
-3️⃣ Party Lawn
-4️⃣ Conference Hall`;
+      case '1': {
+        // Book a Venue → get categories dynamically
+        const categories = await Venue.distinct('category');
+        if (!categories.length) {
+          responseText = `😔 No venue categories found right now.`;
+        } else {
+          let msg = `🏛️ What type of venue would you like?\n`;
+          categories.forEach((c, i) => msg += `${i + 1}) ${c}\n`);
+          msg += `\nReply with the number to choose.`;
+          responseText = msg;
+          session.currentState = 'choosing_venue_type';
+          session.metaData = { categoryList: categories };
+          await session.save();
+        }
         break;
-      case '2':
-        user.currentState = 'choosing_farm_type';
-        user.metaData = {};
-        await user.save();
-        response = `🌿 What type of farm would you like?
-1️⃣ Mango Farm
-2️⃣ Organic Farm
-3️⃣ Event Farm`;
+      }
+      case '2': {
+        // Book a Farm → get types dynamically
+        const types = await Farm.distinct('type');
+        if (!types.length) {
+          responseText = `😔 No farm types found right now.`;
+        } else {
+          let msg = `🌿 What type of farm would you like?\n`;
+          types.forEach((t, i) => msg += `${i + 1}) ${t}\n`);
+          msg += `\nReply with the number to choose.`;
+          responseText = msg;
+          session.currentState = 'choosing_farm_type';
+          session.metaData = { farmTypeList: types };
+          await session.save();
+        }
         break;
+      }
       case '3':
-        user.currentState = 'cancelling';
-        await user.save();
-        response = `❌ Please provide your booking ID to cancel:`;
+        session.currentState = 'cancelling';
+        await session.save();
+        responseText = `❌ Please provide your booking ID to cancel:`;
         break;
       case '4':
-        user.currentState = 'checking_availability';
-        await user.save();
-        response = `🔍 Do you want to check *venue* or *farm* availability?`;
+        session.currentState = 'checking_availability';
+        await session.save();
+        responseText = `🔍 Do you want to check *venue* or *farm* availability?`;
         break;
       case '5':
-        response = `🤝 I can help you:
-- Book a venue/farm
-- Cancel bookings
-- Check availability
-
-Type "hi" anytime to restart.`;
+        responseText = T.HELP;
         break;
       default:
-        response = ERRORS.INVALID_OPTION;
+        responseText = T.INVALID_OPTION;
     }
-    return { text: response };
+    await Message.create({ phone, sender: 'bot', message: responseText });
+    return { text: responseText };
   }
 
-  // 3️⃣ Venue type selector
-  if (user.currentState === 'choosing_venue_type') {
-    const typeMap = {
-      '1': 'Wedding Hall',
-      '2': 'Banquet',
-      '3': 'Party Lawn',
-      '4': 'Conference Hall',
-      '0': 'back'
-    };
-
-    const type = typeMap[lowerMsg];
-    if (!type) return { text: ERRORS.INVALID_OPTION };
-
-    if (type === 'back') {
-      user.currentState = 'awaiting_option';
-      user.metaData = {};
-      await user.save();
-      return { text: `🔙 Back to main menu. Type "hi" to see options again.` };
-    }
-
-    const venues = await Venue.find({ type: type }).limit(5);
-
-    if (!venues.length) {
-      return { text: ERRORS.NO_RESULTS(type) };
-    }
-
-    let responseText = `🎉 Here are some ${type}s:\n`;
-    venues.forEach((v, i) => {
-      responseText += `${i + 1}) ${v.name}\n`;
-    });
-    responseText += `\nReply with the number to choose one, or 0 to go back.`;
-
-    user.metaData = {
-      venueType: type,
-      venueList: venues.map(v => v._id)
-    };
-    user.currentState = 'booking_venue';
-    await user.save();
-
-    return { text: responseText, venuesToShow: venues };
-  }
-
-  // 4️⃣ Venue selector
-  if (user.currentState === 'booking_venue') {
-    if (lowerMsg === '0') {
-      user.currentState = 'choosing_venue_type';
-      await user.save();
-      return { text: `🔙 Back to venue types. Please pick again.` };
-    }
-
+  // 5️⃣ Choosing Venue Type (dynamic)
+  if (session.currentState === 'choosing_venue_type') {
+    const categories = session.metaData.categoryList || [];
     const idx = parseInt(lowerMsg) - 1;
-    const venueIds = user.metaData?.venueList || [];
-
-    if (isNaN(idx) || idx < 0 || idx >= venueIds.length) {
-      return { text: ERRORS.INVALID_OPTION };
+    if (isNaN(idx) || idx < 0 || idx >= categories.length) {
+      return { text: T.INVALID_OPTION };
     }
+    const chosenCategory = categories[idx];
 
-    const chosenVenueId = venueIds[idx];
-    user.metaData.chosenVenueId = chosenVenueId;
-    user.currentState = 'booking_venue_date';
-    await user.save();
+    const venues = await Venue.find({ category: chosenCategory }).limit(5);
+    if (!venues.length) {
+      responseText = T.NO_RESULTS(chosenCategory);
+    } else {
+      let msg = `🎉 Here are some ${chosenCategory}s:\n`;
+      venues.forEach((v, i) => msg += `${i + 1}) ${v.name}\n`);
+      msg += `\nReply with the number to choose one, or 0 to go back.`;
+      responseText = msg;
 
-    return { text: `📅 Great! Please enter your booking date (YYYY-MM-DD):` };
+      session.currentState = 'booking_venue';
+      session.metaData = {
+        venueType: chosenCategory,
+        venueList: venues.map(v => v._id)
+      };
+      await session.save();
+    }
+    await Message.create({ phone, sender: 'bot', message: responseText });
+    return { text: responseText };
   }
 
-  // 5️⃣ Date entry for venue
-  if (user.currentState === 'booking_venue_date') {
-    const chosenVenueId = user.metaData?.chosenVenueId;
-    console.log("chosenVenueId",chosenVeneuId)
-
-    if (!chosenVenueId) {
-      user.currentState = 'awaiting_option';
-      user.metaData = {};
-      await user.save();
-      return { text: `❗️ Something went wrong. Please type "hi" to start again.` };
+  // 6️⃣ Picking a Venue
+  if (session.currentState === 'booking_venue') {
+    if (lowerMsg === '0') {
+      session.currentState = 'awaiting_option';
+      session.metaData = {};
+      await session.save();
+      responseText = `🔙 Back to main menu. Type "hi" to start over.`;
+      await Message.create({ phone, sender: 'bot', message: responseText });
+      return { text: responseText };
     }
+    const idx = parseInt(lowerMsg) - 1;
+    const venueIds = session.metaData.venueList || [];
+    if (isNaN(idx) || idx < 0 || idx >= venueIds.length) {
+      return { text: T.INVALID_OPTION };
+    }
+    session.metaData.chosenVenueId = venueIds[idx];
+    session.currentState = 'booking_venue_date';
+    await session.save();
 
-    // ✅ Validate date
+    responseText = T.DATE_PROMPT;
+    await Message.create({ phone, sender: 'bot', message: responseText });
+    return { text: responseText };
+  }
+
+  // 7️⃣ Venue Date & Save Booking
+  if (session.currentState === 'booking_venue_date') {
+    const chosenVenueId = session.metaData.chosenVenueId;
+    const venue = await Venue.findById(chosenVenueId);
+    if (!venue) {
+      session.currentState = 'awaiting_option';
+      session.metaData = {};
+      await session.save();
+      responseText = `❗️ Something went wrong. Type "hi" to start again.`;
+      await Message.create({ phone, sender: 'bot', message: responseText });
+      return { text: responseText };
+    }
     const inputDate = new Date(lowerMsg);
-    if (isNaN(inputDate.getTime())) {
-      return { text: `❗️ Invalid date format. Please enter date as YYYY-MM-DD.` };
-    }
+    if (isNaN(inputDate.getTime())) return { text: T.INVALID_DATE };
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (inputDate < today) return { text: T.PAST_DATE };
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (inputDate < today) {
-      return { text: `❗️ Date cannot be in the past. Please pick a valid future date (YYYY-MM-DD).` };
-    }
+    let customer = await Customer.findOne({ phone });
+    if (!customer) customer = await Customer.create({ phone });
 
-    const booking = new Booking({
-      user: user._id,
-      type: 'Venue',
-      item: chosenVenueId,
-      date: inputDate,
-      status: 'Pending'
+    const booking = new VenueBooking({
+      customer: customer._id,
+      customerName: customer.name || '',
+      customerPhone: phone,
+      customerEmail: customer.email || '',
+      venue: venue._id,
+      category: venue.category,
+      date: inputDate
     });
     await booking.save();
 
-    user.currentState = 'done';
-    user.metaData = {};
-    await user.save();
+    session.currentState = 'done';
+    session.metaData = {};
+    await session.save();
 
-    return { text: `✅ Booking received for ${lowerMsg}! We’ll confirm soon. Type "hi" for more.` };
+    responseText = `✅ Booking received for ${venue.name} on ${lowerMsg}!`;
+    await Message.create({ phone, sender: 'bot', message: responseText });
+    return { text: responseText };
   }
 
-  // 6️⃣ Fallback
-  return { text: `🤖 Sorry, I didn't get that. Type "hi" to start over.` };
+  // 8️⃣ Choosing Farm Type (dynamic)
+  if (session.currentState === 'choosing_farm_type') {
+    const types = session.metaData.farmTypeList || [];
+    const idx = parseInt(lowerMsg) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= types.length) {
+      return { text: T.INVALID_OPTION };
+    }
+    const chosenType = types[idx];
+
+    const farms = await Farm.find({ type: chosenType }).limit(5);
+    if (!farms.length) {
+      responseText = T.NO_RESULTS(chosenType);
+    } else {
+      let msg = `🌾 Here are some ${chosenType}s:\n`;
+      farms.forEach((f, i) => msg += `${i + 1}) ${f.name}\n`);
+      msg += `\nReply with the number to choose one, or 0 to go back.`;
+      responseText = msg;
+
+      session.currentState = 'booking_farm';
+      session.metaData = {
+        farmType: chosenType,
+        farmList: farms.map(f => f._id)
+      };
+      await session.save();
+    }
+    await Message.create({ phone, sender: 'bot', message: responseText });
+    return { text: responseText };
+  }
+
+  // 9️⃣ Picking a Farm
+  if (session.currentState === 'booking_farm') {
+    if (lowerMsg === '0') {
+      session.currentState = 'awaiting_option';
+      session.metaData = {};
+      await session.save();
+      responseText = `🔙 Back to main menu. Type "hi" to start over.`;
+      await Message.create({ phone, sender: 'bot', message: responseText });
+      return { text: responseText };
+    }
+    const idx = parseInt(lowerMsg) - 1;
+    const farmIds = session.metaData.farmList || [];
+    if (isNaN(idx) || idx < 0 || idx >= farmIds.length) {
+      return { text: T.INVALID_OPTION };
+    }
+    session.metaData.chosenFarmId = farmIds[idx];
+    session.currentState = 'booking_farm_date';
+    await session.save();
+
+    responseText = T.DATE_PROMPT;
+    await Message.create({ phone, sender: 'bot', message: responseText });
+    return { text: responseText };
+  }
+
+  // 🔟 Farm Date & Save Booking
+  if (session.currentState === 'booking_farm_date') {
+    const chosenFarmId = session.metaData.chosenFarmId;
+    const farm = await Farm.findById(chosenFarmId);
+    if (!farm) {
+      session.currentState = 'awaiting_option';
+      session.metaData = {};
+      await session.save();
+      responseText = `❗️ Something went wrong. Type "hi" to start again.`;
+      await Message.create({ phone, sender: 'bot', message: responseText });
+      return { text: responseText };
+    }
+    const inputDate = new Date(lowerMsg);
+    if (isNaN(inputDate.getTime())) return { text: T.INVALID_DATE };
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (inputDate < today) return { text: T.PAST_DATE };
+
+    let customer = await Customer.findOne({ phone });
+    if (!customer) customer = await Customer.create({ phone });
+
+    const booking = new FarmBooking({
+      customer: customer._id,
+      customerName: customer.name || '',
+      customerPhone: phone,
+      customerEmail: customer.email || '',
+      farm: farm._id,
+      type: farm.type,
+      date: inputDate
+    });
+    await booking.save();
+
+    session.currentState = 'done';
+    session.metaData = {};
+    await session.save();
+
+    responseText = `✅ Booking received for ${farm.name} on ${lowerMsg}!`;
+    await Message.create({ phone, sender: 'bot', message: responseText });
+    return { text: responseText };
+  }
+
+  // Fallback
+  responseText = `🤖 Sorry, I didn't get that. Type "hi" to start over.`;
+  await Message.create({ phone, sender: 'bot', message: responseText });
+  return { text: responseText };
 };
 
 module.exports = botService;
