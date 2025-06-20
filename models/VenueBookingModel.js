@@ -31,7 +31,8 @@ const venueBookingSchema = new mongoose.Schema({
     required: true
   },
 
-
+  mode: { type: String, enum: ['full_day', 'day_slot', 'night_slot'], required: true },
+  price: { type: Number, required: true },
   date: {
     type: Date,
     required: true

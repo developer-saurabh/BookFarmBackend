@@ -1,19 +1,22 @@
-const ChatSession = require('./models/ChatSession');
-const Customer = require('./models/Customer');
-const Venue = require('./models/Venue');
-const Farm = require('./models/Farm');
-const VenueBooking = require('./models/VenueBooking');
-const FarmBooking = require('./models/FarmBooking');
-const Message = require('./models/Message');
-const T = require('./messageTemplate');
-
+const ChatSession = require('../models/ChatSessionModel');
+const Customer = require('../models/CustomerModel');
+const Venue = require('../models/VenueModel');
+const Farm = require('../models/FarmModel');
+const VenueBooking = require('../models/VenueBookingModel');
+const FarmBooking = require('../models/FarmBookingModel');
+const Ticket = require('../models/TicketBookingModel');
+const Message = require('../models/MessageModel');
+const T = require('../messaageTemplates/MessageTemplate');
+const createTicket = require('../utils/createTicket');
 const botService = {};
 
+
+
 botService.handleMessage = async (phone, message) => {
-  // 1️⃣ Log incoming message
+  // 1️⃣ Log incoming
   await Message.create({ phone, sender: 'customer', message });
 
-  // 2️⃣ Get or create session
+  // 2️⃣ Session
   let session = await ChatSession.findOne({ phone });
   if (!session) {
     session = await ChatSession.create({ phone });
@@ -36,12 +39,11 @@ botService.handleMessage = async (phone, message) => {
   if (session.currentState === 'awaiting_option') {
     switch (lowerMsg) {
       case '1': {
-        // Book a Venue → get categories dynamically
         const categories = await Venue.distinct('category');
         if (!categories.length) {
-          responseText = `😔 No venue categories found right now.`;
+          responseText = `😔 No venue categories found.`;
         } else {
-          let msg = `🏛️ What type of venue would you like?\n`;
+          let msg = `🏛️ Venue types:\n`;
           categories.forEach((c, i) => msg += `${i + 1}) ${c}\n`);
           msg += `\nReply with the number to choose.`;
           responseText = msg;
@@ -52,12 +54,11 @@ botService.handleMessage = async (phone, message) => {
         break;
       }
       case '2': {
-        // Book a Farm → get types dynamically
         const types = await Farm.distinct('type');
         if (!types.length) {
-          responseText = `😔 No farm types found right now.`;
+          responseText = `😔 No farm types found.`;
         } else {
-          let msg = `🌿 What type of farm would you like?\n`;
+          let msg = `🌿 Farm types:\n`;
           types.forEach((t, i) => msg += `${i + 1}) ${t}\n`);
           msg += `\nReply with the number to choose.`;
           responseText = msg;
@@ -70,12 +71,12 @@ botService.handleMessage = async (phone, message) => {
       case '3':
         session.currentState = 'cancelling';
         await session.save();
-        responseText = `❌ Please provide your booking ID to cancel:`;
+        responseText = `❌ Provide booking ID to cancel:`;
         break;
       case '4':
         session.currentState = 'checking_availability';
         await session.save();
-        responseText = `🔍 Do you want to check *venue* or *farm* availability?`;
+        responseText = `🔍 Check *venue* or *farm* availability?`;
         break;
       case '5':
         responseText = T.HELP;
@@ -87,7 +88,7 @@ botService.handleMessage = async (phone, message) => {
     return { text: responseText };
   }
 
-  // 5️⃣ Choosing Venue Type (dynamic)
+  // 5️⃣ Venue Type
   if (session.currentState === 'choosing_venue_type') {
     const categories = session.metaData.categoryList || [];
     const idx = parseInt(lowerMsg) - 1;
@@ -100,9 +101,9 @@ botService.handleMessage = async (phone, message) => {
     if (!venues.length) {
       responseText = T.NO_RESULTS(chosenCategory);
     } else {
-      let msg = `🎉 Here are some ${chosenCategory}s:\n`;
+      let msg = `🎉 ${chosenCategory}s:\n`;
       venues.forEach((v, i) => msg += `${i + 1}) ${v.name}\n`);
-      msg += `\nReply with the number to choose one, or 0 to go back.`;
+      msg += `\nReply with number to choose, or 0 to go back.`;
       responseText = msg;
 
       session.currentState = 'booking_venue';
@@ -116,13 +117,13 @@ botService.handleMessage = async (phone, message) => {
     return { text: responseText };
   }
 
-  // 6️⃣ Picking a Venue
+  // 6️⃣ Venue pick
   if (session.currentState === 'booking_venue') {
     if (lowerMsg === '0') {
       session.currentState = 'awaiting_option';
       session.metaData = {};
       await session.save();
-      responseText = `🔙 Back to main menu. Type "hi" to start over.`;
+      responseText = T.BACK_TO_MENU;
       await Message.create({ phone, sender: 'bot', message: responseText });
       return { text: responseText };
     }
@@ -140,7 +141,7 @@ botService.handleMessage = async (phone, message) => {
     return { text: responseText };
   }
 
-  // 7️⃣ Venue Date & Save Booking
+  // 7️⃣ Venue Date → Save → Create Ticket
   if (session.currentState === 'booking_venue_date') {
     const chosenVenueId = session.metaData.chosenVenueId;
     const venue = await Venue.findById(chosenVenueId);
@@ -148,7 +149,7 @@ botService.handleMessage = async (phone, message) => {
       session.currentState = 'awaiting_option';
       session.metaData = {};
       await session.save();
-      responseText = `❗️ Something went wrong. Type "hi" to start again.`;
+      responseText = `❗️ Error. Type "hi" to start again.`;
       await Message.create({ phone, sender: 'bot', message: responseText });
       return { text: responseText };
     }
@@ -160,27 +161,29 @@ botService.handleMessage = async (phone, message) => {
     let customer = await Customer.findOne({ phone });
     if (!customer) customer = await Customer.create({ phone });
 
-    const booking = new VenueBooking({
+    const booking = await VenueBooking.create({
       customer: customer._id,
       customerName: customer.name || '',
       customerPhone: phone,
       customerEmail: customer.email || '',
       venue: venue._id,
       category: venue.category,
-      date: inputDate
+      date: inputDate,
+      status: 'pending'
     });
-    await booking.save();
+
+    await (booking, venue.owner, 'venue');
 
     session.currentState = 'done';
     session.metaData = {};
     await session.save();
 
-    responseText = `✅ Booking received for ${venue.name} on ${lowerMsg}!`;
+    responseText = `✅ Request received for ${venue.name} on ${lowerMsg}! Awaiting vendor approval.`;
     await Message.create({ phone, sender: 'bot', message: responseText });
     return { text: responseText };
   }
 
-  // 8️⃣ Choosing Farm Type (dynamic)
+  // 8️⃣ Farm Type
   if (session.currentState === 'choosing_farm_type') {
     const types = session.metaData.farmTypeList || [];
     const idx = parseInt(lowerMsg) - 1;
@@ -193,9 +196,9 @@ botService.handleMessage = async (phone, message) => {
     if (!farms.length) {
       responseText = T.NO_RESULTS(chosenType);
     } else {
-      let msg = `🌾 Here are some ${chosenType}s:\n`;
+      let msg = `🌾 ${chosenType}s:\n`;
       farms.forEach((f, i) => msg += `${i + 1}) ${f.name}\n`);
-      msg += `\nReply with the number to choose one, or 0 to go back.`;
+      msg += `\nReply with number to choose, or 0 to go back.`;
       responseText = msg;
 
       session.currentState = 'booking_farm';
@@ -209,13 +212,13 @@ botService.handleMessage = async (phone, message) => {
     return { text: responseText };
   }
 
-  // 9️⃣ Picking a Farm
+  // 9️⃣ Farm pick
   if (session.currentState === 'booking_farm') {
     if (lowerMsg === '0') {
       session.currentState = 'awaiting_option';
       session.metaData = {};
       await session.save();
-      responseText = `🔙 Back to main menu. Type "hi" to start over.`;
+      responseText = T.BACK_TO_MENU;
       await Message.create({ phone, sender: 'bot', message: responseText });
       return { text: responseText };
     }
@@ -233,7 +236,7 @@ botService.handleMessage = async (phone, message) => {
     return { text: responseText };
   }
 
-  // 🔟 Farm Date & Save Booking
+  // 🔟 Farm Date → Save → Create Ticket
   if (session.currentState === 'booking_farm_date') {
     const chosenFarmId = session.metaData.chosenFarmId;
     const farm = await Farm.findById(chosenFarmId);
@@ -241,7 +244,7 @@ botService.handleMessage = async (phone, message) => {
       session.currentState = 'awaiting_option';
       session.metaData = {};
       await session.save();
-      responseText = `❗️ Something went wrong. Type "hi" to start again.`;
+      responseText = `❗️ Error. Type "hi" to start again.`;
       await Message.create({ phone, sender: 'bot', message: responseText });
       return { text: responseText };
     }
@@ -253,22 +256,24 @@ botService.handleMessage = async (phone, message) => {
     let customer = await Customer.findOne({ phone });
     if (!customer) customer = await Customer.create({ phone });
 
-    const booking = new FarmBooking({
+    const booking = await FarmBooking.create({
       customer: customer._id,
       customerName: customer.name || '',
       customerPhone: phone,
       customerEmail: customer.email || '',
       farm: farm._id,
       type: farm.type,
-      date: inputDate
+      date: inputDate,
+      status: 'pending'
     });
-    await booking.save();
+
+    await createTicket(booking, farm.owner, 'farm');
 
     session.currentState = 'done';
     session.metaData = {};
     await session.save();
 
-    responseText = `✅ Booking received for ${farm.name} on ${lowerMsg}!`;
+    responseText = `✅ Request received for ${farm.name} on ${lowerMsg}! Awaiting vendor approval.`;
     await Message.create({ phone, sender: 'bot', message: responseText });
     return { text: responseText };
   }

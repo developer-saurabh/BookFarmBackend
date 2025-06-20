@@ -55,20 +55,18 @@ capacity: {
       type: String
     }
   },
-
+  bookingModes: {
+    type: [String],
+    enum: ['full_day', 'day_slot', 'night_slot'],
+    default: ['full_day']
+  },
   // 💰 Pricing
-  pricePerHour: {
-    type: Number,
-    required: true
+  pricing: {
+    fullDay: { type: Number },
+    daySlot: { type: Number },
+    nightSlot: { type: Number }
   },
-  pricePerDay: {
-    type: Number
-  },
-  currency: {
-    type: String,
-    default: 'INR'
-  },
-
+currency: { type: String, default: 'INR' },
   // 📸 Media
   images: [{
     type: String

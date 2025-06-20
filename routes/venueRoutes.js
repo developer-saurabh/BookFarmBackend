@@ -1,14 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const venueController = require('../controllers/venueController');
-const upload = require('../utils/upload'); // ✅ clean import
+const getUpload = require('../utils/multer');
 
-// POST /api/venues
-router.post(
-  '/add_venue',
-  upload.array('images', 5), // max 5 images
-  venueController.addVenue
-);
+// Create dynamic upload instance for venues:
+const uploadVenue = getUpload('venues');
+
+router.post('/', uploadVenue.array('images', 10), venueController.addVenue);
 
 module.exports = router;
-    
