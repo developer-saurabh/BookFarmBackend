@@ -2,6 +2,8 @@ const Joi = require('joi');
 
 // Password: min 8 chars, at least 1 letter, 1 number, 1 special char
 const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+const phoneRegex = /^[0-9]{10}$/;
+
 
 const adminRegisterSchema = Joi.object({
   name: Joi.string()

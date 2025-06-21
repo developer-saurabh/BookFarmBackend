@@ -69,7 +69,8 @@ capacity: {
 currency: { type: String, default: 'INR' },
   // 📸 Media
   images: [{
-    type: String
+    type: String,
+    default:null
   }],
 
   // 📅 Availability

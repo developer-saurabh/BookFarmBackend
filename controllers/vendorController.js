@@ -1,8 +1,8 @@
-const Vendor = require('../models/Vendor');
+const Vendor = require('../models/VendorModel');
 const Joi = require('joi');
 const bcrypt = require('bcryptjs');
-const sendAdminEmail = require('../utils/sendAdminEmail');
-const vendorRegistrationSchema = require('../validations/vendorRegistrationSchema');
+// const sendAdminEmail = require('../utils/sendAdminEmail');
+const {vendorRegistrationSchema} = require('../validationjoi/VendorValidation');
 
 exports.registerVendor = async (req, res) => {
   try {
@@ -40,10 +40,10 @@ exports.registerVendor = async (req, res) => {
     await vendor.save();
 
     // ✅ 6) Notify admin
-    await sendAdminEmail({
-      subject: '🆕 New Vendor Registration',
-      text: `A new vendor has registered: ${vendor.name} (${vendor.email}). Please review and verify.`
-    });
+    // await sendAdminEmail({
+    //   subject: '🆕 New Vendor Registration',
+    //   text: `A new vendor has registered: ${vendor.name} (${vendor.email}). Please review and verify.`
+    // });
 
     return res.status(201).json({
       message: '✅ Vendor registered successfully. Awaiting admin approval.'
@@ -54,3 +54,6 @@ exports.registerVendor = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+
+

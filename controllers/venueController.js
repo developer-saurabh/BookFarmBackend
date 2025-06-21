@@ -1,53 +1,72 @@
-const Vendor = require('../models/Vendor');
+const Vendor = require('../models/VendorModel');
+const Venue = require('../models/VenueModel');
+const { uploadFiles } = require('../utils/UploadFile');
+const { addVenueSchema } = require('../validationjoi/VendorValidation');
+
 
 exports.addVenue = async (req, res) => {
   try {
     // ✅ 1) Joi validation
     const { error, value } = addVenueSchema.validate(req.body, { abortEarly: false });
+    console.log("req.body",req.body)
+    console.log("req.files printing",req.files)
     if (error) {
       return res.status(400).json({ error: error.details.map(e => e.message).join(', ') });
     }
 
-    // ✅ 2) Pricing must have at least one non-null value
-    const { fullDay, daySlot, nightSlot } = value.pricing;
-    if ((fullDay == null || fullDay === 0) &&
-        (daySlot == null || daySlot === 0) &&
-        (nightSlot == null || nightSlot === 0)) {
-      return res.status(400).json({ error: 'At least one pricing option must be provided.' });
+    // ✅ 2) Use vendor ID from JWT/session instead of trusting body
+    const vendorId = req.user.id; // ✅ comes from your auth middleware
+
+    // ✅ 3) Verify vendor exists
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ error: 'Vendor not found.' });
     }
 
-    // ✅ 3) Owner must exist
-const owner = await Vendor.findById(value.owner);
-    if (!owner) {
-      return res.status(404).json({ error: 'Owner (vendor) not found.' });
+    // ✅ 4) Vendor must be verified, active, not blocked
+    if (!vendor.isVerified) {
+      return res.status(403).json({ error: 'Vendor is not verified to add venues.' });
     }
-if (!owner.isVerified) {
-  return res.status(403).json({ error: 'Vendor is not Verified to add venues.' });
-}
-    // ✅ 4) Duplicate name check
+    if (!vendor.isActive) {
+      return res.status(403).json({ error: 'Vendor is not active to add venues.' });
+    }
+    if (vendor.isBlocked) {
+      return res.status(403).json({ error: 'Vendor is blocked and cannot add venues.' });
+    }
+
+    // ✅ 5) Check duplicate venue name for same vendor
     const existing = await Venue.findOne({ name: value.name, owner: value.owner });
     if (existing) {
-      return res.status(409).json({ error: 'A venue with this name already exists for this owner.' });
-    }
+      return res.status(409).json({ error: 'A venue with this name already exists for this vendor.' });
+    
+    }   
+   
+    console.log("req.files printing:", req.files);
 
-    // ✅ 5) Check images exist
-    if (!req.files || req.files.length === 0) {
+    // ✅ 6) SAFELY check for image or images key
+    const uploaded = req.files?.images || req.files?.image;
+    if (!uploaded) {
       return res.status(400).json({ error: 'At least one image must be uploaded.' });
     }
 
-    // ✅ 6) Prepare image URLs
-    const images = req.files.map(file => file.path);
+    // ✅ 7) Normalize to array
+    const images = Array.isArray(uploaded) ? uploaded : [uploaded];
+    console.log("Normalized files:", images.map(f => f.name));
 
-    // ✅ 7) Create Venue
+    // ✅ 8) Use util to store in ./Media/venues
+    const uploadedPaths = await uploadFiles(images, 'venues');
+    // ✅ 8) Create Venue — link to Vendor properly
     const venue = new Venue({
       ...value,
       type: 'venue',
-      images,
+      images:uploadedPaths,
+      owner: vendor._id,
       isActive: true,
       isApproved: false
     });
 
     await venue.save();
+
     return res.status(201).json({
       message: '✅ Venue created successfully!',
       venue
@@ -58,3 +77,4 @@ if (!owner.isVerified) {
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
+

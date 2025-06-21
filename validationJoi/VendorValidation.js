@@ -4,7 +4,7 @@ const nameRegex = /^[A-Za-z]+(\s[A-Za-z]+)*$/;
 const phoneRegex = /^[0-9]{10}$/;
 const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
 const onlyLetters = /^[A-Za-z\s]+$/;
-const alphaNumericSpace = /^[A-Za-z0-9\s]+$/;
+const alphaNumericSpacePunctuation = /^[a-zA-Z0-9 .,'"()-]*$/;
 const alphaSpace = /^[A-Za-z\s]+$/;
 const numericOnly = /^[0-9]+$/;
 
@@ -53,13 +53,12 @@ const addVenueSchema = Joi.object({
       'string.empty': 'Name is required.',
       'string.pattern.base': 'Name should contain letters and spaces only. No numbers or symbols allowed.'
     }),
-
-  description: Joi.string()
-    .pattern(alphaNumericSpace)
-    .allow('')
-    .messages({
-      'string.pattern.base': 'Description should not contain special characters except letters, numbers and spaces.'
-    }),
+description: Joi.string()
+  .pattern(alphaNumericSpacePunctuation)
+  .allow('', '.')
+  .messages({
+    'string.pattern.base': 'Description may contain letters, numbers, spaces, and basic punctuation (. , \' ").'
+  }),
 
   category: Joi.string()
     .valid(
@@ -148,10 +147,6 @@ const addVenueSchema = Joi.object({
       'array.base': 'Amenities must be an array of strings.'
     }),
 
-  owner: Joi.string()
-    .required()
-    .messages({
-      'string.empty': 'Owner ID is required.'
-    })
+  
 });
 module.exports = {vendorRegistrationSchema,addVenueSchema};

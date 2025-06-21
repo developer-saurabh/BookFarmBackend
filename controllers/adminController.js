@@ -1,10 +1,9 @@
-const Admin = require('../models/Admin');
+const Admin = require('../models/AdminModel');
 const bcrypt = require('bcryptjs');
-const adminRegisterSchema = require('../validations/adminRegisterSchema');
-const Vendor = require('../models/Vendor');
-const updateVendorStatusSchema = require('../validations/updateVendorStatusSchema');
-const Vendor = require('../models/Vendor');
-const updateVendorStatusSchema = require('../validations/updateVendorStatusSchema');
+const {adminRegisterSchema} = require('../validationJoi/AdminValidation');
+const Vendor = require('../models/VendorModel');
+const {updateVendorStatusSchema} = require('../validationJoi/AdminValidation');
+
 
 exports.registerAdmin = async (req, res) => {
   try {
@@ -60,13 +59,11 @@ exports.registerAdmin = async (req, res) => {
     console.error('🚨 Error registering admin:', err);
     return res.status(500).json({ error: 'Internal server error.' });
   }
-};
-
-
+};  
 
 exports.updateVendorStatus = async (req, res) => {
   try {
-    const { vendorId } = req.params;
+    const  vendorId  = req.params.id;
 
     // ✅ 1) Validate request body
     const { error, value } = updateVendorStatusSchema.validate(req.body);
