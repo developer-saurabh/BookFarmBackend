@@ -85,7 +85,7 @@ currency: { type: String, default: 'INR' },
   // 📌 Vendor owner
   owner: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Vendor',
     required: true
   },
 

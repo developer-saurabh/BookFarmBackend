@@ -7,12 +7,14 @@ const customerSchema = new mongoose.Schema({
     unique: true
   },
   name: String,
-  email: String,
+  email: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  isBlacklisted: { type: Boolean, default: false },
 
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('Customer', customerSchema);

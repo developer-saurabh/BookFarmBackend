@@ -17,7 +17,10 @@ const adminSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-
+phone: {
+    type: String,
+    required: true
+  },
   // ✅ Permissions — for role-based access control (RBAC)
   permissions: [{
     type: String
@@ -27,16 +30,16 @@ const adminSchema = new mongoose.Schema({
   // ✅ Admin status
   isSuperAdmin: {
     type: Boolean,
-    default: false
+    default: true
   },
   isActive: {
     type: Boolean,
     default: true
   },
-
-  createdAt: {
-    type: Date,
-    default: Date.now
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    default: null
   }
 }, { timestamps: true });
 
