@@ -11,7 +11,7 @@ const uploadFilesToCloudinary = async (files, subfolder) => {
 
   for (const file of files) {
     if (!allowedTypes.includes(file.mimetype)) {
-      throw new Error(`Invalid file type: ${file.name}. Only jpg, jpeg, png allowed.`);
+      throw new Error(`Invalidd file type: ${file.name}. Only jpg, jpeg, png allowed.`);
     }
 
     if (file.size > maxSizeBytes) {
