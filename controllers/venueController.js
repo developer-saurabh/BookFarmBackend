@@ -1,7 +1,7 @@
 const Vendor = require('../models/VendorModel');
 const Venue = require('../models/VenueModel');
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
-const { addVenueSchema } = require('../validationjoi/VendorValidation');
+const { addVenueSchema } = require('../validationJoi/VendorValidation');
 
 
 exports.addVenue = async (req, res) => {
