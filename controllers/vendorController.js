@@ -3,7 +3,7 @@ const Joi = require('joi');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 // const sendAdminEmail = require('../utils/sendAdminEmail');
-const {vendorRegistrationSchema,vendorLoginSchema} = require('../validationjoi/VendorValidation');
+const {vendorRegistrationSchema,vendorLoginSchema} = require('../validationJoi/VendorValidation');
 
 
 exports.registerVendor = async (req, res) => {
