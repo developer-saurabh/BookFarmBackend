@@ -8,8 +8,8 @@ exports.addVenue = async (req, res) => {
   try {
     // ✅ 1) Joi validation
     const { error, value } = addVenueSchema.validate(req.body, { abortEarly: false });
-    console.log("req.body",req.body)
-    console.log("req.files printing",req.files)
+    // console.log("req.body",req.body)
+    // console.log("req.files printing",req.files)
     if (error) {
       return res.status(400).json({ error: error.details.map(e => e.message).join(', ') });
     }
@@ -41,7 +41,7 @@ exports.addVenue = async (req, res) => {
     
     }   
    
-    console.log("req.files printing:", req.files);
+    // console.log("req.files printing:", req.files);
 
     // ✅ 6) SAFELY check for image or images key
     const uploaded = req.files?.images || req.files?.image;
