@@ -111,7 +111,7 @@ currency: { type: String, default: 'INR' },
   },
   isApproved: {
     type: Boolean,
-    default: false  
+    default: true  
   }
 
 }, { timestamps: true });
