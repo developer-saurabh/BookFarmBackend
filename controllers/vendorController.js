@@ -2,7 +2,7 @@ const Vendor = require('../models/VendorModel');
 const Joi = require('joi');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { vendorLoginSchema } = require('../validationJoi/VendorValidation');
+const { vendorLoginSchema ,vendorRegistrationSchema} = require('../validationJoi/VendorValidation');
 // const sendAdminEmail = require('../utils/sendAdminEmail');
 
 
