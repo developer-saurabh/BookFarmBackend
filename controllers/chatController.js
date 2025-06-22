@@ -36,7 +36,7 @@ exports.receiveMessage = async (req, res) => {
 
       // ✅ Get reply from botService
       const reply = await botService.handleMessage(`whatsapp:${from}`, body);
-      console.log("reply printing", reply);
+      // console.log("reply printing", reply);
 
       // ✅ If venues to show -> follow sequential format
       if (reply.venuesToShow?.length) {
