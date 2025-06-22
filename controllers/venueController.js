@@ -1,6 +1,6 @@
 const Vendor = require('../models/VendorModel');
 const Venue = require('../models/VenueModel');
-const { uploadFiles } = require('../utils/UploadFile');
+const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 const { addVenueSchema } = require('../validationjoi/VendorValidation');
 
 
@@ -51,15 +51,15 @@ exports.addVenue = async (req, res) => {
 
     // ✅ 7) Normalize to array
     const images = Array.isArray(uploaded) ? uploaded : [uploaded];
-    console.log("Normalized files:", images.map(f => f.name));
+    // console.log("Normalized files:", images.map(f => f.name));
 
     // ✅ 8) Use util to store in ./Media/venues
-    const uploadedPaths = await uploadFiles(images, 'venues');
+ const cloudUrls = await uploadFilesToCloudinary(images, 'venues');
     // ✅ 8) Create Venue — link to Vendor properly
     const venue = new Venue({
       ...value,
-      type: 'venue',
-      images:uploadedPaths,
+      type: 'venue',  
+      images:cloudUrls,
       owner: vendor._id,
       isActive: true,
       isApproved: false

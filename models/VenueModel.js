@@ -22,20 +22,34 @@ capacity: {
   required: true // Makes sense to always know how many people it fits
 },
   // 🏛️ Specific category (Wedding Hall, Banquet, etc.)
-  category: {
-    type: String,
-    enum: [
-      'Wedding Hall',
-      'Banquet',
-      'Party Lawn',
-      'Conference Hall',
-      'Meeting Room',
-      'Exhibition Hall',
-      'Auditorium',
-      'Other'
-    ],
-    required: true
-  },
+category: {
+  type: String,
+  enum: [
+    'Wedding Hall',
+    'Banquet',
+    'Party Lawn',
+    'Conference Hall',
+    'Meeting Room',
+    'Exhibition Hall',
+    'Auditorium',
+    'Rooftop Venue',
+    'Garden Venue',
+    'Community Center',
+    'Resort Venue',
+    'Farmhouse',
+    'Open Ground',
+    'Clubhouse',
+    'Corporate Event Space',
+    'Marriage Palace',
+    'Seminar Hall',
+    'Private Villa',
+    'Heritage Venue',
+    'Beachside Venue',
+    'Other'
+  ],
+  required: true
+}
+,
 
   // 📍 Location details (NO geo/map)
   location: {
@@ -97,7 +111,7 @@ currency: { type: String, default: 'INR' },
   },
   isApproved: {
     type: Boolean,
-    default: false
+    default: false  
   }
 
 }, { timestamps: true });

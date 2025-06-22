@@ -16,7 +16,10 @@ const app = express();
 // ✅ Body parsers FIRST
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(fileUpload())
+app.use(fileUpload({
+  useTempFiles: true,
+  tempFileDir: '/tmp/' // or Windows safe path
+}));
 // ✅ Health check
 app.get('/api/health', (req, res) => {
   res.json({

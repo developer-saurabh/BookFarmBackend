@@ -1,44 +1,38 @@
-const fs = require('fs');
-const path = require('path');
+const cloudinary = require('../config/cloudinary');
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs').promises; // use promises version
+const path = require('path');
 
-const uploadFiles = async (files, subfolder, maxSizeMB = 8) => {
+const uploadFilesToCloudinary = async (files, subfolder) => {
   const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
-  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+  const maxSizeBytes = 5 * 1024 * 1024; // 8MB
 
-  // Make sure ./Media/subfolder exists
-  const uploadDir = path.join(__dirname, '../Media', subfolder);
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
-
-  const uploadedPaths = [];
+  const uploadedUrls = [];
 
   for (const file of files) {
-    // ✅ Validate MIME type
     if (!allowedTypes.includes(file.mimetype)) {
-      throw new Error(`Invalid file type: ${file.name}. Only jpg, jpeg, png are allowed.`);
+      throw new Error(`Invalid file type: ${file.name}. Only jpg, jpeg, png allowed.`);
     }
 
-    // ✅ Validate size
     if (file.size > maxSizeBytes) {
-      throw new Error(`File too large: ${file.name}. Max ${maxSizeMB} MB allowed.`);
+      throw new Error(`File too large: ${file.name}. Max 8MB allowed.`);
     }
+          console.log("file temp path printing",file.tempFilePath)
+    const uploadResult = await cloudinary.uploader.upload(file.tempFilePath, {
+      folder: `BookMyFarmAndVenue/${subfolder}`,
+      public_id: uuidv4(),
+      resource_type: 'image'
+    });
+console.log(
+  "file uploaded to cloudinary successfully "
+)
+    uploadedUrls.push(uploadResult.secure_url);
 
-    // ✅ Unique file name
-    const ext = path.extname(file.name);
-    const uniqueName = `${uuidv4()}${ext}`;
-    const fullPath = path.join(uploadDir, uniqueName);
-
-    // ✅ Move the file to Media
-    await file.mv(fullPath);
-
-    // ✅ Store relative path for DB
-    const relativePath = path.join('Media', subfolder, uniqueName);
-    uploadedPaths.push(relativePath);
+    // ✅ CLEANUP: delete temp file
+    await fs.unlink(file.tempFilePath);
   }
 
-  return uploadedPaths;
+  return uploadedUrls;
 };
 
-module.exports = {uploadFiles};
+module.exports = { uploadFilesToCloudinary };

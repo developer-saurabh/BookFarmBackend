@@ -62,14 +62,27 @@ description: Joi.string()
 
   category: Joi.string()
     .valid(
-      'Wedding Hall',
-      'Banquet',
-      'Party Lawn',
-      'Conference Hall',
-      'Meeting Room',
-      'Exhibition Hall',
-      'Auditorium',
-      'Other'
+   'Wedding Hall',
+    'Banquet',
+    'Party Lawn',
+    'Conference Hall',
+    'Meeting Room',
+    'Exhibition Hall',
+    'Auditorium',
+    'Rooftop Venue',
+    'Garden Venue',
+    'Community Center',
+    'Resort Venue',
+    'Farmhouse',
+    'Open Ground',
+    'Clubhouse',
+    'Corporate Event Space',
+    'Marriage Palace',
+    'Seminar Hall',
+    'Private Villa',
+    'Heritage Venue',
+    'Beachside Venue',
+    'Other'
     )
     .required()
     .messages({
@@ -138,7 +151,13 @@ description: Joi.string()
     .messages({
       'string.base': 'Currency must be a string.'
     }),
-
+availableDates: Joi.array()
+  .items(Joi.date().iso().messages({
+    'date.format': 'Available date must be in ISO date format (YYYY-MM-DD).'
+  }))
+  .messages({
+    'array.base': 'Available Dates must be an array of ISO dates.'
+  }),
   amenities: Joi.array()
     .items(Joi.string().pattern(onlyLetters).messages({
       'string.pattern.base': 'Amenities should contain letters and spaces only.'
@@ -149,4 +168,17 @@ description: Joi.string()
 
   
 });
-module.exports = {vendorRegistrationSchema,addVenueSchema};
+
+const vendorLoginSchema = Joi.object({
+  email: Joi.string().email().required().messages({
+    'string.empty': 'Email is required.',
+    'string.email': 'Must be a valid email.'
+  }),
+  password: Joi.string().required().messages({
+    'string.empty': 'Password is required.'
+  })
+});
+
+
+
+module.exports = {vendorRegistrationSchema,addVenueSchema,vendorLoginSchema};

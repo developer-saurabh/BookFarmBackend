@@ -4,19 +4,17 @@ const Venue = require('../models/VenueModel');
 const Farm = require('../models/FarmModel');
 const VenueBooking = require('../models/VenueBookingModel');
 const FarmBooking = require('../models/FarmBookingModel');
-const Ticket = require('../models/TicketBookingModel');
 const Message = require('../models/MessageModel');
 const T = require('../messaageTemplates/MessageTemplate');
 const createTicket = require('../utils/createTicket');
+
 const botService = {};
 
-
-
 botService.handleMessage = async (phone, message) => {
-  // 1️⃣ Log incoming
+  // 1️⃣ Log incoming customer message
   await Message.create({ phone, sender: 'customer', message });
 
-  // 2️⃣ Session
+  // 2️⃣ Get or create session
   let session = await ChatSession.findOne({ phone });
   if (!session) {
     session = await ChatSession.create({ phone });
@@ -25,7 +23,7 @@ botService.handleMessage = async (phone, message) => {
   const lowerMsg = message.trim().toLowerCase();
   let responseText = '';
 
-  // 3️⃣ Greeting
+  // 3️⃣ Greeting / Start fresh
   if (lowerMsg === 'hi' || session.currentState === 'new') {
     session.currentState = 'awaiting_option';
     session.metaData = {};
@@ -88,33 +86,56 @@ botService.handleMessage = async (phone, message) => {
     return { text: responseText };
   }
 
-  // 5️⃣ Venue Type
+  // 5️⃣ Venue Type → Send details + images
   if (session.currentState === 'choosing_venue_type') {
     const categories = session.metaData.categoryList || [];
     const idx = parseInt(lowerMsg) - 1;
+
     if (isNaN(idx) || idx < 0 || idx >= categories.length) {
       return { text: T.INVALID_OPTION };
     }
-    const chosenCategory = categories[idx];
 
-    const venues = await Venue.find({ category: chosenCategory }).limit(5);
+    const chosenCategory = categories[idx];
+    const venues = await Venue.find({ category: chosenCategory }).limit(5).lean();
+
     if (!venues.length) {
       responseText = T.NO_RESULTS(chosenCategory);
-    } else {
-      let msg = `🎉 ${chosenCategory}s:\n`;
-      venues.forEach((v, i) => msg += `${i + 1}) ${v.name}\n`);
-      msg += `\nReply with number to choose, or 0 to go back.`;
-      responseText = msg;
-
-      session.currentState = 'booking_venue';
-      session.metaData = {
-        venueType: chosenCategory,
-        venueList: venues.map(v => v._id)
-      };
-      await session.save();
+      await Message.create({ phone, sender: 'bot', message: responseText });
+      return { text: responseText };
     }
-    await Message.create({ phone, sender: 'bot', message: responseText });
-    return { text: responseText };
+
+    // Build text
+    let msg = `🎉 *${chosenCategory} Venues Available:*\n\n`;
+    venues.forEach((v, i) => {
+      msg += `${i + 1}) *${v.name}*
+🏷️ *Category:* ${v.category}
+📍 *Location:* ${v.location.city}, ${v.location.state}
+👥 *Capacity:* ${v.capacity || 'N/A'}
+💰 *Full Day:* ₹${v.pricing.fullDay || 'N/A'}
+💰 *Day Slot:* ₹${v.pricing.daySlot || 'N/A'}
+💰 *Night Slot:* ₹${v.pricing.nightSlot || 'N/A'}
+\n`;
+    });
+    msg += `👉 *Reply with the number* to choose, or 0 to go back.`;
+
+    // Save session
+    session.currentState = 'booking_venue';
+    session.metaData = {
+      venueType: chosenCategory,
+      venueList: venues.map(v => v._id)
+    };
+    await session.save();
+    await Message.create({ phone, sender: 'bot', message: msg });
+
+    // Collect all images
+    const allImageUrls = venues.flatMap(v => v.images || []);
+     console.log("all images printing",allImageUrls)
+return {
+  text: `🎉 *${chosenCategory} Venues Available:*`, 
+  venuesToShow: venues
+};
+
+
   }
 
   // 6️⃣ Venue pick
@@ -172,7 +193,7 @@ botService.handleMessage = async (phone, message) => {
       status: 'pending'
     });
 
-    await (booking, venue.owner, 'venue');
+    await createTicket(booking, venue.owner, 'venue'); // ✅ Fix: proper call!
 
     session.currentState = 'done';
     session.metaData = {};
@@ -191,8 +212,8 @@ botService.handleMessage = async (phone, message) => {
       return { text: T.INVALID_OPTION };
     }
     const chosenType = types[idx];
-
     const farms = await Farm.find({ type: chosenType }).limit(5);
+
     if (!farms.length) {
       responseText = T.NO_RESULTS(chosenType);
     } else {
