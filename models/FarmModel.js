@@ -37,14 +37,16 @@ const farmSchema = new mongoose.Schema({
       type: String // optional, if you share map URLs manually
     }
   },
-
-  // 💰 Pricing
-  pricePerHour: {
-    type: Number,
-    required: true
+bookingModes: {
+    type: [String],
+    enum: ['full_day', 'day_slot', 'night_slot'],
+    default: ['full_day']
   },
-  pricePerDay: {
-    type: Number
+  // 💰 Pricing
+  pricing: {
+    fullDay: { type: Number },
+    daySlot: { type: Number },
+    nightSlot: { type: Number }
   },
   currency: {
     type: String,
