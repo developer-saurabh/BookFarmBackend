@@ -58,10 +58,7 @@ bookingModes: {
     type: String
   }],
 
-  // 📅 Availability
-  availableDates: [{
-    type: Date
-  }],
+
 
   // ✅ Amenities
   amenities: [{
@@ -85,7 +82,7 @@ capacity: {
   },
   isApproved: {
     type: Boolean,
-    default: false
+    default: true
   },
 
 }, { timestamps: true });
