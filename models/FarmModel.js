@@ -10,10 +10,10 @@ const farmSchema = new mongoose.Schema({
   description: {
     type: String
   },
- type: {
-  type: String,
-  enum: ['Organic Farm', 'Event Farm', 'Resort Farm', 'Other']
-},
+  type: {
+    type: String,
+    enum: ['Organic Farm', 'Event Farm', 'Resort Farm', 'Other']
+  },
 
 
   // 📍 Location details (basic, no geo)
@@ -34,10 +34,11 @@ const farmSchema = new mongoose.Schema({
       type: String
     },
     mapLink: {
-      type: String // optional, if you share map URLs manually
+      type: String, // optional, if you share map URLs manually
+      default:null
     }
   },
-bookingModes: {
+  bookingModes: {
     type: [String],
     enum: ['full_day', 'day_slot', 'night_slot'],
     default: ['full_day']
@@ -64,10 +65,10 @@ bookingModes: {
   amenities: [{
     type: String
   }],
-capacity: {
-  type: Number,
-  required: true // Makes sense to always know how many people it fits
-},
+  capacity: {
+    type: Number,
+    required: true // Makes sense to always know how many people it fits
+  },
   // 📌 Vendor owner
   owner: {
     type: mongoose.Schema.Types.ObjectId,

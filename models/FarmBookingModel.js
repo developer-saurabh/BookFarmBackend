@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const Farm = require('./farm.model'); // make sure this path is correct
+const Farm = require('./FarmModel'); // make sure this path is correct
 
 const farmBookingSchema = new mongoose.Schema({
   // 👤 Customer Info
@@ -25,7 +25,7 @@ const farmBookingSchema = new mongoose.Schema({
     type: String,
     enum: ['Organic Farm', 'Event Farm', 'Resort Farm', 'Private Farmhouse', 'Other']
   },
- 
+
   // 📅 Booking Details
   date: { type: Date, required: true },
 

@@ -6,6 +6,7 @@ const chatRoutes = require('./routes/chatRoutes');
 const venueRoutes = require('./routes/venueRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
 const AdminRoutes = require('./routes/adminRoutes');
+const farmRoutes =require("./routes/farmRoutes")
 const fileUpload = require('express-fileupload');
 
 // ✅ Connect DB
@@ -31,6 +32,7 @@ app.get('/api/health', (req, res) => {
 // ✅ Your routes
 app.use('/api/chat', chatRoutes);
 app.use('/api/venue', venueRoutes);
+app.use('/api/farm', farmRoutes);
 app.use('/api/vendor',vendorRoutes );
 app.use('/api/admin',AdminRoutes );
 
