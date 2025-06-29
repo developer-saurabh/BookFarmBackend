@@ -287,34 +287,41 @@ exports.FilterQueeryHomePage = async (req, res) => {
     }
 
     const farmIds = capacityFilteredFarms.map(f => f._id);
-// ✅ Step 3: Get bookings per farm with mode aggregation
-const bookings = await FarmBooking.find({
-  farm: { $in: farmIds },
-  date: { $gte: start, $lte: end },
-  status: { $in: ['pending', 'confirmed'] }
-});
 
-// ✅ Step 4: Build a map: farmId => Set of booked modes
-const bookingMap = {}; // { farmId: Set(['full_day', 'night_slot']) }
+    // ✅ Step 3: Get bookings per farm with mode aggregation
+    const bookings = await FarmBooking.find({
+      farm: { $in: farmIds },
+      date: { $gte: start, $lte: end },
+      status: { $in: ['pending', 'confirmed'] }
+    });
 
-bookings.forEach(b => {
-  const farmId = b.farm.toString();
-  if (!bookingMap[farmId]) {
-    bookingMap[farmId] = new Set();
-  }
-  b.bookingModes.forEach(mode => bookingMap[farmId].add(mode));
-});
+    // ✅ Step 4: Build a map: farmId => Set of booked modes
+    const bookingMap = {}; // { farmId: Set(['full_day', 'night_slot']) }
 
-// ✅ Step 5: Filter farms that still have at least one available slot
-const allModes = new Set(['full_day', 'day_slot', 'night_slot']);
+    bookings.forEach(b => {
+      const farmId = b.farm.toString();
+      if (!bookingMap[farmId]) {
+        bookingMap[farmId] = new Set();
+      }
+      b.bookingModes.forEach(mode => bookingMap[farmId].add(mode));
+    });
 
-const availableFarms = capacityFilteredFarms.filter(farm => {
-  const bookedModes = bookingMap[farm._id.toString()] || new Set();
-  return bookedModes.size < 3;
-});
+    // ✅ Step 5: Filter farms that are NOT fully booked (all 3 slots)
+    const allModes = ['full_day', 'day_slot', 'night_slot'];
 
+    const availableFarms = capacityFilteredFarms.filter(farm => {
+      const bookedModes = bookingMap[farm._id.toString()] || new Set();
+      return !allModes.every(mode => bookedModes.has(mode));
+    });
 
-    // ✅ Success Response
+    // ✅ Step 6: Respond
+    if (availableFarms.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `All farms under category "${category}" with capacity in range ${min}–${max} are fully booked on ${date}.`
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: `${availableFarms.length} farm(s) available on ${date}.`,
@@ -328,6 +335,7 @@ const availableFarms = capacityFilteredFarms.filter(farm => {
     });
   }
 };
+
 
 
 
