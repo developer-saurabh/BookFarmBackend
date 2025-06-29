@@ -162,7 +162,7 @@ res.status(201).json({
 // for calender 
 exports.getMonthlyFarmBookings = async (req, res) => {
   try {
-    // Using query param — change to req.params if you're hitting /get_month_booking/:monthYear
+    // ✅ Validate input (MM/YYYY format)
     const { error, value } = monthYearSchema.validate(req.query);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
@@ -174,38 +174,76 @@ exports.getMonthlyFarmBookings = async (req, res) => {
     const year = parseInt(yearStr);
 
     const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59); // end of month
+    const endDate = new Date(year, month, 0, 23, 59, 59);
 
-    // Fetch bookings for that month
+    // ✅ Get all active farms
+    const farms = await Farm.find({ isActive: true, isApproved: true });
+    const farmIds = farms.map(f => f._id.toString());
+
+    // ✅ Fetch all bookings for the month
     const bookings = await FarmBooking.find({
       date: { $gte: startDate, $lte: endDate },
       status: { $in: ['pending', 'confirmed'] }
     });
 
-    // Dates with any booking
-    const bookedDateSet = new Set();
+    // ✅ Build a booking map: { date: { farmId: Set of booked modes } }
+    const bookingMap = {}; // e.g. { '2025-07-01': { farmId1: Set(), farmId2: Set() } }
+
     bookings.forEach(b => {
-      const dateStr = b.date.toISOString().split('T')[0];
-      bookedDateSet.add(dateStr);
+      const dayKey = b.date.toISOString().split('T')[0];
+      if (!bookingMap[dayKey]) bookingMap[dayKey] = {};
+
+      if (!bookingMap[dayKey][b.farm]) {
+        bookingMap[dayKey][b.farm] = new Set();
+      }
+
+      b.bookingModes.forEach(mode => bookingMap[dayKey][b.farm].add(mode));
     });
 
+    // ✅ Final calendar result
     const daysInMonth = new Date(year, month, 0).getDate();
     const result = [];
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const currentDate = new Date(year, month - 1, day).toISOString().split('T')[0];
+      const dateStr = new Date(year, month - 1, day).toISOString().split('T')[0];
+      const dayBookings = bookingMap[dateStr] || {};
+
+      let fullyBookedCount = 0;
+      let partialAvailable = false;
+      let hasCompletelyFreeFarm = false;
+
+      for (const farmId of farmIds) {
+        const bookedModes = dayBookings[farmId] || new Set();
+
+        if (bookedModes.size === 0) {
+          hasCompletelyFreeFarm = true;
+          break; // no need to check more if even one is fully free
+        } else if (bookedModes.size < 3) {
+          partialAvailable = true;
+        } else {
+          fullyBookedCount++;
+        }
+      }
+
+      const allFullyBooked = fullyBookedCount === farmIds.length;
+
       result.push({
-        date: currentDate,
-        available: !bookedDateSet.has(currentDate)
+        date: dateStr,
+        Full_available: hasCompletelyFreeFarm,
+        partial_Available: !hasCompletelyFreeFarm && partialAvailable
       });
     }
 
-    res.json(result);
+    res.json({
+      success: true,
+      data: result
+    });
   } catch (err) {
     console.error('Calendar booking fetch error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 // for filter home page
 
@@ -249,25 +287,32 @@ exports.FilterQueeryHomePage = async (req, res) => {
     }
 
     const farmIds = capacityFilteredFarms.map(f => f._id);
+// ✅ Step 3: Get bookings per farm with mode aggregation
+const bookings = await FarmBooking.find({
+  farm: { $in: farmIds },
+  date: { $gte: start, $lte: end },
+  status: { $in: ['pending', 'confirmed'] }
+});
 
-    // ✅ Step 3: Check bookings on that date
-    const bookedFarmIds = await FarmBooking.find({
-      farm: { $in: farmIds },
-      date: { $gte: start, $lte: end },
-      status: { $in: ['pending', 'confirmed'] }
-    }).distinct('farm');
+// ✅ Step 4: Build a map: farmId => Set of booked modes
+const bookingMap = {}; // { farmId: Set(['full_day', 'night_slot']) }
 
-    // ✅ Step 4: Filter out booked ones
-    const availableFarms = capacityFilteredFarms.filter(
-      f => !bookedFarmIds.includes(f._id.toString())
-    );
+bookings.forEach(b => {
+  const farmId = b.farm.toString();
+  if (!bookingMap[farmId]) {
+    bookingMap[farmId] = new Set();
+  }
+  b.bookingModes.forEach(mode => bookingMap[farmId].add(mode));
+});
 
-    if (availableFarms.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: `All farms under category "${category}" with capacity in range ${min}–${max} are already booked on ${date}.`
-      });
-    }
+// ✅ Step 5: Filter farms that still have at least one available slot
+const allModes = new Set(['full_day', 'day_slot', 'night_slot']);
+
+const availableFarms = capacityFilteredFarms.filter(farm => {
+  const bookedModes = bookingMap[farm._id.toString()] || new Set();
+  return bookedModes.size < 3;
+});
+
 
     // ✅ Success Response
     res.status(200).json({
