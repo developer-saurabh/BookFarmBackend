@@ -10,9 +10,26 @@ const farmSchema = new mongoose.Schema({
   description: {
     type: String
   },
-  type: {
+  farmType: {
     type: String,
-    enum: ['Organic Farm', 'Event Farm', 'Resort Farm', 'Other']
+    enum: [
+  "Organic Farm",
+  "Event Farm",
+  "Resort Farm",
+  "Private Farmhouse",
+  "Dairy Farm",
+  "Goat Farm",
+  "Poultry Farm",
+  "Hydroponic Farm",
+  "Agri-Tourism Farm",
+  "Luxury Farmstay",
+  "Adventure Farm",
+  "Eco Farm",
+  "Community Farm",
+  "Educational Farm",
+  "Film Shooting Farm",
+  "other"
+]
   },
 
 
@@ -44,10 +61,10 @@ const farmSchema = new mongoose.Schema({
     default: ['full_day']
   },
   // 💰 Pricing
-  pricing: {
-    fullDay: { type: Number },
-    daySlot: { type: Number },
-    nightSlot: { type: Number }
+   pricing: {
+    full_day: { type: Number },
+    day_slot: { type: Number },
+    night_slot: { type: Number }
   },
   currency: {
     type: String,

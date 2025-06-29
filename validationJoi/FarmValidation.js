@@ -32,14 +32,31 @@ exports.farmAddValidationSchema = Joi.object({
     .messages({
       'string.max': 'Description cannot exceed 1000 characters.'
     }),
+farmType: Joi.string()
+  .valid(
+    'Organic Farm',
+    'Event Farm',
+    'Resort Farm',
+    'Private Farmhouse',
+    'Dairy Farm',
+    'Goat Farm',
+    'Poultry Farm',
+    'Hydroponic Farm',
+    'Agri-Tourism Farm',
+    'Luxury Farmstay',
+    'Adventure Farm',
+    'Eco Farm',
+    'Community Farm',
+    'Educational Farm',
+    'Film Shooting Farm',
+    'Other'
+  )
+  .required()
+  .messages({
+    'any.only': 'Farm type must be one of the supported categories.',
+    'any.required': 'Farm type is required.'
+  }),
 
-  type: Joi.string()
-    .valid('Organic Farm', 'Event Farm', 'Resort Farm', 'Other')
-    .required()
-    .messages({
-      'any.only': 'Type must be one of Organic Farm, Event Farm, Resort Farm, or Other.',
-      'any.required': 'Farm type is required.'
-    }),
 
   location: Joi.object({
     address: Joi.string()
@@ -102,13 +119,13 @@ exports.farmAddValidationSchema = Joi.object({
     }),
 
   pricing: Joi.object({
-    fullDay: Joi.number().min(0).optional().messages({
+    full_day: Joi.number().min(0).optional().messages({
       'number.min': 'Full day price must be zero or greater.'
     }),
-    daySlot: Joi.number().min(0).optional().messages({
+    day_slot: Joi.number().min(0).optional().messages({
       'number.min': 'Day slot price must be zero or greater.'
     }),
-    nightSlot: Joi.number().min(0).optional().messages({
+    night_slot: Joi.number().min(0).optional().messages({
       'number.min': 'Night slot price must be zero or greater.'
     })
   })
@@ -148,8 +165,6 @@ exports.farmAddValidationSchema = Joi.object({
 });
 
 
-
-
 exports. farmBookingValidationSchema = Joi.object({
   customerName: Joi.string()
     .pattern(/^[a-zA-Z\s]+$/)
@@ -179,14 +194,14 @@ exports. farmBookingValidationSchema = Joi.object({
       'string.email': 'Enter a valid email address.'
     }),
 
-  customer: Joi.string()
-    .pattern(/^[0-9a-fA-F]{24}$/)
-    .optional()
-    .messages({
-      'string.pattern.base': 'Customer ID must be a valid MongoDB ObjectId.'
-    }),
+  // customer: Joi.string()
+  //   .pattern(/^[0-9a-fA-F]{24}$/)
+  //   .optional()
+  //   .messages({
+  //     'string.pattern.base': 'Customer ID must be a valid MongoDB ObjectId.'
+  //   }),
 
-  farm: Joi.string()
+  farm_id: Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)
     .required()
     .messages({
@@ -211,17 +226,51 @@ exports. farmBookingValidationSchema = Joi.object({
       'any.only': 'Booking mode must be one of full_day, day_slot, or night_slot.'
     }),
 
-  status: Joi.string()
-    .valid('pending', 'confirmed', 'cancelled', 'complete')
-    .optional()
-    .messages({
-      'any.only': 'Status must be one of pending, confirmed, cancelled, or complete.'
-    }),
+ 
+});
 
-  paymentStatus: Joi.string()
-    .valid('unpaid', 'paid')
-    .optional()
+
+
+exports.FilterQueeryHomePageScheam = Joi.object({
+  date: Joi.date().iso().required().messages({
+    'any.required': 'Date is required',
+    'date.base': 'Date must be in valid ISO format'
+  }),
+  category: Joi.string().required().messages({
+    'any.required': 'Category is required'
+  }),
+   capacityRange: Joi.object({
+    min: Joi.number().required(),
+    max: Joi.number().required()
+  }).required()
+});
+
+exports. getCategoriesSchema = Joi.object({})
+  .unknown(false)
+  .messages({
+    'object.unknown': 'Unexpected query parameter provided.'
+  });
+
+
+
+exports. getFarmByIdSchema = Joi.object({
+  farmId: Joi.string().hex().length(24).required().messages({
+    'string.base': 'Farm ID must be a string.',
+    'string.length': 'Farm ID must be a valid 24-character hex string.',
+    'string.hex': 'Farm ID must be a valid ObjectId.',
+    'any.required': 'Farm ID is required.'
+  })
+});
+
+
+
+exports. getFarmByImageSchema = Joi.object({
+  imageUrl: Joi.string()
+    .uri()
+    .required()
     .messages({
-      'any.only': 'Payment status must be either unpaid or paid.'
+      'string.base': 'Image URL must be a string.',
+      'string.uri': 'Image URL must be a valid URI.',
+      'any.required': 'Image URL is required.'
     })
 });
