@@ -274,3 +274,102 @@ exports. getFarmByImageSchema = Joi.object({
       'any.required': 'Image URL is required.'
     })
 });
+
+
+
+
+exports.  FilterQueeryFarm= Joi.object({
+  date: Joi.date()
+    .iso()
+    .required()
+    .messages({
+      'any.required': 'Date is required.',
+      'date.format': 'Date must be in valid ISO format (YYYY-MM-DD).'
+    }),
+
+  category: Joi.string()
+    .valid('Organic Farm', 'Event Farm', 'Resort Farm', 'Private Farmhouse', 'Goat Farm', 'Other')
+    .required()
+    .messages({
+      'any.only': 'Category must be one of the allowed farm types.',
+      'any.required': 'Category is required.'
+    }),
+
+  capacityRange: Joi.object({
+    min: Joi.number()
+      .integer()
+      .min(1)
+      .required()
+      .messages({
+        'number.base': 'Minimum capacity must be a number.',
+        'number.min': 'Minimum capacity must be at least 1.',
+        'any.required': 'Minimum capacity is required.'
+      }),
+
+    max: Joi.number()
+      .integer()
+      .min(Joi.ref('min'))
+      .required()
+      .messages({
+        'number.base': 'Maximum capacity must be a number.',
+        'number.min': 'Maximum capacity must be equal to or more than minimum.',
+        'any.required': 'Maximum capacity is required.'
+      })
+  }).required().messages({
+    'object.base': 'Capacity range must be a valid object.',
+    'any.required': 'Capacity range is required.'
+  }),
+
+  priceRange: Joi.object({
+    min: Joi.number()
+      .min(0)
+      .required()
+      .messages({
+        'number.base': 'Minimum price must be a number.',
+        'number.min': 'Minimum price must be at least 0.',
+        'any.required': 'Minimum price is required.'
+      }),
+
+    max: Joi.number()
+      .min(Joi.ref('min'))
+      .required()
+      .messages({
+        'number.base': 'Maximum price must be a number.',
+        'number.min': 'Maximum price must be equal to or more than minimum.',
+        'any.required': 'Maximum price is required.'
+      })
+  }).required().messages({
+    'object.base': 'Price range must be a valid object.',
+    'any.required': 'Price range is required.'
+  }),
+
+  amenities: Joi.array()
+    .items(
+      Joi.string()
+        .trim()
+        .min(2)
+        .max(50)
+        .messages({
+          'string.min': 'Each amenity must be at least 2 characters.',
+          'string.max': 'Each amenity must be at most 50 characters.'
+        })
+    )
+    .optional()
+    .messages({
+      'array.base': 'Amenities must be an array of strings.'
+    })
+});
+
+
+exports.getImagesByFarmTypeSchema = Joi.object({
+   type: Joi.string()
+    .valid("Educational Farm",
+        "Film Shooting Farm",
+        "Luxury Farmstay",
+        "Resort Farm",'Other')
+    .required()
+    .messages({
+      'any.only': 'Farm type must be one of the allowed categories.',
+      'any.required': 'Farm type parameter is required.'
+    })
+});

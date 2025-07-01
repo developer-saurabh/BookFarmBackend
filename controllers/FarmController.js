@@ -1,6 +1,6 @@
 // controllers/booking.controller.js
 const FarmBooking = require('../models/FarmBookingModel');
-const { monthYearSchema, farmAddValidationSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema } = require('../validationJoi/FarmValidation');
+const { monthYearSchema, farmAddValidationSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema } = require('../validationJoi/FarmValidation');
 const Farm = require('../models/FarmModel');
 const Vendor = require("../models/VendorModel");
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
@@ -339,65 +339,7 @@ exports.FilterQueeryHomePage = async (req, res) => {
 
 
 
-exports.getFarmCategories = async (req, res) => {
-  try {
-    // ✅ Validate query (no params expected)
-    const { error } = getCategoriesSchema.validate(req.query);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message
-      });
-    }
 
-    // ✅ Fetch distinct farmType values from DB
-    const categories = await Farm.distinct('farmType');
-
-    if (!categories || categories.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No farm categories found in the system.'
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Farm categories fetched successfully.',
-      data: categories.sort()
-    });
-  } catch (err) {
-    console.error('Category fetch error:', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error. Please try again later.'
-    });
-  }
-};
-
-exports.getAllFarms = async (req, res) => {
-  try {
-    const farms = await Farm.find({ isActive: true, isApproved: true });
-
-    if (!farms || farms.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No farms found.'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Farms fetched successfully.',
-      data: farms
-    });
-  } catch (err) {
-    console.error('[GetAllFarms Error]', err);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error. Please try again later.'
-    });
-  }
-};
 
 
 
@@ -432,7 +374,7 @@ exports.getFarmById = async (req, res) => {
       message: 'Internal server error. Please try again later.'
     });
   }
-};
+};  
 
 
 
@@ -478,5 +420,239 @@ exports.getFarmByImageUrl = async (req, res) => {
   }
 };
 
+
+
+// farms filter api
+exports.FilterQueeryFarms = async (req, res) => {
+  try {
+    // ✅ Validate input
+    const { error, value } = FilterQueeryFarm.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
+
+    const { date, category, capacityRange, priceRange, amenities = [] } = value;
+    const { min: capMin, max: capMax } = capacityRange;
+    const { min: priceMin, max: priceMax } = priceRange;
+
+    const farms = await Farm.find({
+      farmType: category,
+      isActive: true,
+      isApproved: true
+    });
+console.log("farm printing",farms )
+    if (!farms.length) {
+      return res.status(404).json({
+        success: false,
+        message: `No farms found under the category "${category}".`
+      });
+    }
+
+    let filtered = farms;
+
+    // ✅ Capacity filtering
+    filtered = filtered.filter(f => f.capacity >= capMin && f.capacity <= capMax);
+
+    if (!filtered.length) {
+      return res.status(404).json({
+        success: false,
+        message: `No farms under category "${category}" found in capacity range ${capMin} to ${capMax}.`
+      });
+    }
+
+    // ✅ Amenities filtering (if any)
+    if (amenities.length > 0) {
+      filtered = filtered.filter(farm => amenities.every(a => farm.amenities.includes(a)));
+
+      if (!filtered.length) {
+        return res.status(404).json({
+          success: false,
+          message: `No farms found under category "${category}" with selected amenities.`
+        });
+      }
+    }
+
+    // ✅ Price filtering — match ANY one pricing field
+    filtered = filtered.filter(f => {
+      const prices = [
+        f.pricing?.full_day,
+        f.pricing?.day_slot,
+        f.pricing?.night_slot
+      ];
+      return prices.some(p => typeof p === 'number' && p >= priceMin && p <= priceMax);
+    });
+
+    if (!filtered.length) {
+      return res.status(404).json({
+        success: false,
+        message: `No farms found in price range ₹${priceMin}–₹${priceMax}.`
+      });
+    }
+
+    // ✅ Availability check (optional if date provided)
+    if (date) {
+      const day = new Date(date);
+      const start = new Date(day.setHours(0, 0, 0, 0));
+      const end = new Date(day.setHours(23, 59, 59, 999));
+
+      const farmIds = filtered.map(f => f._id);
+
+      const bookings = await FarmBooking.find({
+        farm: { $in: farmIds },
+        date: { $gte: start, $lte: end },
+        status: { $in: ['pending', 'confirmed'] }
+      });
+
+      const bookingMap = {};
+      bookings.forEach(b => {
+        const fid = b.farm.toString();
+        if (!bookingMap[fid]) bookingMap[fid] = new Set();
+        b.bookingModes.forEach(m => bookingMap[fid].add(m));
+      });
+
+      const allModes = ['full_day', 'day_slot', 'night_slot'];
+      filtered = filtered.filter(f => {
+        const bookedModes = bookingMap[f._id.toString()] || new Set();
+        return !allModes.every(m => bookedModes.has(m));
+      });
+
+      if (!filtered.length) {
+        return res.status(404).json({
+          success: false,
+          message: `No farms under category "${category}" are available on ${date}.`
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `${filtered.length} farm(s) found matching your filters.`,
+      data: filtered
+    });
+  } catch (err) {
+    console.error('Farm filter query error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error. Please try again later.'
+    });
+  }
+};
+
+// gallary api
+
+exports.getFarmCategories = async (req, res) => {
+  try {
+    // ✅ Validate query (no params expected)
+    const { error } = getCategoriesSchema.validate(req.query);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
+
+    // ✅ Fetch distinct farmType values from DB
+    const categories = await Farm.distinct('farmType');
+
+    if (!categories || categories.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No farm categories found in the system.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Farm categories fetched successfully.',
+      data: categories.sort()
+    });
+  } catch (err) {
+    console.error('Category fetch error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error. Please try again later.'
+    });
+  }
+};
+exports.getFarmImagesByCategories = async (req, res) => {
+  try {
+    // ✅ Validate route param
+    const { error, value } = getImagesByFarmTypeSchema.validate(req.params);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
+
+    const { type } = value;
+
+    // ✅ Find farms by type with only images field
+    const farms = await Farm.find(
+      { farmType: type, isActive: true, isApproved: true },
+      'images'
+    );
+
+    if (!farms.length) {
+      return res.status(404).json({
+        success: false,
+        message: `No farms found for category type "${type}".`
+      });
+    }
+
+    // ✅ Extract and flatten all image URLs
+    const allImages = farms.flatMap(farm => farm.images || []);
+
+    if (!allImages.length) {
+      return res.status(404).json({
+        success: false,
+        message: `No images found for farms of category "${type}".`
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${allImages.length} image(s) found for category "${type}".`,
+      data: allImages
+    });
+  } catch (err) {
+    console.error('[GetFarmImagesByCategory Error]', err);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error. Please try again later.'
+    });
+  }
+};
+
+
+// get all farms 
+
+exports.getAllFarms = async (req, res) => {
+  try {
+    const farms = await Farm.find({ isActive: true, isApproved: true });
+
+    if (!farms || farms.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No farms found.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Farms fetched successfully.',
+      data: farms
+    });
+  } catch (err) {
+    console.error('[GetAllFarms Error]', err);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error. Please try again later.'
+    });
+  }
+};
 
 
