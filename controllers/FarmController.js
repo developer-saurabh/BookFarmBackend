@@ -117,22 +117,46 @@ for (let mode of bookingModes) {
   priceBreakdown[mode] = modePrice;
   totalPrice += modePrice;
 }
-console.log("toal price printing",)
-    const booking = new FarmBooking({
-      customerName,
-      customerPhone,
-      customerEmail,
-      customer,
-      farm: farm_id,
+let customerId = customer; // fallback in case it's already provided in request
 
-      farmType: farmDoc.farmType,
-      date,
-      bookingModes,
-      status: value.status || 'pending',
-      paymentStatus: value.paymentStatus || 'unpaid',
-      totalPrice, // 💸
-      priceBreakdown // 📊
+if (!customerId) {
+  // Try to find by phone or email
+  let existingCustomer = await Customer.findOne({
+    $or: [
+      { phone: customerPhone },
+      { email: customerEmail }
+    ]
+  });
+
+  // If not found, create new
+  if (!existingCustomer) {
+    const newCustomer = await Customer.create({
+      name: customerName,
+      phone: customerPhone,
+      email: customerEmail
     });
+    customerId = newCustomer._id;
+  } else {
+    customerId = existingCustomer._id;
+  }
+}
+
+console.log("toal price printing",)
+   const booking = new FarmBooking({
+  customerName,
+  customerPhone,
+  customerEmail,
+  customer: customerId,
+  farm: farm_id,
+  farmType: farmDoc.farmType,
+  date,
+  bookingModes,
+  status: value.status || 'pending',
+  paymentStatus: value.paymentStatus || 'unpaid',
+  totalPrice,
+  priceBreakdown
+});
+
 
     await booking.save();
     const plainBooking = booking.toObject();
