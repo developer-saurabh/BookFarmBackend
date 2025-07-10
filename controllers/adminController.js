@@ -3,6 +3,11 @@ const bcrypt = require('bcryptjs');
 const {adminRegisterSchema} = require('../validationJoi/AdminValidation');
 const Vendor = require('../models/VendorModel');
 const {updateVendorStatusSchema} = require('../validationJoi/AdminValidation');
+const {addFarmCategorySchema,addFacilitiesSchema}=require("../validationJoi/FarmCategoryAndFacilities")
+const FarmCategory = require('../models/FarmCategory');
+const Farm = require('../models/FarmModel'); // assuming Farm model file
+const Facility = require('../models/FarmFacility');
+
 
 
 exports.registerAdmin = async (req, res) => {
@@ -118,5 +123,83 @@ exports.updateVendorStatus = async (req, res) => {
   } catch (err) {
     console.error('🚨 Error updating vendor status:', err);
     return res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+exports.addFarmCategory = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate input
+    const { error, value } = addFarmCategorySchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const name = value.name.trim();
+
+    // ✅ Step 2: Check for duplicate (case-insensitive)
+    const existing = await FarmCategory.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+    if (existing) {
+      return res.status(409).json({ message: 'Category with this name already exists' });
+    }
+
+    // ✅ Step 3: Create category
+    const category = new FarmCategory({ name });
+    await category.save();
+
+    // ✅ Step 4: Optionally push to farm model's categories array (if exists)
+   
+    await Farm.updateMany({}, { $push: { categories: category._id } }); // optional logic
+
+    return res.status(201).json({
+      message: 'Farm category created successfully',
+      data: category
+    });
+  } catch (error) {
+    console.error('Error adding farm category:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.addFacilities = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate input
+    const { error, value } = addFacilitiesSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    const facilitiesToAdd = value.facilities;
+
+    // ✅ Step 2: Normalize input names for comparison
+    const names = facilitiesToAdd.map(f => f.name.trim().toLowerCase());
+
+    // ✅ Step 3: Check for duplicates already in DB
+    const existingFacilities = await Facility.find({
+      name: { $in: names.map(n => new RegExp(`^${n}$`, 'i')) }
+    });
+
+    const existingNames = existingFacilities.map(f => f.name.toLowerCase());
+
+    const newFacilities = facilitiesToAdd.filter(f => !existingNames.includes(f.name.trim().toLowerCase()))
+      .map(f => ({
+        name: f.name.trim(),
+        icon: f.icon || null
+      }));
+
+    if (newFacilities.length === 0) {
+      return res.status(409).json({ message: 'All facilities already exist' });
+    }
+
+    // ✅ Step 4: Save new facilities
+    const createdFacilities = await Facility.insertMany(newFacilities);
+
+    return res.status(201).json({
+      message: `${createdFacilities.length} facility(ies) added successfully`,
+      data: createdFacilities
+    });
+
+  } catch (error) {
+    console.error('Error adding facilities:', error);
+    return res.status(500).json({ message: 'Server error' });
   }
 };

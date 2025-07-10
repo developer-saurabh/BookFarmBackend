@@ -10,27 +10,13 @@ const farmSchema = new mongoose.Schema({
   description: {
     type: String
   },
-  farmType: {
-    type: String,
-    enum: [
-  "Organic Farm",
-  "Event Farm",
-  "Resort Farm",
-  "Private Farmhouse",
-  "Dairy Farm",
-  "Goat Farm",
-  "Poultry Farm",
-  "Hydroponic Farm",
-  "Agri-Tourism Farm",
-  "Luxury Farmstay",
-  "Adventure Farm",
-  "Eco Farm",
-  "Community Farm",
-  "Educational Farm",
-  "Film Shooting Farm",
-  "other"
-]
-  },
+
+  // 🔁 Changed from enum to ref
+  farmCategory:[{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'FarmCategory',
+    required: true
+  }],
 
 
   // 📍 Location details (basic, no geo)
@@ -79,8 +65,9 @@ const farmSchema = new mongoose.Schema({
 
 
   // ✅ Amenities
-  amenities: [{
-    type: String
+    facilities: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Facility'
   }],
   capacity: {
     type: Number,

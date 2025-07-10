@@ -20,28 +20,8 @@ const farmBookingSchema = new mongoose.Schema({
     required: true
   },
 
-  // 🧠 Auto-populated from Farm at save-time
-  farmType: {
-    type: String,
-     enum: [
-  "Organic Farm",
-  "Event Farm",
-  "Resort Farm",
-  "Private Farmhouse",
-  "Dairy Farm",
-  "Goat Farm",
-  "Poultry Farm",
-  "Hydroponic Farm",
-  "Agri-Tourism Farm",
-  "Luxury Farmstay",
-  "Adventure Farm",
-  "Eco Farm",
-  "Community Farm",
-  "Educational Farm",
-  "Film Shooting Farm",
-  "other"
-]
-  },
+
+
 
   // 📅 Booking Details
   date: { type: Date, required: true },
@@ -75,7 +55,6 @@ priceBreakdown: {
 
 }, { timestamps: true });
 
-// farmBookingSchema.index({ farm: 1, date: 1, timeSlot: 1 }, { unique: true });
 
 
 

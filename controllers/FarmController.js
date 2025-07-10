@@ -41,7 +41,7 @@ exports.addFarm = async (req, res) => {
     if (existingFarm) {
       return res.status(409).json({ error: 'A farm with this name already exists for this vendor.' });
     }
-
+    
     // 5️⃣ Validate and normalize uploaded images
     const uploaded = req.files?.images || req.files?.image;
     if (!uploaded) {
