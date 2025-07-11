@@ -18,11 +18,11 @@ router.get('/get_all_farms', ParseNest,getAllFarms);
 
 router.get('/get_farm_id/:id', ParseNest,getFarmById);
 
-router.get('/get_farm_by_image_url', ParseNest,getFarmByImageUrl);
+router.get('/get_farm_by_image_url/:imageurl', ParseNest,getFarmByImageUrl);
 
 router.post('/filter-farms', ParseNest,FilterQueeryFarms);
 
-router.get('/category_image/:type', ParseNest,getFarmImagesByCategories)
+router.get('/get_farm_image_by_category/:categoryId', ParseNest,getFarmImagesByCategories)
 
 
 

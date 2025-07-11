@@ -11,7 +11,6 @@ exports.monthYearSchema = Joi.object({
     })
 });
 
-
 exports.farmAddValidationSchema = Joi.object({
   name: Joi.string()
     .trim()
@@ -32,31 +31,20 @@ exports.farmAddValidationSchema = Joi.object({
     .messages({
       'string.max': 'Description cannot exceed 1000 characters.'
     }),
-farmType: Joi.string()
-  .valid(
-    'Organic Farm',
-    'Event Farm',
-    'Resort Farm',
-    'Private Farmhouse',
-    'Dairy Farm',
-    'Goat Farm',
-    'Poultry Farm',
-    'Hydroponic Farm',
-    'Agri-Tourism Farm',
-    'Luxury Farmstay',
-    'Adventure Farm',
-    'Eco Farm',
-    'Community Farm',
-    'Educational Farm',
-    'Film Shooting Farm',
-    'Other'
-  )
-  .required()
-  .messages({
-    'any.only': 'Farm type must be one of the supported categories.',
-    'any.required': 'Farm type is required.'
-  }),
 
+  // 🔁 Replaces farmType
+  farmCategory: Joi.array()
+    .items(Joi.string().hex().length(24).messages({
+      'string.hex': 'Each farm category ID must be a valid ObjectId.',
+      'string.length': 'Each farm category ID must be 24 characters.'
+    }))
+    .min(1)
+    .required()
+    .messages({
+      'array.base': 'Farm category must be an array of valid IDs.',
+      'array.min': 'At least one farm category is required.',
+      'any.required': 'Farm category is required.'
+    }),
 
   location: Joi.object({
     address: Joi.string()
@@ -142,17 +130,16 @@ farmType: Joi.string()
       'any.only': 'Currency must be INR, USD, or EUR.'
     }),
 
-  amenities: Joi.array()
-    .items(
-      Joi.string()
-        .min(2)
-        .max(50)
-        .messages({
-          'string.min': 'Each amenity must be at least 2 characters.',
-          'string.max': 'Each amenity cannot exceed 50 characters.'
-        })
-    )
-    .optional(),
+  // ✅ Replaces amenities
+  facilities: Joi.array()
+    .items(Joi.string().hex().length(24).messages({
+      'string.hex': 'Each facility ID must be a valid ObjectId.',
+      'string.length': 'Each facility ID must be 24 characters.'
+    }))
+    .optional()
+    .messages({
+      'array.base': 'Facilities must be an array of valid IDs.'
+    }),
 
   capacity: Joi.number()
     .min(1)
@@ -163,6 +150,7 @@ farmType: Joi.string()
       'any.required': 'Capacity is required.'
     })
 });
+
 
 
 exports. farmBookingValidationSchema = Joi.object({
@@ -264,35 +252,44 @@ exports. getFarmByIdSchema = Joi.object({
 
 
 
-exports. getFarmByImageSchema = Joi.object({
-  imageUrl: Joi.string()
-    .uri()
-    .required()
-    .messages({
-      'string.base': 'Image URL must be a string.',
-      'string.uri': 'Image URL must be a valid URI.',
-      'any.required': 'Image URL is required.'
-    })
+exports.getImagesByFarmTypeSchema = Joi.object({
+  categoryId: Joi.string().hex().length(24).required().messages({
+    'string.base': 'Category ID must be a string.',
+    'string.length': 'Category ID must be 24 characters long.',
+    'string.hex': 'Category ID must be a valid hex ObjectId.',
+    'any.required': 'Category ID is required.'
+  })
 });
 
 
 
-
-exports.  FilterQueeryFarm= Joi.object({
+exports.FilterQueeryFarm = Joi.object({
   date: Joi.date()
     .iso()
     .required()
     .messages({
-      'any.required': 'Date is required.',
-      'date.format': 'Date must be in valid ISO format (YYYY-MM-DD).'
+      'date.base': 'Date must be a valid date.',
+      'date.format': 'Date must be in valid ISO format (YYYY-MM-DD).',
+      'any.required': 'Date is required.'
     }),
 
-  category: Joi.string()
-    .valid('Organic Farm', 'Event Farm', 'Resort Farm', 'Private Farmhouse', 'Goat Farm', 'Other')
+  farmCategory: Joi.array()
+    .items(
+      Joi.string()
+        .hex()
+        .length(24)
+        .messages({
+          'string.base': 'Each farm category ID must be a string.',
+          'string.hex': 'Each farm category ID must be a valid ObjectId.',
+          'string.length': 'Each farm category ID must be 24 characters long.'
+        })
+    )
+    .min(1)
     .required()
     .messages({
-      'any.only': 'Category must be one of the allowed farm types.',
-      'any.required': 'Category is required.'
+      'array.base': 'Farm category must be an array of ObjectIds.',
+      'array.min': 'At least one farm category must be provided.',
+      'any.required': 'Farm category is required.'
     }),
 
   capacityRange: Joi.object({
@@ -312,7 +309,7 @@ exports.  FilterQueeryFarm= Joi.object({
       .required()
       .messages({
         'number.base': 'Maximum capacity must be a number.',
-        'number.min': 'Maximum capacity must be equal to or more than minimum.',
+        'number.min': 'Maximum capacity must be equal to or greater than minimum.',
         'any.required': 'Maximum capacity is required.'
       })
   }).required().messages({
@@ -335,7 +332,7 @@ exports.  FilterQueeryFarm= Joi.object({
       .required()
       .messages({
         'number.base': 'Maximum price must be a number.',
-        'number.min': 'Maximum price must be equal to or more than minimum.',
+        'number.min': 'Maximum price must be equal to or greater than minimum.',
         'any.required': 'Maximum price is required.'
       })
   }).required().messages({
@@ -343,33 +340,36 @@ exports.  FilterQueeryFarm= Joi.object({
     'any.required': 'Price range is required.'
   }),
 
-  amenities: Joi.array()
+  facilities: Joi.array()
     .items(
       Joi.string()
-        .trim()
-        .min(2)
-        .max(50)
+        .hex()
+        .length(24)
         .messages({
-          'string.min': 'Each amenity must be at least 2 characters.',
-          'string.max': 'Each amenity must be at most 50 characters.'
+          'string.base': 'Each facility ID must be a string.',
+          'string.hex': 'Each facility ID must be a valid ObjectId.',
+          'string.length': 'Each facility ID must be 24 characters long.'
         })
     )
     .optional()
     .messages({
-      'array.base': 'Amenities must be an array of strings.'
+      'array.base': 'Facilities must be an array of valid ObjectIds.'
     })
+
+}).options({
+  abortEarly: false,     // ✅ Return all errors at once
+  allowUnknown: true     // ✅ Ignore unknown keys in the request body
 });
 
-
-exports.getImagesByFarmTypeSchema = Joi.object({
-   type: Joi.string()
-    .valid("Educational Farm",
-        "Film Shooting Farm",
-        "Luxury Farmstay",
-        "Resort Farm",'Other')
+exports.getFarmByImageSchema = Joi.object({
+  imageurl: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
     .required()
     .messages({
-      'any.only': 'Farm type must be one of the allowed categories.',
-      'any.required': 'Farm type parameter is required.'
+      'string.base': 'Image URL must be a string.',
+      'string.empty': 'Image URL is required.',
+      'string.uri': 'Image URL must be a valid HTTP or HTTPS URI.',
+      'any.required': 'Image URL is required.'
     })
 });
+

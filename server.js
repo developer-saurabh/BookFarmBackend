@@ -7,6 +7,7 @@ const venueRoutes = require('./routes/venueRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
 const AdminRoutes = require('./routes/adminRoutes');
 const farmRoutes =require("./routes/farmRoutes")
+const userRoutes=require('./routes/userRoutes.js')
 const fileUpload = require('express-fileupload');
 
 // ✅ Connect DB
@@ -35,6 +36,7 @@ app.use('/api/venue', venueRoutes);
 app.use('/api/farm', farmRoutes);
 app.use('/api/vendor',vendorRoutes );
 app.use('/api/admin',AdminRoutes );
+app.use('/api/user',userRoutes );
 
 
 

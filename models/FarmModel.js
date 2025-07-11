@@ -67,7 +67,7 @@ const farmSchema = new mongoose.Schema({
   // ✅ Amenities
     facilities: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Facility'
+    ref: 'Farm_Facility'
   }],
   capacity: {
     type: Number,

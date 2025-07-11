@@ -1,7 +1,8 @@
 // middleware/vendorAuth.js
 
 const jwt = require('jsonwebtoken');
-
+const JWT_SECRET=process.env.JWT_SECRET
+ console.log("process.env printing jwt seceret",JWT_SECRET)
 const vendorAuth = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
