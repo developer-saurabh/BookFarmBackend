@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { addFarm, bookFarm, getMonthlyFarmBookings, FilterQueeryHomePage, getFarmCategories, getAllFarms, getFarmById, getFarmByImageUrl, FilterQueeryFarms, getFarmImagesByCategories, blockDate } = require('../controllers/FarmController');
+const { addFarm, bookFarm, getMonthlyFarmBookings, FilterQueeryHomePage, getFarmCategories, getAllFarms, getFarmById, getFarmByImageUrl, FilterQueeryFarms, getFarmImagesByCategories, blockDate, unblockDate } = require('../controllers/FarmController');
 const { vendorAuth } = require('../middlewares/vendorAuth');
 const ParseNest = require('../utils/ParseNest');
 
 router.post('/add_Farm',ParseNest,vendorAuth, addFarm);
 
 router.post('/block_date',ParseNest,vendorAuth, blockDate);
+
+router.post('/un_block_date',ParseNest,vendorAuth, unblockDate);
 
 router.post('/book_farm',ParseNest, bookFarm);
 

@@ -7,6 +7,7 @@ const venueRoutes = require('./routes/venueRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
 const AdminRoutes = require('./routes/adminRoutes');
 const farmRoutes =require("./routes/farmRoutes")
+const RapidBookRoute =require("./routes/RapidBookRoute.js")
 const userRoutes=require('./routes/userRoutes.js')
 const fileUpload = require('express-fileupload');
 
@@ -37,6 +38,7 @@ app.use('/api/farm', farmRoutes);
 app.use('/api/vendor',vendorRoutes );
 app.use('/api/admin',AdminRoutes );
 app.use('/api/user',userRoutes );
+app.use('/api/Rapid_Book',RapidBookRoute );
 
 
 

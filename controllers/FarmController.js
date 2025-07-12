@@ -2,7 +2,7 @@
 const FarmBooking = require('../models/FarmBookingModel');
 const FarmCategory=require("../models/FarmCategory")
 const Facility=require("../models/FarmFacility")
-const { monthYearSchema, farmAddValidationSchema,blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema } = require('../validationJoi/FarmValidation');
+const { monthYearSchema, farmAddValidationSchema,blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema } = require('../validationJoi/FarmValidation');
 const Farm = require('../models/FarmModel');
 const Customer=require("../models/CustomerModel")
 const Vendor = require("../models/VendorModel");
@@ -84,6 +84,74 @@ exports.addFarm = async (req, res) => {
   }
 };
 
+exports.unblockDate = async (req, res) => {
+  const vendorId = req.user.id;
+
+  // ✅ Validate using external Joi schema
+  const { error, value } = unblockDateSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: error.details.map(e => e.message),
+    });
+  }
+
+  const { farmId, dates } = value;
+
+  try {
+    const farm = await Farm.findById(farmId);
+    if (!farm) {
+      return res.status(404).json({ message: 'Farm not found. Please verify the farm ID.' });
+    }
+
+    if (farm.owner.toString() !== vendorId) {
+      return res.status(403).json({ message: 'Access denied. You do not own this farm.' });
+    }
+
+    const existingSet = new Set(
+      farm.unavailableDates.map(d => DateTime.fromJSDate(d).toISODate())
+    );
+
+    const toUnblockSet = new Set(
+      dates.map(d => DateTime.fromJSDate(new Date(d)).toISODate())
+    );
+
+    const remainingDates = farm.unavailableDates.filter(d => {
+      const iso = DateTime.fromJSDate(d).toISODate();
+      return !toUnblockSet.has(iso);
+    });
+
+    const unblocked = [...existingSet].filter(d => toUnblockSet.has(d));
+    const notBlocked = [...toUnblockSet].filter(d => !existingSet.has(d));
+
+    if (unblocked.length > 0) {
+      farm.unavailableDates = remainingDates;
+      await farm.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Farm availability updated.',
+      summary: {
+        unblockedCount: unblocked.length,
+        notBlockedCount: notBlocked.length,
+      },
+      details: {
+        unblocked,
+        notBlocked,
+        currentUnavailableDates: farm.unavailableDates.map(d => d.toISOString()),
+      },
+    });
+
+  } catch (err) {
+    console.error('Error while unblocking dates:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'An unexpected error occurred while unblocking dates.',
+    });
+  }
+};
 exports.blockDate = async (req, res) => {
   const vendorId = req.user.id;
 
