@@ -152,6 +152,37 @@ exports.farmAddValidationSchema = Joi.object({
 });
 
 
+const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+
+exports.blockDateSchema = Joi.object({
+  farmId: Joi.string()
+    .pattern(objectIdPattern)
+    .required()
+    .label('Farm ID')
+    .messages({
+      'string.pattern.base': `"Farm ID" must be a valid MongoDB ObjectId`,
+    }),
+
+  dates: Joi.array()
+    .items(
+      Joi.date().required().messages({
+        'date.base': `"Each date" must be a valid date`,
+        'any.required': `"Each date" is required`,
+      })
+    )
+    .min(1)
+    .required()
+    .label('Dates')
+    .messages({
+      'array.base': `"Dates" must be an array`,
+      'array.min': `"Dates" must contain at least one date`,
+      'any.required': `"Dates" field is required`,
+    }),
+}).options({
+  abortEarly: false,
+  allowUnknown: false,
+});
+
 
 exports. farmBookingValidationSchema = Joi.object({
   customerName: Joi.string()
@@ -224,7 +255,8 @@ exports.FilterQueeryHomePageScheam = Joi.object({
     'any.required': 'Date is required',
     'date.base': 'Date must be in valid ISO format'
   }),
-  category: Joi.string().required().messages({
+   category: Joi.string().pattern(objectIdPattern).required().messages({
+    'string.pattern.base': 'Category must be a valid MongoDB ObjectId',
     'any.required': 'Category is required'
   }),
    capacityRange: Joi.object({

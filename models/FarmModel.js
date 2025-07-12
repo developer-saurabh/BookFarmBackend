@@ -80,6 +80,12 @@ const farmSchema = new mongoose.Schema({
     required: true
   },
 
+ unavailableDates: {
+  type: [Date],
+  default: [],
+  required: false
+},
+
   // 📊 Status & admin controls
   isActive: {
     type: Boolean,
