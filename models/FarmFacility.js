@@ -16,3 +16,4 @@ const facilitySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 module.exports = mongoose.model('Farm_Facility', facilitySchema);
+
