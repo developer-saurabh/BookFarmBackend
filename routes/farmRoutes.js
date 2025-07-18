@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { addFarm, bookFarm, getMonthlyFarmBookings, FilterQueeryHomePage, getFarmCategories, getAllFarms, getFarmById, getFarmByImageUrl, FilterQueeryFarms, getFarmImagesByCategories, blockDate, unblockDate } = require('../controllers/FarmController');
+const { addFarm, bookFarm, getMonthlyFarmBookings, FilterQueeryHomePage, getFarmCategories, getAllFarms, getFarmById, getFarmByImageUrl, FilterQueeryFarms, getFarmImagesByCategories, blockDate, unblockDate, getAllFacilities } = require('../controllers/FarmController');
 const { vendorAuth } = require('../middlewares/vendorAuth');
 const ParseNest = require('../utils/ParseNest');
 
@@ -17,6 +17,8 @@ router.get('/get_month_booking', ParseNest, getMonthlyFarmBookings);
 router.post('/filter_querry_home', ParseNest, FilterQueeryHomePage);
 
 router.get('/get_all_categories', ParseNest,getFarmCategories);
+
+router.get('/get_all_facilities', ParseNest,getAllFacilities);
 
 router.get('/get_all_farms', ParseNest,getAllFarms);
 

@@ -940,3 +940,21 @@ exports.getAllFarms = async (req, res) => {
 };
 
 
+
+exports.getAllFacilities = async (req, res) => {
+  try {
+    const facilities = await Facility.find({ isActive: true }).select('_id name');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Facilities fetched successfully.',
+      data: facilities
+    });
+  } catch (err) {
+    console.error('[GetAllFacilities Error]', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error. Please try again later.'
+    });
+  }
+};
