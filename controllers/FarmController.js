@@ -792,7 +792,7 @@ exports.FilterQueeryFarms = async (req, res) => {
 
 exports.getFarmCategories = async (req, res) => {
   try {
-    // Optional: validate query if needed
+    // Optional: validate query if needed 
     const { error } = getCategoriesSchema.validate(req.query);
     if (error) {
       return res.status(400).json({
@@ -912,8 +912,10 @@ exports.getAllFarms = async (req, res) => {
       isApproved: true
     })
       .populate('farmCategory', '_id name')
-      .populate('facilities', '_id name');
+      .populate('facilities', '_id name')
+      .populate('owner', '_id name');
 
+    console.log("farm printing",farms)
     // 2️⃣ Handle no farms case
     if (!farms || farms.length === 0) {
       return res.status(404).json({
