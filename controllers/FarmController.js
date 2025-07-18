@@ -1,13 +1,13 @@
 // controllers/booking.controller.js
 const FarmBooking = require('../models/FarmBookingModel');
-const FarmCategory=require("../models/FarmCategory")
-const Facility=require("../models/FarmFacility")
-const { monthYearSchema, farmAddValidationSchema,blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema } = require('../validationJoi/FarmValidation');
+const FarmCategory = require("../models/FarmCategory")
+const Facility = require("../models/FarmFacility")
+const { monthYearSchema, farmAddValidationSchema, blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema } = require('../validationJoi/FarmValidation');
 const Farm = require('../models/FarmModel');
-const Customer=require("../models/CustomerModel")
+const Customer = require("../models/CustomerModel")
 const Vendor = require("../models/VendorModel");
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
-const mongoose=require("mongoose")
+const mongoose = require("mongoose")
 const { DateTime } = require('luxon'); // optional: for clean date handling (recommended)
 exports.addFarm = async (req, res) => {
   try {
@@ -342,93 +342,6 @@ exports.bookFarm = async (req, res) => {
 };
 
 
-//front page apis
-
-// for calender 
-// exports.getMonthlyFarmBookings = async (req, res) => {
-//   try {
-//     // ✅ Validate input (MM/YYYY format)
-//     const { error, value } = monthYearSchema.validate(req.query);
-//     if (error) {
-//       return res.status(400).json({ message: error.details[0].message });
-//     }
-
-//     const { monthYear } = value;
-//     const [monthStr, yearStr] = monthYear.split('/');
-//     const month = parseInt(monthStr);
-//     const year = parseInt(yearStr);
-
-//     const startDate = new Date(year, month - 1, 1);
-//     const endDate = new Date(year, month, 0, 23, 59, 59);
-
-//     // ✅ Get all active farms
-//     const farms = await Farm.find({ isActive: true, isApproved: true });
-//     const farmIds = farms.map(f => f._id.toString());
-
-//     // ✅ Fetch all bookings for the month
-//     const bookings = await FarmBooking.find({
-//       date: { $gte: startDate, $lte: endDate },
-//       status: { $in: ['pending', 'confirmed'] }
-//     });
-
-//     // ✅ Build a booking map: { date: { farmId: Set of booked modes } }
-//     const bookingMap = {}; // e.g. { '2025-07-01': { farmId1: Set(), farmId2: Set() } }
-
-//     bookings.forEach(b => {
-//       const dayKey = b.date.toISOString().split('T')[0];
-//       if (!bookingMap[dayKey]) bookingMap[dayKey] = {};
-
-//       if (!bookingMap[dayKey][b.farm]) {
-//         bookingMap[dayKey][b.farm] = new Set();
-//       }
-
-//       b.bookingModes.forEach(mode => bookingMap[dayKey][b.farm].add(mode));
-//     });
-
-//     // ✅ Final calendar result
-//     const daysInMonth = new Date(year, month, 0).getDate();
-//     const result = [];
-
-//     for (let day = 1; day <= daysInMonth; day++) {
-//       const dateStr = new Date(year, month - 1, day).toISOString().split('T')[0];
-//       const dayBookings = bookingMap[dateStr] || {};
-
-//       let fullyBookedCount = 0;
-//       let partialAvailable = false;
-//       let hasCompletelyFreeFarm = false;
-
-//       for (const farmId of farmIds) {
-//         const bookedModes = dayBookings[farmId] || new Set();
-
-//         if (bookedModes.size === 0) {
-//           hasCompletelyFreeFarm = true;
-//           break; // no need to check more if even one is fully free
-//         } else if (bookedModes.size < 3) {
-//           partialAvailable = true;
-//         } else {
-//           fullyBookedCount++;
-//         }
-//       }
-
-//       const allFullyBooked = fullyBookedCount === farmIds.length;
-
-//       result.push({
-//         date: dateStr,
-//         Full_available: hasCompletelyFreeFarm,
-//         partial_Available: !hasCompletelyFreeFarm && partialAvailable
-//       });
-//     }
-
-//     res.json({
-//       success: true,
-//       data: result
-//     });
-//   } catch (err) {
-//     console.error('Calendar booking fetch error:', err);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// };
-
 exports.getMonthlyFarmBookings = async (req, res) => {
   try {
     // ✅ Validate input (MM/YYYY format)
@@ -544,10 +457,10 @@ exports.FilterQueeryHomePage = async (req, res) => {
 
     const isoDateStr = new Date(date).toISOString().split('T')[0];
 
-// Build exact day range
-const start = new Date(`${isoDateStr}T00:00:00.000Z`);
-const end = new Date(`${isoDateStr}T23:59:59.999Z`);
-  
+    // Build exact day range
+    const start = new Date(`${isoDateStr}T00:00:00.000Z`);
+    const end = new Date(`${isoDateStr}T23:59:59.999Z`);
+
 
     // ✅ Step 1: Verify category exists
     const foundCategory = await FarmCategory.findById(category);
@@ -560,10 +473,14 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 
     // ✅ Step 2: Get farms in that category
     const categoryFarms = await Farm.find({
-    farmCategory: { $in: [category] },
+      farmCategory: { $in: [category] },
       isActive: true,
       isApproved: true
-    });
+    })
+      .populate('owner', 'name')              // populate owner name
+      .populate('facilities', 'name')         // populate facilities names
+      .populate('farmCategory', 'name');      // populate farmCategory names
+
 
     if (categoryFarms.length === 0) {
       return res.status(404).json({
@@ -631,11 +548,11 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
     }
 
     // ✅ Success Response
- return res.status(200).json({
-  success: true,
-  message: `${availableFarms.length} farm(s) available on ${isoDateStr}.`,
-  data: availableFarms
-});
+    return res.status(200).json({
+      success: true,
+      message: `${availableFarms.length} farm(s) available on ${isoDateStr}.`,
+      data: availableFarms
+    });
 
   } catch (err) {
     console.error('FilterQueeryHomePage error:', err);
@@ -646,104 +563,6 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
   }
 };
 
-
-// exports.FilterQueeryHomePage = async (req, res) => {
-//   try {
-//     // ✅ Validate input
-//     const { error, value } = FilterQueeryHomePageScheam.validate(req.body);
-//     if (error) {
-//       return res.status(400).json({
-//         success: false,
-//         message: error.details[0].message
-//       });
-//     }
-
-//     const { date, category, capacityRange } = value;
-//     const { min, max } = capacityRange;
-
-//     const targetDate = new Date(date);
-//     const start = new Date(targetDate.setHours(0, 0, 0, 0));
-//     const end = new Date(targetDate.setHours(23, 59, 59, 999));
-//     const isoDateStr = start.toISOString().split('T')[0]; // e.g., '2025-07-20'
-
-//     // ✅ Step 1: Filter farms by category (include capacity + unavailableDates)
-//     const categoryFarms = await Farm.find({
-//       farmType: category,
-//       capacity: { $gte: min, $lte: max },
-//       isActive: true,
-//       isApproved: true
-//     });
-
-//     if (!categoryFarms || categoryFarms.length === 0) {
-//       return res.status(404).json({
-//         success: false,
-//         message: `No farms found under the category "${category}" with capacity between ${min} and ${max}.`
-//       });
-//     }
-
-//     // ✅ Step 2: Remove farms blocked on that date
-//     const farmsNotBlocked = categoryFarms.filter(farm => {
-//       const blockedDates = (farm.unavailableDates || []).map(d =>
-//         new Date(d).toISOString().split('T')[0]
-//       );
-//       return !blockedDates.includes(isoDateStr);
-//     });
-
-//     if (farmsNotBlocked.length === 0) {
-//       return res.status(404).json({
-//         success: false,
-//         message: `No farms available on ${isoDateStr} — all are blocked by vendors.`
-//       });
-//     }
-
-//     const farmIds = farmsNotBlocked.map(f => f._id);
-
-//     // ✅ Step 3: Get bookings on that date
-//     const bookings = await FarmBooking.find({
-//       farm: { $in: farmIds },
-//       date: { $gte: start, $lte: end },
-//       status: { $in: ['pending', 'confirmed'] }
-//     });
-
-//     // ✅ Step 4: Build farmId → bookedModes map
-//     const bookingMap = {};
-//     bookings.forEach(b => {
-//       const farmId = b.farm.toString();
-//       if (!bookingMap[farmId]) {
-//         bookingMap[farmId] = new Set();
-//       }
-//       b.bookingModes.forEach(mode => bookingMap[farmId].add(mode));
-//     });
-
-//     // ✅ Step 5: Return farms not fully booked (all 3 modes)
-//     const allModes = ['full_day', 'day_slot', 'night_slot'];
-
-//     const availableFarms = farmsNotBlocked.filter(farm => {
-//       const bookedModes = bookingMap[farm._id.toString()] || new Set();
-//       return !allModes.every(mode => bookedModes.has(mode));
-//     });
-
-//     if (availableFarms.length === 0) {
-//       return res.status(404).json({
-//         success: false,
-//         message: `All farms under category "${category}" with capacity ${min}–${max} are fully booked or blocked on ${isoDateStr}.`
-//       });
-//     }
-
-//     return res.status(200).json({
-//       success: true,
-//       message: `${availableFarms.length} farm(s) available on ${isoDateStr}.`,
-//       data: availableFarms
-//     });
-
-//   } catch (err) {
-//     console.error('Farm filter query error:', err);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Internal server error. Please try again later.'
-//     });
-//   }
-// };
 
 
 exports.getFarmById = async (req, res) => {
@@ -777,7 +596,7 @@ exports.getFarmById = async (req, res) => {
       message: 'Internal server error. Please try again later.'
     });
   }
-};  
+};
 
 exports.getFarmByImageUrl = async (req, res) => {
   try {
@@ -1013,7 +832,7 @@ exports.getFarmCategories = async (req, res) => {
 exports.getFarmImagesByCategories = async (req, res) => {
   try {
     // ✅ Validate route param (categoryId)
-    console.log("req.parms priting",req.params)
+    console.log("req.parms priting", req.params)
     const { error, value } = getImagesByFarmTypeSchema.validate(req.params);
     if (error) {
       return res.status(400).json({
