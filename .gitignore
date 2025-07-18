@@ -1,0 +1,15 @@
+# Node modules
+node_modules/
+
+# Env files (NEVER push .env)
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS junk
+.DS_Store
+Thumbs.db
+
