@@ -271,8 +271,7 @@ exports. getCategoriesSchema = Joi.object({})
   });
 
 
-
-exports. getFarmByIdSchema = Joi.object({
+exports.getFarmByIdSchema = Joi.object({
   farmId: Joi.string().hex().length(24).required().messages({
     'string.base': 'Farm ID must be a string.',
     'string.length': 'Farm ID must be a valid 24-character hex string.',
@@ -280,6 +279,7 @@ exports. getFarmByIdSchema = Joi.object({
     'any.required': 'Farm ID is required.'
   })
 });
+
 
 
 

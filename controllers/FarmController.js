@@ -567,7 +567,7 @@ exports.FilterQueeryHomePage = async (req, res) => {
 
 exports.getFarmById = async (req, res) => {
   try {
-    const { error, value } = getFarmByIdSchema.validate({ farmId: req.params.id });
+    const { error, value } = getFarmByIdSchema.validate({ farmId: req.body.farmId  });
     if (error) {
       return res.status(400).json({
         success: false,

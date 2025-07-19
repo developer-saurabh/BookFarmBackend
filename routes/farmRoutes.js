@@ -22,7 +22,7 @@ router.get('/get_all_facilities', ParseNest,getAllFacilities);
 
 router.get('/get_all_farms', ParseNest,getAllFarms);
 
-router.get('/get_farm_id/:id', ParseNest,getFarmById);
+router.post('/get_farm_id', ParseNest,getFarmById);
 
 router.get('/get_farm_by_image_url/:imageurl', ParseNest,getFarmByImageUrl);
 
