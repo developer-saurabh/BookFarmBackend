@@ -915,7 +915,7 @@ exports.getAllFarms = async (req, res) => {
       .populate('facilities', '_id name')
       .populate('owner', '_id name');
 
-    console.log("farm printing",farms)
+    // console.log("farm printing",farms)
     // 2️⃣ Handle no farms case
     if (!farms || farms.length === 0) {
       return res.status(404).json({
