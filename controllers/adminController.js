@@ -134,7 +134,7 @@ exports.addFarmCategory = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const name = value.name.trim();
+    const name = value
 
     // ✅ Step 2: Check for duplicate (case-insensitive)
     const existing = await FarmCategory.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
