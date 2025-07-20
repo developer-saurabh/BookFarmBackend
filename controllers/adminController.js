@@ -125,7 +125,6 @@ exports.updateVendorStatus = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error.' });
   }
 };
-
 exports.addFarmCategory = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -134,25 +133,35 @@ exports.addFarmCategory = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const name = value
+    const names = value.names;
 
-    // ✅ Step 2: Check for duplicate (case-insensitive)
-    const existing = await FarmCategory.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
-    if (existing) {
-      return res.status(409).json({ message: 'Category with this name already exists' });
+    const createdCategories = [];
+
+    for (const name of names) {
+      // ✅ Step 2: Check for duplicate (case-insensitive)
+      const existing = await FarmCategory.findOne({
+        name: { $regex: new RegExp(`^${name}$`, 'i') }
+      });
+      if (existing) {
+        continue; // skip duplicates
+      }
+
+      // ✅ Step 3: Create category
+      const category = new FarmCategory({ name });
+      await category.save();
+      createdCategories.push(category);
+
+      // ✅ Step 4: Optionally push to Farm model's categories array
+      await Farm.updateMany({}, { $push: { categories: category._id } });
     }
 
-    // ✅ Step 3: Create category
-    const category = new FarmCategory({ name });
-    await category.save();
-
-    // ✅ Step 4: Optionally push to farm model's categories array (if exists)
-   
-    await Farm.updateMany({}, { $push: { categories: category._id } }); // optional logic
+    if (createdCategories.length === 0) {
+      return res.status(409).json({ message: 'All categories already exist' });
+    }
 
     return res.status(201).json({
-      message: 'Farm category created successfully',
-      data: category
+      message: 'Farm categories created successfully',
+      data: createdCategories
     });
   } catch (error) {
     console.error('Error adding farm category:', error);
