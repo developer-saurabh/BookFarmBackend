@@ -1,5 +1,6 @@
 // controllers/booking.controller.js
 const FarmBooking = require('../models/FarmBookingModel');
+const moment = require('moment');
 const FarmCategory = require("../models/FarmCategory")
 const Facility = require("../models/FarmFacility")
 const { monthYearSchema, farmAddValidationSchema, blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema } = require('../validationJoi/FarmValidation');
@@ -904,9 +905,49 @@ exports.getFarmImagesByCategories = async (req, res) => {
 
 // get all farms 
 
+// exports.getAllFarms = async (req, res) => {
+//   try {
+//     // 1️⃣ Find farms with active + approved status
+//     const farms = await Farm.find({
+//       isActive: true,
+//       isApproved: true
+//     })
+//       .populate('farmCategory', '_id name')
+//       .populate('facilities', '_id name')
+//       .populate('owner', '_id name');
+
+//     // console.log("farm printing",farms)
+//     // 2️⃣ Handle no farms case
+//     if (!farms || farms.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'No farms found.'
+//       });
+//     }
+
+//     // 3️⃣ Respond with data
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Farms fetched successfully.',
+//       data: farms
+//     });
+//   } catch (err) {
+//     console.error('[GetAllFarms Error]', err);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error. Please try again later.'
+//     });
+//   }
+// };
+
+
+
 exports.getAllFarms = async (req, res) => {
   try {
-    // 1️⃣ Find farms with active + approved status
+    const today = moment().startOf('day');
+    const endDate = moment().add(29, 'days').endOf('day'); // 30 days including today
+
+    // Step 1️⃣: Get all active + approved farms
     const farms = await Farm.find({
       isActive: true,
       isApproved: true
@@ -915,20 +956,72 @@ exports.getAllFarms = async (req, res) => {
       .populate('facilities', '_id name')
       .populate('owner', '_id name');
 
-    // console.log("farm printing",farms)
-    // 2️⃣ Handle no farms case
-    if (!farms || farms.length === 0) {
+    if (!farms.length) {
       return res.status(404).json({
         success: false,
         message: 'No farms found.'
       });
     }
 
-    // 3️⃣ Respond with data
+    // Step 2️⃣: Get all bookings within date range
+    const bookings = await FarmBooking.find({
+      date: { $gte: today.toDate(), $lte: endDate.toDate() },
+      status: { $in: ['pending', 'confirmed'] }
+    });
+
+    // Step 3️⃣: Build booking map: { dateStr: { farmId: Set of bookedModes } }
+    const bookingMap = {};
+    bookings.forEach(b => {
+      const dateStr = moment(b.date).format('YYYY-MM-DD');
+      const farmId = b.farm.toString();
+
+      if (!bookingMap[dateStr]) bookingMap[dateStr] = {};
+      if (!bookingMap[dateStr][farmId]) bookingMap[dateStr][farmId] = new Set();
+
+      b.bookingModes.forEach(mode => bookingMap[dateStr][farmId].add(mode));
+    });
+
+    // Step 4️⃣: Prepare response for each farm
+    const result = farms.map(farm => {
+      const farmId = farm._id.toString();
+      const unavailableDatesSet = new Set(
+        (farm.unavailableDates || []).map(d => moment(d).format('YYYY-MM-DD'))
+      );
+
+      const availabilityCalendar = [];
+
+      for (let i = 0; i < 30; i++) {
+        const date = moment(today).add(i, 'days');
+        const dateStr = date.format('YYYY-MM-DD');
+
+        const isUnavailable = unavailableDatesSet.has(dateStr);
+        const bookedModes = bookingMap[dateStr]?.[farmId] || new Set();
+
+        let status;
+        if (isUnavailable || bookedModes.size >= 3) {
+          status = 'fully_booked';
+        } else if (bookedModes.size > 0) {
+          status = 'partial_available';
+        } else {
+          status = 'full_available';
+        }
+
+        availabilityCalendar.push({
+          date: dateStr,
+          status
+        });
+      }
+
+      return {
+        ...farm.toObject(),
+        availabilityCalendar // 30-day status per day
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      message: 'Farms fetched successfully.',
-      data: farms
+      message: 'Farms fetched with 30-day availability.',
+      data: result
     });
   } catch (err) {
     console.error('[GetAllFarms Error]', err);
@@ -938,7 +1031,6 @@ exports.getAllFarms = async (req, res) => {
     });
   }
 };
-
 
 
 exports.getAllFacilities = async (req, res) => {
