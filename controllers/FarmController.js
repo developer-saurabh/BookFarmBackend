@@ -2,12 +2,13 @@
 const FarmBooking = require('../models/FarmBookingModel');
 const FarmCategory=require("../models/FarmCategory")
 const Facility=require("../models/FarmFacility")
-const { monthYearSchema, farmAddValidationSchema,blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema } = require('../validationJoi/FarmValidation');
+const { monthYearSchema, farmAddValidationSchema,blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema, getFacilitiesSchema } = require('../validationJoi/FarmValidation');
 const Farm = require('../models/FarmModel');
 const Customer=require("../models/CustomerModel")
 const Vendor = require("../models/VendorModel");
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 const mongoose=require("mongoose")
+const moment=require("moment")
 const { DateTime } = require('luxon'); // optional: for clean date handling (recommended)
 exports.addFarm = async (req, res) => {
   try {
@@ -342,93 +343,6 @@ exports.bookFarm = async (req, res) => {
 };
 
 
-//front page apis
-
-// for calender 
-// exports.getMonthlyFarmBookings = async (req, res) => {
-//   try {
-//     // ✅ Validate input (MM/YYYY format)
-//     const { error, value } = monthYearSchema.validate(req.query);
-//     if (error) {
-//       return res.status(400).json({ message: error.details[0].message });
-//     }
-
-//     const { monthYear } = value;
-//     const [monthStr, yearStr] = monthYear.split('/');
-//     const month = parseInt(monthStr);
-//     const year = parseInt(yearStr);
-
-//     const startDate = new Date(year, month - 1, 1);
-//     const endDate = new Date(year, month, 0, 23, 59, 59);
-
-//     // ✅ Get all active farms
-//     const farms = await Farm.find({ isActive: true, isApproved: true });
-//     const farmIds = farms.map(f => f._id.toString());
-
-//     // ✅ Fetch all bookings for the month
-//     const bookings = await FarmBooking.find({
-//       date: { $gte: startDate, $lte: endDate },
-//       status: { $in: ['pending', 'confirmed'] }
-//     });
-
-//     // ✅ Build a booking map: { date: { farmId: Set of booked modes } }
-//     const bookingMap = {}; // e.g. { '2025-07-01': { farmId1: Set(), farmId2: Set() } }
-
-//     bookings.forEach(b => {
-//       const dayKey = b.date.toISOString().split('T')[0];
-//       if (!bookingMap[dayKey]) bookingMap[dayKey] = {};
-
-//       if (!bookingMap[dayKey][b.farm]) {
-//         bookingMap[dayKey][b.farm] = new Set();
-//       }
-
-//       b.bookingModes.forEach(mode => bookingMap[dayKey][b.farm].add(mode));
-//     });
-
-//     // ✅ Final calendar result
-//     const daysInMonth = new Date(year, month, 0).getDate();
-//     const result = [];
-
-//     for (let day = 1; day <= daysInMonth; day++) {
-//       const dateStr = new Date(year, month - 1, day).toISOString().split('T')[0];
-//       const dayBookings = bookingMap[dateStr] || {};
-
-//       let fullyBookedCount = 0;
-//       let partialAvailable = false;
-//       let hasCompletelyFreeFarm = false;
-
-//       for (const farmId of farmIds) {
-//         const bookedModes = dayBookings[farmId] || new Set();
-
-//         if (bookedModes.size === 0) {
-//           hasCompletelyFreeFarm = true;
-//           break; // no need to check more if even one is fully free
-//         } else if (bookedModes.size < 3) {
-//           partialAvailable = true;
-//         } else {
-//           fullyBookedCount++;
-//         }
-//       }
-
-//       const allFullyBooked = fullyBookedCount === farmIds.length;
-
-//       result.push({
-//         date: dateStr,
-//         Full_available: hasCompletelyFreeFarm,
-//         partial_Available: !hasCompletelyFreeFarm && partialAvailable
-//       });
-//     }
-
-//     res.json({
-//       success: true,
-//       data: result
-//     });
-//   } catch (err) {
-//     console.error('Calendar booking fetch error:', err);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// };
-
 exports.getMonthlyFarmBookings = async (req, res) => {
   try {
     // ✅ Validate input (MM/YYYY format)
@@ -647,108 +561,11 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 };
 
 
-// exports.FilterQueeryHomePage = async (req, res) => {
-//   try {
-//     // ✅ Validate input
-//     const { error, value } = FilterQueeryHomePageScheam.validate(req.body);
-//     if (error) {
-//       return res.status(400).json({
-//         success: false,
-//         message: error.details[0].message
-//       });
-//     }
-
-//     const { date, category, capacityRange } = value;
-//     const { min, max } = capacityRange;
-
-//     const targetDate = new Date(date);
-//     const start = new Date(targetDate.setHours(0, 0, 0, 0));
-//     const end = new Date(targetDate.setHours(23, 59, 59, 999));
-//     const isoDateStr = start.toISOString().split('T')[0]; // e.g., '2025-07-20'
-
-//     // ✅ Step 1: Filter farms by category (include capacity + unavailableDates)
-//     const categoryFarms = await Farm.find({
-//       farmType: category,
-//       capacity: { $gte: min, $lte: max },
-//       isActive: true,
-//       isApproved: true
-//     });
-
-//     if (!categoryFarms || categoryFarms.length === 0) {
-//       return res.status(404).json({
-//         success: false,
-//         message: `No farms found under the category "${category}" with capacity between ${min} and ${max}.`
-//       });
-//     }
-
-//     // ✅ Step 2: Remove farms blocked on that date
-//     const farmsNotBlocked = categoryFarms.filter(farm => {
-//       const blockedDates = (farm.unavailableDates || []).map(d =>
-//         new Date(d).toISOString().split('T')[0]
-//       );
-//       return !blockedDates.includes(isoDateStr);
-//     });
-
-//     if (farmsNotBlocked.length === 0) {
-//       return res.status(404).json({
-//         success: false,
-//         message: `No farms available on ${isoDateStr} — all are blocked by vendors.`
-//       });
-//     }
-
-//     const farmIds = farmsNotBlocked.map(f => f._id);
-
-//     // ✅ Step 3: Get bookings on that date
-//     const bookings = await FarmBooking.find({
-//       farm: { $in: farmIds },
-//       date: { $gte: start, $lte: end },
-//       status: { $in: ['pending', 'confirmed'] }
-//     });
-
-//     // ✅ Step 4: Build farmId → bookedModes map
-//     const bookingMap = {};
-//     bookings.forEach(b => {
-//       const farmId = b.farm.toString();
-//       if (!bookingMap[farmId]) {
-//         bookingMap[farmId] = new Set();
-//       }
-//       b.bookingModes.forEach(mode => bookingMap[farmId].add(mode));
-//     });
-
-//     // ✅ Step 5: Return farms not fully booked (all 3 modes)
-//     const allModes = ['full_day', 'day_slot', 'night_slot'];
-
-//     const availableFarms = farmsNotBlocked.filter(farm => {
-//       const bookedModes = bookingMap[farm._id.toString()] || new Set();
-//       return !allModes.every(mode => bookedModes.has(mode));
-//     });
-
-//     if (availableFarms.length === 0) {
-//       return res.status(404).json({
-//         success: false,
-//         message: `All farms under category "${category}" with capacity ${min}–${max} are fully booked or blocked on ${isoDateStr}.`
-//       });
-//     }
-
-//     return res.status(200).json({
-//       success: true,
-//       message: `${availableFarms.length} farm(s) available on ${isoDateStr}.`,
-//       data: availableFarms
-//     });
-
-//   } catch (err) {
-//     console.error('Farm filter query error:', err);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Internal server error. Please try again later.'
-//     });
-//   }
-// };
-
 
 exports.getFarmById = async (req, res) => {
   try {
-    const { error, value } = getFarmByIdSchema.validate({ farmId: req.params.id });
+    const { error, value } = getFarmByIdSchema.validate({ farmId: req.body.farmId });
+
     if (error) {
       return res.status(400).json({
         success: false,
@@ -756,7 +573,11 @@ exports.getFarmById = async (req, res) => {
       });
     }
 
-    const farm = await Farm.findById(value.farmId);
+    // 🔍 Get the farm with populated refs
+    const farm = await Farm.findById(value.farmId)
+      .populate('farmCategory', '_id name')
+      .populate('facilities', '_id name icon')
+      .populate('owner', '_id name email phone');
 
     if (!farm || !farm.isActive || !farm.isApproved) {
       return res.status(404).json({
@@ -765,19 +586,68 @@ exports.getFarmById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    // 📅 Get next 7 days (from today)
+    const today = moment().startOf('day');
+    const next7Days = [];
+    for (let i = 0; i < 7; i++) {
+      next7Days.push(today.clone().add(i, 'days').format('YYYY-MM-DD'));
+    }
+
+    // 🛑 Remove unavailableDates
+    const blockedDates = (farm.unavailableDates || []).map(date =>
+      moment(date).format('YYYY-MM-DD')
+    );
+
+    // 📦 Fetch bookings for this farm in the next 7 days
+    const bookings = await FarmBooking.find({
+      farm: farm._id,
+      date: { $gte: today.toDate(), $lte: today.clone().add(6, 'days').endOf('day').toDate() },
+      status: { $in: ['pending', 'confirmed'] }
+    });
+
+    // 📊 Create map of booked modes by date
+    const bookingMap = {};
+    bookings.forEach(booking => {
+      const dateStr = moment(booking.date).format('YYYY-MM-DD');
+      if (!bookingMap[dateStr]) bookingMap[dateStr] = new Set();
+      booking.bookingModes.forEach(mode => bookingMap[dateStr].add(mode));
+    });
+
+    const allModes = ['full_day', 'day_slot', 'night_slot'];
+
+    // ✅ Build availability array
+    const availability = next7Days.map(dateStr => {
+      const isBlocked = blockedDates.includes(dateStr);
+      const booked = bookingMap[dateStr] || new Set();
+
+      const slots = {};
+      allModes.forEach(mode => {
+        slots[mode] = !isBlocked && !booked.has(mode);
+      });
+
+      return {
+        date: dateStr,
+        availableSlots: slots
+      };
+    });
+
+    return res.status(200).json({
       success: true,
       message: 'Farm fetched successfully.',
-      data: farm
+      data: {
+        ...farm.toObject(),
+        availability
+      }
     });
+
   } catch (err) {
     console.error('[GetFarmById Error]', err);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Internal server error. Please try again later.'
     });
   }
-};  
+};
 
 exports.getFarmByImageUrl = async (req, res) => {
   try {
@@ -828,7 +698,6 @@ exports.getFarmByImageUrl = async (req, res) => {
 };
 
 // farms filter api
-
 exports.FilterQueeryFarms = async (req, res) => {
   try {
     const { error, value } = FilterQueeryFarm.validate(req.body);
@@ -839,124 +708,146 @@ exports.FilterQueeryFarms = async (req, res) => {
       });
     }
 
-    const { date, farmCategory, capacityRange, priceRange, facilities = [] } = value;
-    const { min: capMin, max: capMax } = capacityRange;
-    const { min: priceMin, max: priceMax } = priceRange;
+    const {
+      startDate,
+      endDate,
+      farmCategory = [],
+      capacityRange,
+      priceRange,
+      facilities = []
+    } = value;
 
-    // 1️⃣ Fetch base farms by category
-    const farms = await Farm.find({
-      farmCategory: { $in: farmCategory },
-      isActive: true,
-      isApproved: true
-    })
+    // 🧠 Use today as default start
+    const now = new Date();
+    const start = startDate ? new Date(startDate) : new Date(now.toISOString().split('T')[0]);
+
+    // 🔁 If no endDate → assume next 60 days
+    const end = endDate
+      ? new Date(endDate)
+      : new Date(new Date(start).setDate(start.getDate() + 59));
+
+    // 📆 All dates in range
+    const allDates = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      allDates.push(new Date(d).toISOString().split('T')[0]);
+    }
+
+    // 🔍 Step 1: Get base farms
+    const baseQuery = { isActive: true, isApproved: true };
+    if (farmCategory.length > 0) {
+      baseQuery.farmCategory = { $in: farmCategory };
+    }
+
+    let farms = await Farm.find(baseQuery)
       .populate('farmCategory', '_id name')
       .populate('facilities', '_id name');
 
     if (!farms.length) {
       return res.status(404).json({
         success: false,
-        message: `No farms found for the selected category.`
+        message: 'No farms found for the selected farm categories.'
       });
     }
 
-    let filtered = farms;
+    // 📏 Step 2: Capacity filter
+    if (capacityRange) {
+      const { min: capMin, max: capMax } = capacityRange;
+      const preFilterCount = farms.length;
+      farms = farms.filter(f => f.capacity >= capMin && f.capacity <= capMax);
 
-    // 2️⃣ Capacity filter
-    filtered = filtered.filter(f => f.capacity >= capMin && f.capacity <= capMax);
-    if (!filtered.length) {
-      return res.status(404).json({
-        success: false,
-        message: `No farms found in capacity range ${capMin}–${capMax}.`
-      });
+      if (!farms.length) {
+        return res.status(404).json({
+          success: false,
+          message: `No farms found in the capacity range ${capMin}–${capMax}.`
+        });
+      }
     }
 
-    // 3️⃣ Facility filter
+    // 🛠 Step 3: Facility filter
     if (facilities.length > 0) {
-      filtered = filtered.filter(farm =>
+      const preFilterCount = farms.length;
+      farms = farms.filter(farm =>
         facilities.every(fid =>
           farm.facilities.some(f => f._id.toString() === fid)
         )
       );
-      if (!filtered.length) {
+
+      if (!farms.length) {
         return res.status(404).json({
           success: false,
-          message: `No farms found with selected facilities.`
+          message: 'No farms found with all selected facilities.'
         });
       }
     }
 
-    // 4️⃣ Price range filter
-    filtered = filtered.filter(f => {
-      const prices = [
-        f.pricing?.full_day,
-        f.pricing?.day_slot,
-        f.pricing?.night_slot
-      ];
-      return prices.some(p => typeof p === 'number' && p >= priceMin && p <= priceMax);
+    // 💰 Step 4: Price filter
+    if (priceRange) {
+      const { min: priceMin, max: priceMax } = priceRange;
+      farms = farms.filter(f => {
+        const prices = [
+          f.pricing?.full_day,
+          f.pricing?.day_slot,
+          f.pricing?.night_slot
+        ];
+        return prices.some(p => typeof p === 'number' && p >= priceMin && p <= priceMax);
+      });
+
+      if (!farms.length) {
+        return res.status(404).json({
+          success: false,
+          message: `No farms found in the price range ₹${priceMin}–₹${priceMax}.`
+        });
+      }
+    }
+
+    // 🛑 All filtering done — now check availability
+    const bookings = await FarmBooking.find({
+      farm: { $in: farms.map(f => f._id) },
+      date: { $gte: start, $lte: end },
+      status: { $in: ['pending', 'confirmed'] }
     });
 
-    if (!filtered.length) {
+    // 📦 Build bookingMap: { farmId: { date: Set(modes) } }
+    const bookingMap = {};
+    bookings.forEach(b => {
+      const fid = b.farm.toString();
+      const dateStr = new Date(b.date).toISOString().split('T')[0];
+      if (!bookingMap[fid]) bookingMap[fid] = {};
+      if (!bookingMap[fid][dateStr]) bookingMap[fid][dateStr] = new Set();
+      b.bookingModes.forEach(mode => bookingMap[fid][dateStr].add(mode));
+    });
+
+    const allModes = ['full_day', 'day_slot', 'night_slot'];
+
+    // ✅ Final: only farms available for every day in range
+    const availableFarms = farms.filter(farm => {
+      const blockedDates = (farm.unavailableDates || []).map(d =>
+        new Date(d).toISOString().split('T')[0]
+      );
+      const fid = farm._id.toString();
+
+      for (const date of allDates) {
+        if (blockedDates.includes(date)) return false;
+
+        const bookedModes = bookingMap[fid]?.[date] || new Set();
+        if (allModes.every(mode => bookedModes.has(mode))) return false;
+      }
+
+      return true;
+    });
+
+    if (!availableFarms.length) {
       return res.status(404).json({
         success: false,
-        message: `No farms found in price range ₹${priceMin}–₹${priceMax}.`
+        message: `No farms fully available between ${start.toDateString()} and ${end.toDateString()}.`
       });
     }
 
-    // 5️⃣ Availability filter with block-date logic
-    if (date) {
-      const isoDateStr = new Date(date).toISOString().split('T')[0];
-      const start = new Date(`${isoDateStr}T00:00:00.000Z`);
-      const end = new Date(`${isoDateStr}T23:59:59.999Z`);
-
-      // 5.1 Exclude vendor-blocked farms
-      filtered = filtered.filter(farm => {
-        const blockedDates = (farm.unavailableDates || []).map(d =>
-          new Date(d).toISOString().split('T')[0]
-        );
-        return !blockedDates.includes(isoDateStr);
-      });
-
-      if (!filtered.length) {
-        return res.status(404).json({
-          success: false,
-          message: `All matching farms are blocked by vendors on ${isoDateStr}.`
-        });
-      }
-
-      // 5.2 Filter fully booked farms
-      const farmIds = filtered.map(f => f._id);
-      const bookings = await FarmBooking.find({
-        farm: { $in: farmIds },
-        date: { $gte: start, $lte: end },
-        status: { $in: ['pending', 'confirmed'] }
-      });
-
-      const bookingMap = {};
-      bookings.forEach(b => {
-        const fid = b.farm.toString();
-        if (!bookingMap[fid]) bookingMap[fid] = new Set();
-        b.bookingModes.forEach(mode => bookingMap[fid].add(mode));
-      });
-
-      const allModes = ['full_day', 'day_slot', 'night_slot'];
-      filtered = filtered.filter(f => {
-        const booked = bookingMap[f._id.toString()] || new Set();
-        return !allModes.every(mode => booked.has(mode));
-      });
-
-      if (!filtered.length) {
-        return res.status(404).json({
-          success: false,
-          message: `All matching farms are fully booked on ${isoDateStr}.`
-        });
-      }
-    }
-
-    // ✅ Return available farms
+    // ✅ All good
     return res.status(200).json({
       success: true,
-      message: `${filtered.length} farm(s) found matching your filters.`,
-      data: filtered
+      message: `${availableFarms.length} farm(s) available from ${start.toDateString()} to ${end.toDateString()}.`,
+      data: availableFarms
     });
 
   } catch (err) {
@@ -967,6 +858,7 @@ exports.FilterQueeryFarms = async (req, res) => {
     });
   }
 };
+
 
 
 // gallary api
@@ -1009,6 +901,52 @@ exports.getFarmCategories = async (req, res) => {
     });
   }
 };
+
+exports.getUsedFacilities = async (req, res) => {
+  try {
+    // 🔐 Validate query
+    const { error } = getFacilitiesSchema.validate(req.query);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
+
+    // 1️⃣ Fetch used facility IDs
+    const facilityIds = await Farm.distinct('facilities', {
+      isActive: true,
+      isApproved: true
+    });
+
+    if (!facilityIds.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'No facilities are currently associated with any farm.'
+      });
+    }
+
+    // 2️⃣ Get full facility details
+    const facilities = await Facility.find(
+      { _id: { $in: facilityIds } },
+      '_id name '
+    ).sort({ name: 1 });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Facilities fetched successfully.',
+      data: facilities
+    });
+
+  } catch (err) {
+    console.error('Facility fetch error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error. Please try again later.'
+    });
+  }
+};
+
 
 exports.getFarmImagesByCategories = async (req, res) => {
   try {
@@ -1084,38 +1022,42 @@ exports.getFarmImagesByCategories = async (req, res) => {
 
 
 // get all farms 
+// currently not in use 
 
-exports.getAllFarms = async (req, res) => {
-  try {
-    // 1️⃣ Find farms with active + approved status
-    const farms = await Farm.find({
-      isActive: true,
-      isApproved: true
-    })
-      .populate('farmCategory', '_id name')
-      .populate('facilities', '_id name');
+// exports.getAllFarms = async (req, res) => {
+//   try {
+//     // 1️⃣ Find farms with active + approved status
+//     const farms = await Farm.find({
+//       isActive: true,
+//       isApproved: true
+//     })
+//       .populate('farmCategory', '_id name')
+//       .populate('facilities', '_id name');
 
-    // 2️⃣ Handle no farms case
-    if (!farms || farms.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No farms found.'
-      });
-    }
+//     // 2️⃣ Handle no farms case
+//     if (!farms || farms.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'No farms found.'
+//       });
+//     }
 
-    // 3️⃣ Respond with data
-    return res.status(200).json({
-      success: true,
-      message: 'Farms fetched successfully.',
-      data: farms
-    });
-  } catch (err) {
-    console.error('[GetAllFarms Error]', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error. Please try again later.'
-    });
-  }
-};
+//     // 3️⃣ Respond with data
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Farms fetched successfully.',
+//       data: farms
+//     });
+//   } catch (err) {
+//     console.error('[GetAllFarms Error]', err);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error. Please try again later.'
+//     });
+//   }
+// };
+
+
+
 
 

@@ -1,6 +1,5 @@
 const Joi = require('joi');
 
-<<<<<<< HEAD
 exports. addFarmCategorySchema = Joi.object({
   name: Joi.string().trim().min(2).max(100).required()
     .messages({
@@ -10,23 +9,6 @@ exports. addFarmCategorySchema = Joi.object({
     })
 });
 
-=======
-exports.addFarmCategorySchema = Joi.object({
-  names: Joi.array().items(
-    Joi.string().trim().min(2).max(100).required()
-      .messages({
-        'string.empty': 'Category name is required',
-        'string.min': 'Category name must be at least 2 characters',
-        'string.max': 'Category name must not exceed 100 characters'
-      })
-  ).min(1).required()
-    .messages({
-      'array.base': 'Categories must be an array of names',
-      'array.min': 'At least one category name is required',
-      'any.required': 'Category names are required'
-    })
-});
->>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 exports.addFacilitiesSchema = Joi.object({
   facilities: Joi.array().items(
     Joi.object({

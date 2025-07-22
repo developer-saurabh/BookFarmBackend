@@ -270,13 +270,13 @@ exports. getCategoriesSchema = Joi.object({})
     'object.unknown': 'Unexpected query parameter provided.'
   });
 
-
-<<<<<<< HEAD
+exports.getFacilitiesSchema = Joi.object({})
+  .unknown(false)
+  .messages({
+    'object.unknown': 'Unexpected query parameter provided.'
+  });
 
 exports. getFarmByIdSchema = Joi.object({
-=======
-exports.getFarmByIdSchema = Joi.object({
->>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
   farmId: Joi.string().hex().length(24).required().messages({
     'string.base': 'Farm ID must be a string.',
     'string.length': 'Farm ID must be a valid 24-character hex string.',
@@ -287,10 +287,6 @@ exports.getFarmByIdSchema = Joi.object({
 
 
 
-<<<<<<< HEAD
-=======
-
->>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 exports.getImagesByFarmTypeSchema = Joi.object({
   categoryId: Joi.string().hex().length(24).required().messages({
     'string.base': 'Category ID must be a string.',
@@ -300,18 +296,26 @@ exports.getImagesByFarmTypeSchema = Joi.object({
   })
 });
 
-
-
 exports.FilterQueeryFarm = Joi.object({
-  date: Joi.date()
+  // 🔹 Mandatory: You must pass at least a start and end date for availability check
+  startDate: Joi.date()
     .iso()
-    .required()
     .messages({
-      'date.base': 'Date must be a valid date.',
-      'date.format': 'Date must be in valid ISO format (YYYY-MM-DD).',
-      'any.required': 'Date is required.'
+      'date.base': 'Start date must be a valid ISO date.',
+      'date.format': 'Start date must follow ISO format (YYYY-MM-DD).'
     }),
 
+  endDate: Joi.date()
+    .iso()
+    .min(Joi.ref('startDate'))
+    .messages({
+      'date.base': 'End date must be a valid ISO date.',
+      'date.format': 'End date must follow ISO format (YYYY-MM-DD).',
+      'date.min': 'End date must be the same or after start date.'
+    }),
+
+
+  // 🔸 Optional: Category filter
   farmCategory: Joi.array()
     .items(
       Joi.string()
@@ -319,18 +323,16 @@ exports.FilterQueeryFarm = Joi.object({
         .length(24)
         .messages({
           'string.base': 'Each farm category ID must be a string.',
-          'string.hex': 'Each farm category ID must be a valid ObjectId.',
+          'string.hex': 'Each farm category ID must be a valid MongoDB ObjectId.',
           'string.length': 'Each farm category ID must be 24 characters long.'
         })
     )
-    .min(1)
-    .required()
     .messages({
-      'array.base': 'Farm category must be an array of ObjectIds.',
-      'array.min': 'At least one farm category must be provided.',
-      'any.required': 'Farm category is required.'
-    }),
+      'array.base': 'Farm category must be an array of valid IDs.'
+    })
+    .optional(),
 
+  // 🔸 Optional: Capacity filter
   capacityRange: Joi.object({
     min: Joi.number()
       .integer()
@@ -348,21 +350,23 @@ exports.FilterQueeryFarm = Joi.object({
       .required()
       .messages({
         'number.base': 'Maximum capacity must be a number.',
-        'number.min': 'Maximum capacity must be equal to or greater than minimum.',
+        'number.min': 'Maximum must be greater than or equal to minimum.',
         'any.required': 'Maximum capacity is required.'
       })
-  }).required().messages({
-    'object.base': 'Capacity range must be a valid object.',
-    'any.required': 'Capacity range is required.'
-  }),
+  })
+    .messages({
+      'object.base': 'Capacity range must be a valid object.'
+    })
+    .optional(),
 
+  // 🔸 Optional: Price filter
   priceRange: Joi.object({
     min: Joi.number()
       .min(0)
       .required()
       .messages({
         'number.base': 'Minimum price must be a number.',
-        'number.min': 'Minimum price must be at least 0.',
+        'number.min': 'Minimum price must be at least ₹0.',
         'any.required': 'Minimum price is required.'
       }),
 
@@ -371,14 +375,16 @@ exports.FilterQueeryFarm = Joi.object({
       .required()
       .messages({
         'number.base': 'Maximum price must be a number.',
-        'number.min': 'Maximum price must be equal to or greater than minimum.',
+        'number.min': 'Maximum price must be greater than or equal to minimum.',
         'any.required': 'Maximum price is required.'
       })
-  }).required().messages({
-    'object.base': 'Price range must be a valid object.',
-    'any.required': 'Price range is required.'
-  }),
+  })
+    .messages({
+      'object.base': 'Price range must be a valid object.'
+    })
+    .optional(),
 
+  // 🔸 Optional: Facilities filter
   facilities: Joi.array()
     .items(
       Joi.string()
@@ -386,19 +392,20 @@ exports.FilterQueeryFarm = Joi.object({
         .length(24)
         .messages({
           'string.base': 'Each facility ID must be a string.',
-          'string.hex': 'Each facility ID must be a valid ObjectId.',
+          'string.hex': 'Each facility ID must be a valid MongoDB ObjectId.',
           'string.length': 'Each facility ID must be 24 characters long.'
         })
     )
-    .optional()
     .messages({
       'array.base': 'Facilities must be an array of valid ObjectIds.'
     })
+    .optional()
 
 }).options({
-  abortEarly: false,     // ✅ Return all errors at once
-  allowUnknown: true     // ✅ Ignore unknown keys in the request body
+  abortEarly: false,   // Show all errors instead of stopping at the first one
+  allowUnknown: true   // Allow extra keys in the request body for future compatibility
 });
+
 
 exports.getFarmByImageSchema = Joi.object({
   imageurl: Joi.string()
