@@ -721,7 +721,6 @@ const cleanInput = (input) => {
 
   return clone;
 };
-
 exports.FilterQueeryFarms = async (req, res) => {
   try {
     const cleanedBody = cleanInput(req.body);
@@ -758,7 +757,7 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     const baseQuery = { isActive: true, isApproved: true };
     if (farmCategory.length > 0) {
-      baseQuery.farmCategory = { $in: farmCategory };
+      baseQuery.farmCategory = { $in: farmCategory }; // ✅ OR logic already
     }
 
     let farms = await Farm.find(baseQuery)
@@ -785,14 +784,12 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     if (facilities.length > 0) {
       farms = farms.filter(farm =>
-        facilities.every(fid =>
-          farm.facilities.some(f => f._id.toString() === fid)
-        )
+        farm.facilities.some(f => facilities.includes(f._id.toString()))
       );
       if (!farms.length) {
         return res.status(404).json({
           success: false,
-          message: 'No farms found with all selected facilities.'
+          message: 'No farms found with any of the selected facilities.'
         });
       }
     }
@@ -877,7 +874,6 @@ exports.FilterQueeryFarms = async (req, res) => {
     });
   }
 };
-
 
 // gallary api
 
