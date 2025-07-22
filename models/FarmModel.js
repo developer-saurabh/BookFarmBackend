@@ -47,11 +47,22 @@ const farmSchema = new mongoose.Schema({
     default: ['full_day']
   },
   // 💰 Pricing
-   pricing: {
-    full_day: { type: Number },
-    day_slot: { type: Number },
-    night_slot: { type: Number }
+dailyPricing: [{
+  date: {
+    type: Date,
+    required: true
   },
+  slots: {
+    full_day: { type: Number, default: 0 },
+    day_slot: { type: Number, default: 0 },
+    night_slot: { type: Number, default: 0 }
+  }
+}],
+defaultPricing: {
+  full_day: { type: Number },
+  day_slot: { type: Number },
+  night_slot: { type: Number }
+},
   currency: {
     type: String,
     default: 'INR'

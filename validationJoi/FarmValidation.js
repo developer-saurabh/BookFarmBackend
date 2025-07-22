@@ -32,71 +32,46 @@ exports.farmAddValidationSchema = Joi.object({
       'string.max': 'Description cannot exceed 1000 characters.'
     }),
 
-  // 🔁 Replaces farmType
-  farmCategory: Joi.array()
-    .items(Joi.string().hex().length(24).messages({
-      'string.hex': 'Each farm category ID must be a valid ObjectId.',
-      'string.length': 'Each farm category ID must be 24 characters.'
-    }))
-    .min(1)
+
+  farmCategory: Joi.string()
+    .hex()
+    .length(24)
     .required()
     .messages({
-      'array.base': 'Farm category must be an array of valid IDs.',
-      'array.min': 'At least one farm category is required.',
+      'string.hex': 'Farm category ID must be a valid ObjectId.',
+      'string.length': 'Farm category ID must be 24 characters.',
       'any.required': 'Farm category is required.'
     }),
 
+
   location: Joi.object({
-    address: Joi.string()
-      .min(5)
-      .max(200)
-      .required()
-      .messages({
-        'string.empty': 'Address is required.',
-        'string.min': 'Address must be at least 5 characters.',
-        'string.max': 'Address cannot exceed 200 characters.'
-      }),
-    city: Joi.string()
-      .pattern(/^[a-zA-Z\s]+$/)
-      .min(2)
-      .max(100)
-      .required()
-      .messages({
-        'string.empty': 'City is required.',
-        'string.pattern.base': 'City can only contain letters and spaces.',
-        'string.min': 'City must be at least 2 characters.',
-        'string.max': 'City cannot exceed 100 characters.'
-      }),
-    state: Joi.string()
-      .pattern(/^[a-zA-Z\s]+$/)
-      .min(2)
-      .max(100)
-      .required()
-      .messages({
-        'string.empty': 'State is required.',
-        'string.pattern.base': 'State can only contain letters and spaces.',
-        'string.min': 'State must be at least 2 characters.',
-        'string.max': 'State cannot exceed 100 characters.'
-      }),
-    pinCode: Joi.string()
-      .pattern(/^\d{6}$/)
-      .optional()
-      .messages({
-        'string.pattern.base': 'Pin code must be a valid 6-digit number.'
-      }),
-    mapLink: Joi.string()
-      .uri()
-      .optional()
-      .allow('')
-      .messages({
-        'string.uri': 'Map link must be a valid URL.'
-      })
-  })
-    .required()
-    .messages({
-      'object.base': 'Location must be a valid object.',
-      'any.required': 'Location is required.'
+    address: Joi.string().min(5).max(200).required().messages({
+      'string.empty': 'Address is required.',
+      'string.min': 'Address must be at least 5 characters.',
+      'string.max': 'Address cannot exceed 200 characters.'
     }),
+    city: Joi.string().pattern(/^[a-zA-Z\s]+$/).min(2).max(100).required().messages({
+      'string.empty': 'City is required.',
+      'string.pattern.base': 'City can only contain letters and spaces.',
+      'string.min': 'City must be at least 2 characters.',
+      'string.max': 'City cannot exceed 100 characters.'
+    }),
+    state: Joi.string().pattern(/^[a-zA-Z\s]+$/).min(2).max(100).required().messages({
+      'string.empty': 'State is required.',
+      'string.pattern.base': 'State can only contain letters and spaces.',
+      'string.min': 'State must be at least 2 characters.',
+      'string.max': 'State cannot exceed 100 characters.'
+    }),
+    pinCode: Joi.string().pattern(/^\d{6}$/).optional().messages({
+      'string.pattern.base': 'Pin code must be a valid 6-digit number.'
+    }),
+    mapLink: Joi.string().uri().optional().allow('').messages({
+      'string.uri': 'Map link must be a valid URL.'
+    })
+  }).required().messages({
+    'object.base': 'Location must be a valid object.',
+    'any.required': 'Location is required.'
+  }),
 
   bookingModes: Joi.array()
     .items(Joi.string().valid('full_day', 'day_slot', 'night_slot'))
@@ -106,22 +81,51 @@ exports.farmAddValidationSchema = Joi.object({
       'any.only': 'Each booking mode must be full_day, day_slot, or night_slot.'
     }),
 
-  pricing: Joi.object({
+  defaultPricing: Joi.object({
     full_day: Joi.number().min(0).optional().messages({
+      'number.base': 'Full day price must be a number.',
       'number.min': 'Full day price must be zero or greater.'
     }),
     day_slot: Joi.number().min(0).optional().messages({
+      'number.base': 'Day slot price must be a number.',
       'number.min': 'Day slot price must be zero or greater.'
     }),
     night_slot: Joi.number().min(0).optional().messages({
+      'number.base': 'Night slot price must be a number.',
       'number.min': 'Night slot price must be zero or greater.'
     })
-  })
-    .required()
-    .messages({
-      'object.base': 'Pricing must be a valid object.',
-      'any.required': 'Pricing is required.'
-    }),
+  }).required().messages({
+    'object.base': 'Default pricing must be a valid object.',
+    'any.required': 'Default pricing is required.'
+  }),
+
+  dailyPricing: Joi.array().items(
+    Joi.object({
+      date: Joi.date().iso().required().messages({
+        'date.base': 'Each daily pricing date must be a valid ISO date.',
+        'any.required': 'Date is required for each pricing entry.'
+      }),
+      slots: Joi.object({
+        full_day: Joi.number().min(0).optional().messages({
+          'number.base': 'Full day slot price must be a number.',
+          'number.min': 'Full day slot price must be zero or more.'
+        }),
+        day_slot: Joi.number().min(0).optional().messages({
+          'number.base': 'Day slot price must be a number.',
+          'number.min': 'Day slot price must be zero or more.'
+        }),
+        night_slot: Joi.number().min(0).optional().messages({
+          'number.base': 'Night slot price must be a number.',
+          'number.min': 'Night slot price must be zero or more.'
+        })
+      }).required().messages({
+        'object.base': 'Slots must be a valid object.',
+        'any.required': 'Slots object is required.'
+      })
+    })
+  ).optional().messages({
+    'array.base': 'Daily pricing must be an array of date-slot objects.'
+  }),
 
   currency: Joi.string()
     .valid('INR', 'USD', 'EUR')
@@ -130,7 +134,6 @@ exports.farmAddValidationSchema = Joi.object({
       'any.only': 'Currency must be INR, USD, or EUR.'
     }),
 
-  // ✅ Replaces amenities
   facilities: Joi.array()
     .items(Joi.string().hex().length(24).messages({
       'string.hex': 'Each facility ID must be a valid ObjectId.',
@@ -149,7 +152,11 @@ exports.farmAddValidationSchema = Joi.object({
       'number.min': 'Capacity must be at least 1.',
       'any.required': 'Capacity is required.'
     })
-});
+}).options({
+  abortEarly: false,
+  allowUnknown: false,
+});;
+
 
 
 const objectIdPattern = /^[0-9a-fA-F]{24}$/;

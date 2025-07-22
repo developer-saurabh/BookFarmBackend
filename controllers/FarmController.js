@@ -24,6 +24,7 @@ exports.addFarm = async (req, res) => {
     const ownerId = req.user.id;
     value.owner = ownerId;
 
+    // ✅ Verify vendor
     const vendor = await Vendor.findById(ownerId);
     if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
 
@@ -31,33 +32,26 @@ exports.addFarm = async (req, res) => {
       return res.status(403).json({ error: 'Vendor is not eligible to add farms.' });
     }
 
+    // 🔍 Check for duplicate farm name for this vendor
     const existingFarm = await Farm.findOne({ name: value.name, owner: ownerId });
     if (existingFarm) {
       return res.status(409).json({ error: 'A farm with this name already exists.' });
     }
 
-    if (!Array.isArray(value.farmCategory) || value.farmCategory.length === 0) {
-      return res.status(400).json({ error: 'At least one farm category must be selected.' });
-    }
-
-    const validFarmCategories = await FarmCategory.find({
-      _id: { $in: value.farmCategory }
-    });
-
-    if (validFarmCategories.length !== value.farmCategory.length) {
+    // ✅ Validate single farm category ID
+    const validFarmCategory = await FarmCategory.findById(value.farmCategory);
+    if (!validFarmCategory) {
       return res.status(400).json({ error: 'Invalid farm category selected.' });
     }
 
+    // ✅ Validate facilities if present
     if (value.facilities && Array.isArray(value.facilities) && value.facilities.length > 0) {
-      const validFacilities = await Facility.find({
-        _id: { $in: value.facilities }
-      });
-
+      const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
       if (validFacilities.length !== value.facilities.length) {
         return res.status(400).json({ error: 'One or more selected facilities are invalid.' });
       }
     }
-
+    // 📸 Handle images
     const uploaded = req.files?.images || req.files?.image;
     if (!uploaded) {
       return res.status(400).json({ error: 'At least one image must be uploaded.' });
@@ -67,9 +61,23 @@ exports.addFarm = async (req, res) => {
     const cloudUrls = await uploadFilesToCloudinary(imagesArray, 'farms');
     value.images = cloudUrls;
 
+    // 🔁 Validate dailyPricing uniqueness (no duplicate dates)
+    if (value.dailyPricing && Array.isArray(value.dailyPricing)) {
+      const seenDates = new Set();
+      for (const entry of value.dailyPricing) {
+        const isoDate = new Date(entry.date).toISOString().slice(0, 10);
+        if (seenDates.has(isoDate)) {
+          return res.status(400).json({
+            error: `Duplicate pricing found for date: ${isoDate}`
+          });
+        }
+        seenDates.add(isoDate);
+      }
+    }
+
     const newFarm = await new Farm(value).save();
 
-    // ✅ Populate references
+    // 🧠 Populate references
     const populatedFarm = await Farm.findById(newFarm._id)
       .populate('farmCategory')
       .populate('facilities');
@@ -84,6 +92,7 @@ exports.addFarm = async (req, res) => {
     return res.status(500).json({ message: 'Server error. Please try again later.' });
   }
 };
+
 
 exports.unblockDate = async (req, res) => {
   const vendorId = req.user.id;
@@ -267,15 +276,22 @@ exports.bookFarm = async (req, res) => {
       });
     }
 
-    // ✅ Step 4: Calculate totalPrice + breakdown
+    // ✅ Step 4: Calculate totalPrice + breakdown (based on dailyPricing or defaultPricing)
     const priceBreakdown = {};
     let totalPrice = 0;
 
+    // Step 4A: Find date-specific pricing if exists
+    const matchedDaily = farmDoc.dailyPricing?.find(
+      d => new Date(d.date).toISOString().split('T')[0] === isoDateStr
+    );
+
+    const priceSource = matchedDaily?.slots || farmDoc.defaultPricing || {};
+
     for (let mode of bookingModes) {
-      const modePrice = farmDoc.pricing?.[mode];
+      const modePrice = priceSource[mode];
       if (typeof modePrice !== 'number') {
         return res.status(400).json({
-          error: `Pricing not configured for mode "${mode}" on this farm.`
+          error: `Pricing not configured for mode "${mode}" on ${isoDateStr}.`
         });
       }
       priceBreakdown[mode] = modePrice;
@@ -341,6 +357,7 @@ exports.bookFarm = async (req, res) => {
     res.status(500).json({ error: 'Server error. Try again later.' });
   }
 };
+
 
 
 exports.getMonthlyFarmBookings = async (req, res) => {
@@ -561,7 +578,6 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 };
 
 
-
 exports.getFarmById = async (req, res) => {
   try {
     const { error, value } = getFarmByIdSchema.validate({ farmId: req.body.farmId });
@@ -590,7 +606,7 @@ exports.getFarmById = async (req, res) => {
     const today = moment().startOf('day');
     const next7Days = [];
     for (let i = 0; i < 7; i++) {
-      next7Days.push(today.clone().add(i, 'days').format('YYYY-MM-DD'));
+      next7Days.push(today.clone().add(i, 'days'));
     }
 
     // 🛑 Remove unavailableDates
@@ -601,7 +617,10 @@ exports.getFarmById = async (req, res) => {
     // 📦 Fetch bookings for this farm in the next 7 days
     const bookings = await FarmBooking.find({
       farm: farm._id,
-      date: { $gte: today.toDate(), $lte: today.clone().add(6, 'days').endOf('day').toDate() },
+      date: {
+        $gte: today.toDate(),
+        $lte: today.clone().add(6, 'days').endOf('day').toDate()
+      },
       status: { $in: ['pending', 'confirmed'] }
     });
 
@@ -615,8 +634,10 @@ exports.getFarmById = async (req, res) => {
 
     const allModes = ['full_day', 'day_slot', 'night_slot'];
 
-    // ✅ Build availability array
-    const availability = next7Days.map(dateStr => {
+    // ✅ Build availability array with day name
+    const availability = next7Days.map(dayMoment => {
+      const dateStr = dayMoment.format('YYYY-MM-DD');
+      const dayName = dayMoment.format('dddd'); // ✅ Get day name
       const isBlocked = blockedDates.includes(dateStr);
       const booked = bookingMap[dateStr] || new Set();
 
@@ -627,6 +648,7 @@ exports.getFarmById = async (req, res) => {
 
       return {
         date: dateStr,
+        dayName,
         availableSlots: slots
       };
     });
@@ -648,6 +670,7 @@ exports.getFarmById = async (req, res) => {
     });
   }
 };
+
 
 exports.getFarmByImageUrl = async (req, res) => {
   try {
@@ -721,6 +744,7 @@ const cleanInput = (input) => {
 
   return clone;
 };
+
 exports.FilterQueeryFarms = async (req, res) => {
   try {
     const cleanedBody = cleanInput(req.body);
@@ -757,7 +781,7 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     const baseQuery = { isActive: true, isApproved: true };
     if (farmCategory.length > 0) {
-      baseQuery.farmCategory = { $in: farmCategory }; // ✅ OR logic already
+      baseQuery.farmCategory = { $in: farmCategory };
     }
 
     let farms = await Farm.find(baseQuery)
@@ -796,14 +820,36 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     if (priceRange) {
       const { min: priceMin, max: priceMax } = priceRange;
-      farms = farms.filter(f => {
-        const prices = [
-          f.pricing?.full_day,
-          f.pricing?.day_slot,
-          f.pricing?.night_slot
-        ];
-        return prices.some(p => typeof p === 'number' && p >= priceMin && p <= priceMax);
+
+      farms = farms.filter(farm => {
+        let isWithinRange = false;
+
+        for (const dateStr of allDates) {
+          const dailyEntry = farm.dailyPricing?.find(
+            d => new Date(d.date).toISOString().split('T')[0] === dateStr
+          );
+
+          const slotPrices = dailyEntry?.slots || farm.defaultPricing || {};
+
+          const prices = [
+            slotPrices.full_day,
+            slotPrices.day_slot,
+            slotPrices.night_slot
+          ];
+
+          if (
+            prices.some(
+              p => typeof p === 'number' && p >= priceMin && p <= priceMax
+            )
+          ) {
+            isWithinRange = true;
+            break;
+          }
+        }
+
+        return isWithinRange;
       });
+
       if (!farms.length) {
         return res.status(404).json({
           success: false,
@@ -853,6 +899,27 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     const skip = (page - 1) * limit;
     const paginatedFarms = availableFarms.slice(skip, skip + limit);
+for (let i = 0; i < paginatedFarms.length; i++) {
+  const farm = paginatedFarms[i];
+
+  const farmObj = farm.toObject(); // <-- this is the key
+
+  if (Array.isArray(farmObj.dailyPricing)) {
+    farmObj.dailyPricing = farmObj.dailyPricing.map(entry => {
+      const dateObj = new Date(entry.date);
+      const dayName = dateObj.toLocaleDateString('en-IN', { weekday: 'long' });
+
+      // console.log("day Name printing", dayName);
+
+      return {
+        ...entry,
+        dayName
+      };
+    });
+  }
+
+  paginatedFarms[i] = farmObj; // <-- reassign the modified object
+}
 
     return res.status(200).json({
       success: true,
