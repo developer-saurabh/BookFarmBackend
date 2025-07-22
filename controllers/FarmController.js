@@ -789,7 +789,7 @@ exports.FilterQueeryFarms = async (req, res) => {
       .populate('facilities', '_id name');
 
     if (!farms.length) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
         message: 'No farms found for the selected farm categories.'
       });
@@ -799,7 +799,7 @@ exports.FilterQueeryFarms = async (req, res) => {
       const { min: capMin, max: capMax } = capacityRange;
       farms = farms.filter(f => f.capacity >= capMin && f.capacity <= capMax);
       if (!farms.length) {
-        return res.status(404).json({
+        return res.status(200).json({
           success: false,
           message: `No farms found in the capacity range ${capMin}–${capMax}.`
         });
@@ -811,7 +811,7 @@ exports.FilterQueeryFarms = async (req, res) => {
         farm.facilities.some(f => facilities.includes(f._id.toString()))
       );
       if (!farms.length) {
-        return res.status(404).json({
+        return res.status(200).json({
           success: false,
           message: 'No farms found with any of the selected facilities.'
         });
@@ -851,7 +851,7 @@ exports.FilterQueeryFarms = async (req, res) => {
       });
 
       if (!farms.length) {
-        return res.status(404).json({
+        return res.status(200).json({
           success: false,
           message: `No farms found in the price range ₹${priceMin}–₹${priceMax}.`
         });
@@ -891,7 +891,7 @@ exports.FilterQueeryFarms = async (req, res) => {
     });
 
     if (!availableFarms.length) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
         message: `No farms fully available between ${start.toDateString()} and ${end.toDateString()}.`
       });
