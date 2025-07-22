@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
+<<<<<<< HEAD
 const { addFarm, bookFarm, getMonthlyFarmBookings, FilterQueeryHomePage, getFarmCategories, getAllFarms, getFarmById, getFarmByImageUrl, FilterQueeryFarms, getFarmImagesByCategories, blockDate, unblockDate } = require('../controllers/FarmController');
+=======
+const { addFarm, bookFarm, getMonthlyFarmBookings, FilterQueeryHomePage, getFarmCategories, getAllFarms, getFarmById, getFarmByImageUrl, FilterQueeryFarms, getFarmImagesByCategories, blockDate, unblockDate, getAllFacilities } = require('../controllers/FarmController');
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 const { vendorAuth } = require('../middlewares/vendorAuth');
 const ParseNest = require('../utils/ParseNest');
 
@@ -18,9 +22,17 @@ router.post('/filter_querry_home', ParseNest, FilterQueeryHomePage);
 
 router.get('/get_all_categories', ParseNest,getFarmCategories);
 
+<<<<<<< HEAD
 router.get('/get_all_farms', ParseNest,getAllFarms);
 
 router.get('/get_farm_id/:id', ParseNest,getFarmById);
+=======
+router.get('/get_all_facilities', ParseNest,getAllFacilities);
+
+router.get('/get_all_farms', ParseNest,getAllFarms);
+
+router.post('/get_farm_id', ParseNest,getFarmById);
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 
 router.get('/get_farm_by_image_url/:imageurl', ParseNest,getFarmByImageUrl);
 

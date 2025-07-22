@@ -271,8 +271,12 @@ exports. getCategoriesSchema = Joi.object({})
   });
 
 
+<<<<<<< HEAD
 
 exports. getFarmByIdSchema = Joi.object({
+=======
+exports.getFarmByIdSchema = Joi.object({
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
   farmId: Joi.string().hex().length(24).required().messages({
     'string.base': 'Farm ID must be a string.',
     'string.length': 'Farm ID must be a valid 24-character hex string.',
@@ -283,6 +287,10 @@ exports. getFarmByIdSchema = Joi.object({
 
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 exports.getImagesByFarmTypeSchema = Joi.object({
   categoryId: Joi.string().hex().length(24).required().messages({
     'string.base': 'Category ID must be a string.',

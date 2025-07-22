@@ -125,7 +125,10 @@ exports.updateVendorStatus = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error.' });
   }
 };
+<<<<<<< HEAD
 
+=======
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 exports.addFarmCategory = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -134,6 +137,7 @@ exports.addFarmCategory = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
+<<<<<<< HEAD
     const name = value.name.trim();
 
     // ✅ Step 2: Check for duplicate (case-insensitive)
@@ -153,6 +157,37 @@ exports.addFarmCategory = async (req, res) => {
     return res.status(201).json({
       message: 'Farm category created successfully',
       data: category
+=======
+    const names = value.names;
+
+    const createdCategories = [];
+
+    for (const name of names) {
+      // ✅ Step 2: Check for duplicate (case-insensitive)
+      const existing = await FarmCategory.findOne({
+        name: { $regex: new RegExp(`^${name}$`, 'i') }
+      });
+      if (existing) {
+        continue; // skip duplicates
+      }
+
+      // ✅ Step 3: Create category
+      const category = new FarmCategory({ name });
+      await category.save();
+      createdCategories.push(category);
+
+      // ✅ Step 4: Optionally push to Farm model's categories array
+      await Farm.updateMany({}, { $push: { categories: category._id } });
+    }
+
+    if (createdCategories.length === 0) {
+      return res.status(409).json({ message: 'All categories already exist' });
+    }
+
+    return res.status(201).json({
+      message: 'Farm categories created successfully',
+      data: createdCategories
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
     });
   } catch (error) {
     console.error('Error adding farm category:', error);

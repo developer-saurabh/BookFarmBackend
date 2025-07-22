@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
@@ -14,7 +15,16 @@ const fileUpload = require('express-fileupload');
 // ✅ Connect DB
 connectDB();
 
+
 const app = express();
+
+// ✅ Enable CORS (you can customize the origin)
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
+}));
+
 
 // ✅ Body parsers FIRST
 app.use(express.json());
@@ -39,6 +49,9 @@ app.use('/api/vendor',vendorRoutes );
 app.use('/api/admin',AdminRoutes );
 app.use('/api/user',userRoutes );
 app.use('/api/Rapid_Book',RapidBookRoute );
+
+
+
 
 
 

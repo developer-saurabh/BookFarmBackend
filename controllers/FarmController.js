@@ -1,5 +1,6 @@
 // controllers/booking.controller.js
 const FarmBooking = require('../models/FarmBookingModel');
+<<<<<<< HEAD
 const FarmCategory=require("../models/FarmCategory")
 const Facility=require("../models/FarmFacility")
 const { monthYearSchema, farmAddValidationSchema,blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema } = require('../validationJoi/FarmValidation');
@@ -8,6 +9,17 @@ const Customer=require("../models/CustomerModel")
 const Vendor = require("../models/VendorModel");
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 const mongoose=require("mongoose")
+=======
+const moment = require('moment');
+const FarmCategory = require("../models/FarmCategory")
+const Facility = require("../models/FarmFacility")
+const { monthYearSchema, farmAddValidationSchema, blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema } = require('../validationJoi/FarmValidation');
+const Farm = require('../models/FarmModel');
+const Customer = require("../models/CustomerModel")
+const Vendor = require("../models/VendorModel");
+const { uploadFilesToCloudinary } = require('../utils/UploadFile');
+const mongoose = require("mongoose")
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 const { DateTime } = require('luxon'); // optional: for clean date handling (recommended)
 exports.addFarm = async (req, res) => {
   try {
@@ -342,6 +354,7 @@ exports.bookFarm = async (req, res) => {
 };
 
 
+<<<<<<< HEAD
 //front page apis
 
 // for calender 
@@ -429,6 +442,8 @@ exports.bookFarm = async (req, res) => {
 //   }
 // };
 
+=======
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 exports.getMonthlyFarmBookings = async (req, res) => {
   try {
     // ✅ Validate input (MM/YYYY format)
@@ -544,10 +559,17 @@ exports.FilterQueeryHomePage = async (req, res) => {
 
     const isoDateStr = new Date(date).toISOString().split('T')[0];
 
+<<<<<<< HEAD
 // Build exact day range
 const start = new Date(`${isoDateStr}T00:00:00.000Z`);
 const end = new Date(`${isoDateStr}T23:59:59.999Z`);
   
+=======
+    // Build exact day range
+    const start = new Date(`${isoDateStr}T00:00:00.000Z`);
+    const end = new Date(`${isoDateStr}T23:59:59.999Z`);
+
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 
     // ✅ Step 1: Verify category exists
     const foundCategory = await FarmCategory.findById(category);
@@ -560,10 +582,21 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 
     // ✅ Step 2: Get farms in that category
     const categoryFarms = await Farm.find({
+<<<<<<< HEAD
     farmCategory: { $in: [category] },
       isActive: true,
       isApproved: true
     });
+=======
+      farmCategory: { $in: [category] },
+      isActive: true,
+      isApproved: true
+    })
+      .populate('owner', 'name')              // populate owner name
+      .populate('facilities', 'name')         // populate facilities names
+      .populate('farmCategory', 'name');      // populate farmCategory names
+
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 
     if (categoryFarms.length === 0) {
       return res.status(404).json({
@@ -631,11 +664,19 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
     }
 
     // ✅ Success Response
+<<<<<<< HEAD
  return res.status(200).json({
   success: true,
   message: `${availableFarms.length} farm(s) available on ${isoDateStr}.`,
   data: availableFarms
 });
+=======
+    return res.status(200).json({
+      success: true,
+      message: `${availableFarms.length} farm(s) available on ${isoDateStr}.`,
+      data: availableFarms
+    });
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 
   } catch (err) {
     console.error('FilterQueeryHomePage error:', err);
@@ -647,6 +688,7 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 };
 
 
+<<<<<<< HEAD
 // exports.FilterQueeryHomePage = async (req, res) => {
 //   try {
 //     // ✅ Validate input
@@ -749,6 +791,12 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 exports.getFarmById = async (req, res) => {
   try {
     const { error, value } = getFarmByIdSchema.validate({ farmId: req.params.id });
+=======
+
+exports.getFarmById = async (req, res) => {
+  try {
+    const { error, value } = getFarmByIdSchema.validate({ farmId: req.body.farmId  });
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
     if (error) {
       return res.status(400).json({
         success: false,
@@ -777,7 +825,11 @@ exports.getFarmById = async (req, res) => {
       message: 'Internal server error. Please try again later.'
     });
   }
+<<<<<<< HEAD
 };  
+=======
+};
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
 
 exports.getFarmByImageUrl = async (req, res) => {
   try {
@@ -973,7 +1025,11 @@ exports.FilterQueeryFarms = async (req, res) => {
 
 exports.getFarmCategories = async (req, res) => {
   try {
+<<<<<<< HEAD
     // Optional: validate query if needed
+=======
+    // Optional: validate query if needed 
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
     const { error } = getCategoriesSchema.validate(req.query);
     if (error) {
       return res.status(400).json({
@@ -1013,7 +1069,11 @@ exports.getFarmCategories = async (req, res) => {
 exports.getFarmImagesByCategories = async (req, res) => {
   try {
     // ✅ Validate route param (categoryId)
+<<<<<<< HEAD
     console.log("req.parms priting",req.params)
+=======
+    console.log("req.parms priting", req.params)
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
     const { error, value } = getImagesByFarmTypeSchema.validate(req.params);
     if (error) {
       return res.status(400).json({
@@ -1085,29 +1145,144 @@ exports.getFarmImagesByCategories = async (req, res) => {
 
 // get all farms 
 
+<<<<<<< HEAD
 exports.getAllFarms = async (req, res) => {
   try {
     // 1️⃣ Find farms with active + approved status
+=======
+// exports.getAllFarms = async (req, res) => {
+//   try {
+//     // 1️⃣ Find farms with active + approved status
+//     const farms = await Farm.find({
+//       isActive: true,
+//       isApproved: true
+//     })
+//       .populate('farmCategory', '_id name')
+//       .populate('facilities', '_id name')
+//       .populate('owner', '_id name');
+
+//     // console.log("farm printing",farms)
+//     // 2️⃣ Handle no farms case
+//     if (!farms || farms.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'No farms found.'
+//       });
+//     }
+
+//     // 3️⃣ Respond with data
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Farms fetched successfully.',
+//       data: farms
+//     });
+//   } catch (err) {
+//     console.error('[GetAllFarms Error]', err);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error. Please try again later.'
+//     });
+//   }
+// };
+
+
+
+exports.getAllFarms = async (req, res) => {
+  try {
+    const today = moment().startOf('day');
+    const endDate = moment().add(29, 'days').endOf('day'); // 30 days including today
+
+    // Step 1️⃣: Get all active + approved farms
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
     const farms = await Farm.find({
       isActive: true,
       isApproved: true
     })
       .populate('farmCategory', '_id name')
+<<<<<<< HEAD
       .populate('facilities', '_id name');
 
     // 2️⃣ Handle no farms case
     if (!farms || farms.length === 0) {
+=======
+      .populate('facilities', '_id name')
+      .populate('owner', '_id name');
+
+    if (!farms.length) {
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
       return res.status(404).json({
         success: false,
         message: 'No farms found.'
       });
     }
 
+<<<<<<< HEAD
     // 3️⃣ Respond with data
     return res.status(200).json({
       success: true,
       message: 'Farms fetched successfully.',
       data: farms
+=======
+    // Step 2️⃣: Get all bookings within date range
+    const bookings = await FarmBooking.find({
+      date: { $gte: today.toDate(), $lte: endDate.toDate() },
+      status: { $in: ['pending', 'confirmed'] }
+    });
+
+    // Step 3️⃣: Build booking map: { dateStr: { farmId: Set of bookedModes } }
+    const bookingMap = {};
+    bookings.forEach(b => {
+      const dateStr = moment(b.date).format('YYYY-MM-DD');
+      const farmId = b.farm.toString();
+
+      if (!bookingMap[dateStr]) bookingMap[dateStr] = {};
+      if (!bookingMap[dateStr][farmId]) bookingMap[dateStr][farmId] = new Set();
+
+      b.bookingModes.forEach(mode => bookingMap[dateStr][farmId].add(mode));
+    });
+
+    // Step 4️⃣: Prepare response for each farm
+    const result = farms.map(farm => {
+      const farmId = farm._id.toString();
+      const unavailableDatesSet = new Set(
+        (farm.unavailableDates || []).map(d => moment(d).format('YYYY-MM-DD'))
+      );
+
+      const availabilityCalendar = [];
+
+      for (let i = 0; i < 30; i++) {
+        const date = moment(today).add(i, 'days');
+        const dateStr = date.format('YYYY-MM-DD');
+
+        const isUnavailable = unavailableDatesSet.has(dateStr);
+        const bookedModes = bookingMap[dateStr]?.[farmId] || new Set();
+
+        let status;
+        if (isUnavailable || bookedModes.size >= 3) {
+          status = 'fully_booked';
+        } else if (bookedModes.size > 0) {
+          status = 'partial_available';
+        } else {
+          status = 'full_available';
+        }
+
+        availabilityCalendar.push({
+          date: dateStr,
+          status
+        });
+      }
+
+      return {
+        ...farm.toObject(),
+        availabilityCalendar // 30-day status per day
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Farms fetched with 30-day availability.',
+      data: result
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
     });
   } catch (err) {
     console.error('[GetAllFarms Error]', err);
@@ -1119,3 +1294,23 @@ exports.getAllFarms = async (req, res) => {
 };
 
 
+<<<<<<< HEAD
+=======
+exports.getAllFacilities = async (req, res) => {
+  try {
+    const facilities = await Facility.find({ isActive: true }).select('_id name');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Facilities fetched successfully.',
+      data: facilities
+    });
+  } catch (err) {
+    console.error('[GetAllFacilities Error]', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error. Please try again later.'
+    });
+  }
+};
+>>>>>>> b3a518feb253ef02d9ef36097bbc7c1fbb31fe88
