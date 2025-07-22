@@ -724,7 +724,7 @@ exports.FilterQueeryFarms = async (req, res) => {
     // 🔁 If no endDate → assume next 60 days
     const end = endDate
       ? new Date(endDate)
-      : new Date(new Date(start).setDate(start.getDate() + 59));
+      : new Date(new Date(start).setDate(start.getDate() + 7));
 
     // 📆 All dates in range
     const allDates = [];
