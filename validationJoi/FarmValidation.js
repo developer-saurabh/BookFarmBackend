@@ -297,9 +297,10 @@ exports.getImagesByFarmTypeSchema = Joi.object({
 });
 
 exports.FilterQueeryFarm = Joi.object({
-  // 🔹 Mandatory: You must pass at least a start and end date for availability check
-  startDate: Joi.date()
+    startDate: Joi.date()
     .iso()
+    .allow('', null)
+    .empty('')
     .messages({
       'date.base': 'Start date must be a valid ISO date.',
       'date.format': 'Start date must follow ISO format (YYYY-MM-DD).'
@@ -308,12 +309,13 @@ exports.FilterQueeryFarm = Joi.object({
   endDate: Joi.date()
     .iso()
     .min(Joi.ref('startDate'))
+    .allow('', null)
+    .empty('')
     .messages({
       'date.base': 'End date must be a valid ISO date.',
       'date.format': 'End date must follow ISO format (YYYY-MM-DD).',
       'date.min': 'End date must be the same or after start date.'
     }),
-
 
   // 🔸 Optional: Category filter
   farmCategory: Joi.array()
@@ -383,7 +385,16 @@ exports.FilterQueeryFarm = Joi.object({
       'object.base': 'Price range must be a valid object.'
     })
     .optional(),
+  page: Joi.number().integer().min(1).default(1).messages({
+    'number.base': 'Page must be a number.',
+    'number.min': 'Page must be at least 1.'
+  }),
 
+  limit: Joi.number().integer().min(1).max(100).default(10).messages({
+    'number.base': 'Limit must be a number.',
+    'number.min': 'Limit must be at least 1.',
+    'number.max': 'Limit cannot be more than 100.'
+  }),
   // 🔸 Optional: Facilities filter
   facilities: Joi.array()
     .items(

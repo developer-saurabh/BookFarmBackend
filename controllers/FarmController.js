@@ -696,11 +696,37 @@ exports.getFarmByImageUrl = async (req, res) => {
     });
   }
 };
+const cleanInput = (input) => {
+  const clone = { ...input };
 
-// farms filter api
+  // Clean top-level dates
+  if (clone.startDate === '') clone.startDate = undefined;
+  if (clone.endDate === '') clone.endDate = undefined;
+
+  // Clean capacityRange if min/max is empty
+  if (clone.capacityRange) {
+    const { min, max } = clone.capacityRange;
+    if (min === '' || max === '') {
+      delete clone.capacityRange;
+    }
+  }
+
+  // Clean priceRange if min/max is empty
+  if (clone.priceRange) {
+    const { min, max } = clone.priceRange;
+    if (min === '' || max === '') {
+      delete clone.priceRange;
+    }
+  }
+
+  return clone;
+};
+
 exports.FilterQueeryFarms = async (req, res) => {
   try {
-    const { error, value } = FilterQueeryFarm.validate(req.body);
+    const cleanedBody = cleanInput(req.body);
+    const { error, value } = FilterQueeryFarm.validate(cleanedBody);
+
     if (error) {
       return res.status(400).json({
         success: false,
@@ -714,25 +740,22 @@ exports.FilterQueeryFarms = async (req, res) => {
       farmCategory = [],
       capacityRange,
       priceRange,
-      facilities = []
+      facilities = [],
+      page = 1,
+      limit = 10
     } = value;
 
-    // 🧠 Use today as default start
     const now = new Date();
     const start = startDate ? new Date(startDate) : new Date(now.toISOString().split('T')[0]);
-
-    // 🔁 If no endDate → assume next 60 days
     const end = endDate
       ? new Date(endDate)
       : new Date(new Date(start).setDate(start.getDate() + 7));
 
-    // 📆 All dates in range
     const allDates = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       allDates.push(new Date(d).toISOString().split('T')[0]);
     }
 
-    // 🔍 Step 1: Get base farms
     const baseQuery = { isActive: true, isApproved: true };
     if (farmCategory.length > 0) {
       baseQuery.farmCategory = { $in: farmCategory };
@@ -749,12 +772,9 @@ exports.FilterQueeryFarms = async (req, res) => {
       });
     }
 
-    // 📏 Step 2: Capacity filter
     if (capacityRange) {
       const { min: capMin, max: capMax } = capacityRange;
-      const preFilterCount = farms.length;
       farms = farms.filter(f => f.capacity >= capMin && f.capacity <= capMax);
-
       if (!farms.length) {
         return res.status(404).json({
           success: false,
@@ -763,15 +783,12 @@ exports.FilterQueeryFarms = async (req, res) => {
       }
     }
 
-    // 🛠 Step 3: Facility filter
     if (facilities.length > 0) {
-      const preFilterCount = farms.length;
       farms = farms.filter(farm =>
         facilities.every(fid =>
           farm.facilities.some(f => f._id.toString() === fid)
         )
       );
-
       if (!farms.length) {
         return res.status(404).json({
           success: false,
@@ -780,7 +797,6 @@ exports.FilterQueeryFarms = async (req, res) => {
       }
     }
 
-    // 💰 Step 4: Price filter
     if (priceRange) {
       const { min: priceMin, max: priceMax } = priceRange;
       farms = farms.filter(f => {
@@ -791,7 +807,6 @@ exports.FilterQueeryFarms = async (req, res) => {
         ];
         return prices.some(p => typeof p === 'number' && p >= priceMin && p <= priceMax);
       });
-
       if (!farms.length) {
         return res.status(404).json({
           success: false,
@@ -800,14 +815,12 @@ exports.FilterQueeryFarms = async (req, res) => {
       }
     }
 
-    // 🛑 All filtering done — now check availability
     const bookings = await FarmBooking.find({
       farm: { $in: farms.map(f => f._id) },
       date: { $gte: start, $lte: end },
       status: { $in: ['pending', 'confirmed'] }
     });
 
-    // 📦 Build bookingMap: { farmId: { date: Set(modes) } }
     const bookingMap = {};
     bookings.forEach(b => {
       const fid = b.farm.toString();
@@ -819,7 +832,6 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     const allModes = ['full_day', 'day_slot', 'night_slot'];
 
-    // ✅ Final: only farms available for every day in range
     const availableFarms = farms.filter(farm => {
       const blockedDates = (farm.unavailableDates || []).map(d =>
         new Date(d).toISOString().split('T')[0]
@@ -828,7 +840,6 @@ exports.FilterQueeryFarms = async (req, res) => {
 
       for (const date of allDates) {
         if (blockedDates.includes(date)) return false;
-
         const bookedModes = bookingMap[fid]?.[date] || new Set();
         if (allModes.every(mode => bookedModes.has(mode))) return false;
       }
@@ -843,11 +854,19 @@ exports.FilterQueeryFarms = async (req, res) => {
       });
     }
 
-    // ✅ All good
+    const skip = (page - 1) * limit;
+    const paginatedFarms = availableFarms.slice(skip, skip + limit);
+
     return res.status(200).json({
       success: true,
       message: `${availableFarms.length} farm(s) available from ${start.toDateString()} to ${end.toDateString()}.`,
-      data: availableFarms
+      pagination: {
+        total: availableFarms.length,
+        page,
+        limit,
+        totalPages: Math.ceil(availableFarms.length / limit)
+      },
+      data: paginatedFarms
     });
 
   } catch (err) {
@@ -858,7 +877,6 @@ exports.FilterQueeryFarms = async (req, res) => {
     });
   }
 };
-
 
 
 // gallary api
