@@ -7,6 +7,7 @@ router.post('/register', adminController.registerAdmin);
 router.post('/update_status/:id', adminController.updateVendorStatus);
 router.post('/add_farm_category', adminController.addFarmCategory);
 router.post('/add_Farm_Facilities', adminController.addFacilities);
+router.post('/get_all_bookings', adminController.getAllBookings);
 
 module.exports = router;
     

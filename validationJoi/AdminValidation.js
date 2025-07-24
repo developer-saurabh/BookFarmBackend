@@ -42,6 +42,7 @@ const adminRegisterSchema = Joi.object({
 
   isSuperAdmin: Joi.boolean().default(true)
 });
+
 const updateVendorStatusSchema = Joi.object({
   isActive: Joi.boolean()
     .messages({
@@ -62,4 +63,63 @@ const updateVendorStatusSchema = Joi.object({
     'object.missing': 'At least one of isActive, isVerified, or isBlocked must be provided.'
   });
 
-module.exports = {adminRegisterSchema,updateVendorStatusSchema};
+// Get All Bookings Schema
+
+
+const getAllBookingsSchema = Joi.object({
+  page: Joi.alternatives()
+    .try(Joi.number().integer().min(1), Joi.string().regex(/^\d+$/))
+    .optional()
+    .allow('', null)
+    .messages({
+      'number.base': 'Page must be a number.',
+      'number.integer': 'Page must be an integer.',
+      'number.min': 'Page must be at least 1.',
+      'string.pattern.base': 'Page must be a numeric string.'
+    }),
+
+  limit: Joi.alternatives()
+    .try(Joi.number().integer().min(1).max(100), Joi.string().regex(/^\d+$/))
+    .optional()
+    .allow('', null)
+    .messages({
+      'number.base': 'Limit must be a number.',
+      'number.integer': 'Limit must be an integer.',
+      'number.min': 'Limit must be at least 1.',
+      'number.max': 'Limit cannot exceed 100.',
+      'string.pattern.base': 'Limit must be a numeric string.'
+    }),
+
+  bookingId: Joi.string()
+    .length(24)
+    .hex()
+    .optional()
+    .allow('', null)
+    .messages({
+      'string.hex': 'Booking ID must be a valid hex string.',
+      'string.length': 'Booking ID must be exactly 24 characters.'
+    }),
+
+  date: Joi.date()
+    .iso()
+    .optional()
+    .allow('', null)
+    .messages({
+      'date.base': 'Date must be a valid date.',
+      'date.format': 'Date must follow ISO format (YYYY-MM-DD).'
+    }),
+
+  booking_source_type: Joi.string()
+    .valid('website', 'whatsapp')
+    .optional()
+    .allow('', null)
+    .messages({
+      'any.only': 'Booking source must be either "website" or "whatsapp".',
+      'string.base': 'Booking source must be a string.'
+    })
+});
+
+
+module.exports = {adminRegisterSchema,updateVendorStatusSchema,getAllBookingsSchema};
+
+

@@ -50,7 +50,12 @@ priceBreakdown: {
   type: Map,
   of: Number,
   default: {}
-}
+},
+bookingSource: {
+  type: String,
+  enum: ['website', 'whatsapp'],
+  default: 'website'
+},
 
 
 }, { timestamps: true });

@@ -2,11 +2,12 @@ const Admin = require('../models/AdminModel');
 const bcrypt = require('bcryptjs');
 const {adminRegisterSchema} = require('../validationJoi/AdminValidation');
 const Vendor = require('../models/VendorModel');
-const {updateVendorStatusSchema} = require('../validationJoi/AdminValidation');
+const {updateVendorStatusSchema,getAllBookingsSchema} = require('../validationJoi/AdminValidation');
 const {addFarmCategorySchema,addFacilitiesSchema}=require("../validationJoi/FarmCategoryAndFacilities")
 const FarmCategory = require('../models/FarmCategory');
 const Farm = require('../models/FarmModel'); // assuming Farm model file
 const Facility = require('../models/FarmFacility');
+const FarmBooking=require('../models/FarmBookingModel')
 const mongoose = require('mongoose');
 
 
@@ -228,6 +229,69 @@ exports.addFacilities = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Internal server error. Please try again later.'
+    });
+  }
+};
+
+
+exports.getAllBookings = async (req, res) => {
+  try {
+    // ✅ Validate input
+    const { error, value } = getAllBookingsSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    // ✅ Normalize pagination with fallback defaults
+    const page = parseInt(value.page) || 1;
+    const limit = parseInt(value.limit) || 10;
+    const { bookingId, date, booking_source_type } = value;
+
+    // ✅ Build filter
+    const filter = {};
+
+    if (bookingId) {
+      filter._id = bookingId;
+    }
+
+    if (date) {
+      const bookingDate = new Date(date);
+      const startOfDay = new Date(bookingDate.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(bookingDate.setHours(23, 59, 59, 999));
+      filter.date = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    if (booking_source_type) {
+      filter.bookingSource = booking_source_type;
+    }
+
+    // ✅ Fetch bookings with pagination
+    const total = await FarmBooking.countDocuments(filter);
+    const bookings = await FarmBooking.find(filter)
+      .populate('farm', 'name location')
+      .populate('customer', 'name phone email')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Bookings retrieved successfully',
+      total,
+      page,
+      limit,
+      data: bookings
+    });
+
+  } catch (err) {
+    console.error('[getAllBookings Error]', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Something went wrong while fetching bookings. Please try again later.'
     });
   }
 };

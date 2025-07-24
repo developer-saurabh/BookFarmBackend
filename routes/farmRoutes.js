@@ -4,7 +4,6 @@ const { addFarm, bookFarm, getMonthlyFarmBookings, FilterQueeryHomePage, getFarm
 const { vendorAuth } = require('../middlewares/vendorAuth');
 const ParseNest = require('../utils/ParseNest');
 
-router.post('/add_Farm',ParseNest,vendorAuth, addFarm);
 
 router.post('/block_date',ParseNest,vendorAuth, blockDate);
 

@@ -6,5 +6,6 @@ const vendorController = require('../controllers/vendorController');
 router.post('/register', vendorController.registerVendor);
 router.post('/login', vendorController.loginVendor);
 
+router.post('/add_Farm',ParseNest,vendorAuth, addFarm);
 module.exports = router;
     

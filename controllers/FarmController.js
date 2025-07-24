@@ -229,6 +229,7 @@ exports.blockDate = async (req, res) => {
     });
   }
 };
+
 exports.bookFarm = async (req, res) => {
   try {
     const { error, value } = farmBookingValidationSchema.validate(req.body, { abortEarly: false });
@@ -357,8 +358,6 @@ exports.bookFarm = async (req, res) => {
     res.status(500).json({ error: 'Server error. Try again later.' });
   }
 };
-
-
 
 exports.getMonthlyFarmBookings = async (req, res) => {
   try {
