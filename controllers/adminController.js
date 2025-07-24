@@ -125,6 +125,9 @@ exports.updateVendorStatus = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error.' });
   }
 };
+
+
+
 exports.addFarmCategory = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -158,7 +161,6 @@ exports.addFarmCategory = async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 };
-
 exports.addFacilities = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -169,19 +171,34 @@ exports.addFacilities = async (req, res) => {
 
     const facilitiesToAdd = value.facilities;
 
-    // ✅ Step 2: Normalize input names for comparison
+    // ✅ Step 2: Normalize both names
     const names = facilitiesToAdd.map(f => f.name.trim().toLowerCase());
+    const originalNames = facilitiesToAdd.map(f => f.original_name.trim().toLowerCase());
 
-    // ✅ Step 3: Check for duplicates already in DB
+    // ✅ Step 3: Check for existing facilities by name or original_name
     const existingFacilities = await Facility.find({
-      name: { $in: names.map(n => new RegExp(`^${n}$`, 'i')) }
+      $or: [
+        { name: { $in: names.map(n => new RegExp(`^${n}$`, 'i')) } },
+        { original_name: { $in: originalNames.map(n => new RegExp(`^${n}$`, 'i')) } }
+      ]
     });
 
-    const existingNames = existingFacilities.map(f => f.name.toLowerCase());
+const existingNameSet = new Set(
+  existingFacilities.flatMap(f => [
+    (f.name || '').toLowerCase(),
+    (f.original_name || '').toLowerCase()
+  ])
+);
 
-    const newFacilities = facilitiesToAdd.filter(f => !existingNames.includes(f.name.trim().toLowerCase()))
+    // ✅ Step 4: Filter only unique new facilities
+    const newFacilities = facilitiesToAdd
+      .filter(f =>
+        !existingNameSet.has(f.name.trim().toLowerCase()) &&
+        !existingNameSet.has(f.original_name.trim().toLowerCase())
+      )
       .map(f => ({
         name: f.name.trim(),
+        original_name: f.original_name.trim(),
         icon: f.icon || null
       }));
 
@@ -189,7 +206,7 @@ exports.addFacilities = async (req, res) => {
       return res.status(409).json({ message: 'All facilities already exist' });
     }
 
-    // ✅ Step 4: Save new facilities
+    // ✅ Step 5: Save
     const createdFacilities = await Facility.insertMany(newFacilities);
 
     return res.status(201).json({
@@ -202,3 +219,4 @@ exports.addFacilities = async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 };
+
