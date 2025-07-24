@@ -7,7 +7,7 @@ const {addFarmCategorySchema,addFacilitiesSchema}=require("../validationJoi/Farm
 const FarmCategory = require('../models/FarmCategory');
 const Farm = require('../models/FarmModel'); // assuming Farm model file
 const Facility = require('../models/FarmFacility');
-
+const mongoose = require('mongoose');
 
 
 exports.registerAdmin = async (req, res) => {
@@ -161,62 +161,73 @@ exports.addFarmCategory = async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 };
+
 exports.addFacilities = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    // ✅ Step 1: Validate input
+    // ✅ Step 1: Validate input using Joi
     const { error, value } = addFacilitiesSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({ message: error.details[0].message });
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
     }
 
     const facilitiesToAdd = value.facilities;
 
-    // ✅ Step 2: Normalize both names
-    const names = facilitiesToAdd.map(f => f.name.trim().toLowerCase());
-    const originalNames = facilitiesToAdd.map(f => f.original_name.trim().toLowerCase());
+    // ✅ Step 2: Normalize names (trim + lowercase)
+    const nameSet = new Set(facilitiesToAdd.map(f => f.name.trim().toLowerCase()));
+    const classNameSet = new Set(facilitiesToAdd.map(f => f.class_name.trim().toLowerCase()));
 
-    // ✅ Step 3: Check for existing facilities by name or original_name
+    // ✅ Step 3: Check for existing facilities (case-insensitive)
     const existingFacilities = await Facility.find({
       $or: [
-        { name: { $in: names.map(n => new RegExp(`^${n}$`, 'i')) } },
-        { original_name: { $in: originalNames.map(n => new RegExp(`^${n}$`, 'i')) } }
+        { name: { $in: Array.from(nameSet).map(n => new RegExp(`^${n}$`, 'i')) } },
+        { class_name: { $in: Array.from(classNameSet).map(n => new RegExp(`^${n}$`, 'i')) } }
       ]
     });
 
-const existingNameSet = new Set(
-  existingFacilities.flatMap(f => [
-    (f.name || '').toLowerCase(),
-    (f.original_name || '').toLowerCase()
-  ])
-);
-
-    // ✅ Step 4: Filter only unique new facilities
-    const newFacilities = facilitiesToAdd
-      .filter(f =>
-        !existingNameSet.has(f.name.trim().toLowerCase()) &&
-        !existingNameSet.has(f.original_name.trim().toLowerCase())
-      )
-      .map(f => ({
-        name: f.name.trim(),
-        original_name: f.original_name.trim(),
-        icon: f.icon || null
+    if (existingFacilities.length > 0) {
+      const duplicates = existingFacilities.map(f => ({
+        name: f.name,
+        class_name: f.class_name
       }));
-
-    if (newFacilities.length === 0) {
-      return res.status(409).json({ message: 'All facilities already exist' });
+      return res.status(409).json({
+        success: false,
+        message: 'One or more facilities already exist.',
+        duplicates
+      });
     }
 
-    // ✅ Step 5: Save
-    const createdFacilities = await Facility.insertMany(newFacilities);
+    // ✅ Step 4: Create sanitized insert payload
+    const newFacilities = facilitiesToAdd.map(facility => ({
+      name: facility.name.trim(),
+      class_name: facility.class_name.trim(),
+      icon: facility.icon?.trim() || null
+    }));
+
+    // ✅ Step 5: Insert in transaction
+    const insertedFacilities = await Facility.insertMany(newFacilities, { session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     return res.status(201).json({
-      message: `${createdFacilities.length} facility(ies) added successfully`,
-      data: createdFacilities
+      success: true,
+      message: `${insertedFacilities.length} facility(ies) added successfully`,
+      data: insertedFacilities
     });
 
   } catch (error) {
-    console.error('Error adding facilities:', error);
-    return res.status(500).json({ message: 'Server error' });
+    await session.abortTransaction();
+    session.endSession();
+    console.error('❌ Error adding facilities:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error. Please try again later.'
+    });
   }
 };
-

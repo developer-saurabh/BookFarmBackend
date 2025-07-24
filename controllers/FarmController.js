@@ -1010,9 +1010,9 @@ exports.getUsedFacilities = async (req, res) => {
     // 2️⃣ Get full facility details
     const facilities = await Facility.find(
       { _id: { $in: facilityIds } },
-      '_id name '
+      '_id name class_name'
     ).sort({ name: 1 });
-
+//  console.log("facilites printing",facilities)
     return res.status(200).json({
       success: true,
       message: 'Facilities fetched successfully.',

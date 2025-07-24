@@ -8,7 +8,7 @@ const facilitySchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
-  original_name:{
+  class_name:{
         type: String,
     required: true,
     unique: true,

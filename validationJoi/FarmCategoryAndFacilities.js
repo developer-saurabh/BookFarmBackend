@@ -16,10 +16,10 @@ exports.addFacilitiesSchema = Joi.object({
         'string.min': 'Facility name must be at least 2 characters',
         'string.max': 'Facility name must not exceed 100 characters'
       }),
-      original_name: Joi.string().trim().min(2).max(100).required().messages({
-        'string.empty': 'Original name is required',
-        'string.min': 'Original name must be at least 2 characters',
-        'string.max': 'Original name must not exceed 100 characters'
+      class_name: Joi.string().trim().min(2).max(100).required().messages({
+        'string.empty': 'class_name  is required',
+        'string.min': 'class_name  must be at least 2 characters',
+        'string.max': 'class_name  must not exceed 100 characters'
       }),
       icon: Joi.string().uri().optional().allow(null, '') // optional URL
     })
