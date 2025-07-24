@@ -2,7 +2,7 @@
 const FarmBooking = require('../models/FarmBookingModel');
 const FarmCategory=require("../models/FarmCategory")
 const Facility=require("../models/FarmFacility")
-const { monthYearSchema, farmAddValidationSchema,blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema, getFacilitiesSchema } = require('../validationJoi/FarmValidation');
+const { monthYearSchema,blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema, getFacilitiesSchema } = require('../validationJoi/FarmValidation');
 const Farm = require('../models/FarmModel');
 const Customer=require("../models/CustomerModel")
 const Vendor = require("../models/VendorModel");
@@ -10,88 +10,7 @@ const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 const mongoose=require("mongoose")
 const moment=require("moment")
 const { DateTime } = require('luxon'); // optional: for clean date handling (recommended)
-exports.addFarm = async (req, res) => {
-  try {
-    const { error, value } = farmAddValidationSchema.validate(req.body, { abortEarly: false });
 
-    if (error) {
-      return res.status(400).json({
-        message: 'Validation failed',
-        errors: error.details.map(err => err.message)
-      });
-    }
-
-    const ownerId = req.user.id;
-    value.owner = ownerId;
-
-    // ✅ Verify vendor
-    const vendor = await Vendor.findById(ownerId);
-    if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
-
-    if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
-      return res.status(403).json({ error: 'Vendor is not eligible to add farms.' });
-    }
-
-    // 🔍 Check for duplicate farm name for this vendor
-    const existingFarm = await Farm.findOne({ name: value.name, owner: ownerId });
-    if (existingFarm) {
-      return res.status(409).json({ error: 'A farm with this name already exists.' });
-    }
-
-    // ✅ Validate single farm category ID
-    const validFarmCategory = await FarmCategory.findById(value.farmCategory);
-    if (!validFarmCategory) {
-      return res.status(400).json({ error: 'Invalid farm category selected.' });
-    }
-
-    // ✅ Validate facilities if present
-    if (value.facilities && Array.isArray(value.facilities) && value.facilities.length > 0) {
-      const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
-      if (validFacilities.length !== value.facilities.length) {
-        return res.status(400).json({ error: 'One or more selected facilities are invalid.' });
-      }
-    }
-    // 📸 Handle images
-    const uploaded = req.files?.images || req.files?.image;
-    if (!uploaded) {
-      return res.status(400).json({ error: 'At least one image must be uploaded.' });
-    }
-
-    const imagesArray = Array.isArray(uploaded) ? uploaded : [uploaded];
-    const cloudUrls = await uploadFilesToCloudinary(imagesArray, 'farms');
-    value.images = cloudUrls;
-
-    // 🔁 Validate dailyPricing uniqueness (no duplicate dates)
-    if (value.dailyPricing && Array.isArray(value.dailyPricing)) {
-      const seenDates = new Set();
-      for (const entry of value.dailyPricing) {
-        const isoDate = new Date(entry.date).toISOString().slice(0, 10);
-        if (seenDates.has(isoDate)) {
-          return res.status(400).json({
-            error: `Duplicate pricing found for date: ${isoDate}`
-          });
-        }
-        seenDates.add(isoDate);
-      }
-    }
-
-    const newFarm = await new Farm(value).save();
-
-    // 🧠 Populate references
-    const populatedFarm = await Farm.findById(newFarm._id)
-      .populate('farmCategory')
-      .populate('facilities');
-
-    return res.status(201).json({
-      message: 'Farm added successfully',
-      data: populatedFarm
-    });
-
-  } catch (err) {
-    console.error('[AddFarm Error]', err);
-    return res.status(500).json({ message: 'Server error. Please try again later.' });
-  }
-};
 
 
 exports.unblockDate = async (req, res) => {
