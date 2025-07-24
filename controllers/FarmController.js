@@ -2,7 +2,7 @@
 const FarmBooking = require('../models/FarmBookingModel');
 const FarmCategory=require("../models/FarmCategory")
 const Facility=require("../models/FarmFacility")
-const { monthYearSchema,blockDateSchema, farmBookingValidationSchema, FilterQueeryHomePageScheam, getCategoriesSchema, getFarmByIdSchema, getFarmByImageSchema, FilterQueeryFarm, getImagesByFarmTypeSchema, unblockDateSchema, getFacilitiesSchema } = require('../validationJoi/FarmValidation');
+const FarmValidation = require('../validationJoi/FarmValidation');
 const Farm = require('../models/FarmModel');
 const Customer=require("../models/CustomerModel")
 const Vendor = require("../models/VendorModel");
@@ -17,7 +17,7 @@ exports.unblockDate = async (req, res) => {
   const vendorId = req.user.id;
 
   // ✅ Validate using external Joi schema
-  const { error, value } = unblockDateSchema.validate(req.body);
+  const { error, value } = FarmValidation.unblockDateSchema.validate(req.body);
   if (error) {
     return res.status(400).json({
       success: false,
@@ -81,30 +81,45 @@ exports.unblockDate = async (req, res) => {
     });
   }
 };
+
 exports.blockDate = async (req, res) => {
-  const vendorId = req.user.id;
-
-  // ✅ Joi validation should already be done before reaching this controller
-  const { farmId, dates } = req.body;
-
   try {
-    // 1. Fetch the farm
+    // ✅ Step 1: Validate input
+    const { error, value } = FarmValidation.blockDateSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(err => err.message),
+      });
+    }
+
+    const vendorId = req.user.id;
+    const { farmId, dates } = value;
+
+    // ✅ Step 2: Find farm and verify existence
     const farm = await Farm.findById(farmId);
     if (!farm) {
-      return res.status(404).json({ message: 'Farm not found. Please verify the farm ID.' });
+      return res.status(404).json({
+        success: false,
+        message: 'Farm not found. Please verify the farm ID.',
+      });
     }
 
-    // 2. Confirm ownership
+    // ✅ Step 3: Ownership check
     if (farm.owner.toString() !== vendorId) {
-      return res.status(403).json({ message: 'Access denied. You do not own this farm.' });
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You do not own this farm.',
+      });
     }
 
-    // 3. Normalize existing blocked dates
+    // ✅ Step 4: Normalize existing blocked dates
     const existingDatesISO = farm.unavailableDates.map(d =>
       DateTime.fromJSDate(d).toISODate()
     );
 
-    // 4. Process requested dates
+    // ✅ Step 5: Process new dates
     const newlyBlocked = [];
     const alreadyBlocked = [];
 
@@ -115,18 +130,18 @@ exports.blockDate = async (req, res) => {
       if (!existingDatesISO.includes(isoDate)) {
         farm.unavailableDates.push(dateObj);
         newlyBlocked.push(isoDate);
-        existingDatesISO.push(isoDate); // prevent future duplicate detection in same loop
+        existingDatesISO.push(isoDate); // prevent re-checking
       } else {
         alreadyBlocked.push(isoDate);
       }
     }
 
-    // 5. Save updates if needed
+    // ✅ Step 6: Save if needed
     if (newlyBlocked.length > 0) {
       await farm.save();
     }
 
-    // 6. Respond clearly
+    // ✅ Step 7: Respond
     return res.status(200).json({
       success: true,
       message: 'Farm availability updated.',
@@ -137,9 +152,12 @@ exports.blockDate = async (req, res) => {
       details: {
         newlyBlocked,
         alreadyBlocked,
-        allUnavailableDates: farm.unavailableDates.map(d => d.toISOString()),
+        allUnavailableDates: farm.unavailableDates.map(d =>
+          DateTime.fromJSDate(d).toISODate()
+        ),
       },
     });
+
   } catch (err) {
     console.error('Error while blocking dates:', err);
     return res.status(500).json({
@@ -151,7 +169,7 @@ exports.blockDate = async (req, res) => {
 
 exports.bookFarm = async (req, res) => {
   try {
-    const { error, value } = farmBookingValidationSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = FarmValidation.farmBookingValidationSchema.validate(req.body, { abortEarly: false });
     if (error) {
       return res.status(400).json({
         message: 'Validation failed',
@@ -281,7 +299,7 @@ exports.bookFarm = async (req, res) => {
 exports.getMonthlyFarmBookings = async (req, res) => {
   try {
     // ✅ Validate input (MM/YYYY format)
-    const { error, value } = monthYearSchema.validate(req.query);
+    const { error, value } = FarmValidation.monthYearSchema.validate(req.query);
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
@@ -380,7 +398,7 @@ exports.getMonthlyFarmBookings = async (req, res) => {
 exports.FilterQueeryHomePage = async (req, res) => {
   try {
     // ✅ Validate input
-    const { error, value } = FilterQueeryHomePageScheam.validate(req.body);
+    const { error, value } = FarmValidation.FilterQueeryHomePageScheam.validate(req.body);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -498,7 +516,7 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 
 exports.getFarmById = async (req, res) => {
   try {
-    const { error, value } = getFarmByIdSchema.validate({ farmId: req.body.farmId });
+    const { error, value } = FarmValidation.getFarmByIdSchema.validate({ farmId: req.body.farmId });
 
     if (error) {
       return res.status(400).json({
@@ -595,7 +613,7 @@ exports.getFarmByImageUrl = async (req, res) => {
     // 1️⃣ Validate query param
     console.log('req.query printing:', req.query);
 
-    const { error, value } = getFarmByImageSchema.validate(req.query);
+    const { error, value } = FarmValidation.getFarmByImageSchema.validate(req.query);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -666,7 +684,7 @@ const cleanInput = (input) => {
 exports.FilterQueeryFarms = async (req, res) => {
   try {
     const cleanedBody = cleanInput(req.body);
-    const { error, value } = FilterQueeryFarm.validate(cleanedBody);
+    const { error, value } =FarmValidation. FilterQueeryFarm.validate(cleanedBody);
 
     if (error) {
       return res.status(400).json({
@@ -865,7 +883,7 @@ for (let i = 0; i < paginatedFarms.length; i++) {
 exports.getFarmCategories = async (req, res) => {
   try {
     // Optional: validate query if needed
-    const { error } = getCategoriesSchema.validate(req.query);
+    const { error } = FarmValidation.getCategoriesSchema.validate(req.query);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -904,7 +922,7 @@ exports.getFarmCategories = async (req, res) => {
 exports.getUsedFacilities = async (req, res) => {
   try {
     // 🔐 Validate query
-    const { error } = getFacilitiesSchema.validate(req.query);
+    const { error } = FarmValidation.getFacilitiesSchema.validate(req.query);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -951,7 +969,7 @@ exports.getFarmImagesByCategories = async (req, res) => {
   try {
     // ✅ Validate route param (categoryId)
     console.log("req.parms priting",req.params)
-    const { error, value } = getImagesByFarmTypeSchema.validate(req.params);
+    const { error, value } = FarmValidation.getImagesByFarmTypeSchema.validate(req.params);
     if (error) {
       return res.status(400).json({
         success: false,

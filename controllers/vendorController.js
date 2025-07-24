@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const FarmCategory=require("../models/FarmCategory")
 const Facility=require("../models/FarmFacility")
-const { vendorLoginSchema ,vendorRegistrationSchema,farmAddValidationSchema} = require('../validationJoi/VendorValidation');
+const VendorValiidation= require('../validationJoi/VendorValidation');
 // const sendAdminEmail = require('../utils/sendAdminEmail');
 
 
@@ -12,7 +12,7 @@ const { vendorLoginSchema ,vendorRegistrationSchema,farmAddValidationSchema} = r
 exports.registerVendor = async (req, res) => {
   try {
     // ✅ 1) Validate input with Joi
-    const { error, value } = vendorRegistrationSchema.validate(req.body);
+    const { error, value } = VendorValiidation.vendorRegistrationSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
@@ -64,7 +64,7 @@ exports.registerVendor = async (req, res) => {
  exports.loginVendor = async (req, res) => {
   try {
     // ✅ 1) Validate input
-    const { error, value } = vendorLoginSchema.validate(req.body);
+    const { error, value } = VendorValiidation.vendorLoginSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
@@ -119,7 +119,7 @@ exports.registerVendor = async (req, res) => {
 
 exports.addFarm = async (req, res) => {
   try {
-    const { error, value } = farmAddValidationSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = VendorValiidation.farmAddValidationSchema.validate(req.body, { abortEarly: false });
 
     if (error) {
       return res.status(400).json({

@@ -9,7 +9,7 @@ const alphaSpace = /^[A-Za-z\s]+$/;
 const numericOnly = /^[0-9]+$/;
 
 
-const vendorRegistrationSchema = Joi.object({
+exports. vendorRegistrationSchema = Joi.object({
   name: Joi.string()
     .pattern(nameRegex)
     .required()
@@ -45,7 +45,7 @@ const vendorRegistrationSchema = Joi.object({
   businessName: Joi.string().allow('')
 });
 
-const addVenueSchema = Joi.object({
+exports. addVenueSchema = Joi.object({
   name: Joi.string()
     .pattern(onlyLetters)
     .required()
@@ -169,7 +169,7 @@ availableDates: Joi.array()
   
 });
 
-const vendorLoginSchema = Joi.object({
+exports. vendorLoginSchema = Joi.object({
   email: Joi.string().email().required().messages({
     'string.empty': 'Email is required.',
     'string.email': 'Must be a valid email.'
@@ -181,7 +181,7 @@ const vendorLoginSchema = Joi.object({
 
 
 
-const farmAddValidationSchema = Joi.object({
+exports. farmAddValidationSchema = Joi.object({
   name: Joi.string()
     .trim()
     .min(3)
@@ -327,5 +327,3 @@ const farmAddValidationSchema = Joi.object({
   allowUnknown: false,
 });;
 
-
-module.exports = {vendorRegistrationSchema,addVenueSchema,vendorLoginSchema,farmAddValidationSchema};
