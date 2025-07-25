@@ -175,6 +175,35 @@ const customerQuerySchema = Joi.object({
     })
     .default(10)
 });
-module.exports = {adminRegisterSchema,updateVendorStatusSchema,getAllBookingsSchema,customerQuerySchema,adminLoginSchema};
+const vendorQuerySchema = Joi.object({
+  search: Joi.string().allow('').optional(),
+
+  sortBy: Joi.string()
+    .valid('name', 'email', 'phone', 'createdAt', 'updatedAt', '')
+    .custom((v) => (v === '' ? 'createdAt' : v))
+    .default('createdAt'),
+
+  sortOrder: Joi.string()
+    .valid('asc', 'desc', '')
+    .custom((v) => (v === '' ? 'desc' : v))
+    .default('desc'),
+
+  page: Joi.alternatives()
+    .try(Joi.string().allow(''), Joi.number())
+    .custom((v) => {
+      const parsed = parseInt(v);
+      return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    })
+    .default(1),
+
+  limit: Joi.alternatives()
+    .try(Joi.string().allow(''), Joi.number())
+    .custom((v) => {
+      const parsed = parseInt(v);
+      return isNaN(parsed) || parsed < 1 ? 10 : parsed;
+    })
+    .default(10)
+});
+module.exports = {adminRegisterSchema,updateVendorStatusSchema,vendorQuerySchema,getAllBookingsSchema,customerQuerySchema,adminLoginSchema};
 
 

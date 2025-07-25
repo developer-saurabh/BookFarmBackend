@@ -188,7 +188,6 @@ exports.updateVendorStatus = async (req, res) => {
 };
 
 
-
 exports.addFarmCategory = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -357,7 +356,6 @@ exports.getAllBookings = async (req, res) => {
 };
 
 
-
 exports.getAllCustomers = async (req, res) => {
   try {
     // ✅ Validate request body
@@ -422,3 +420,120 @@ exports.getAllCustomers = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error.' });
   }
 };
+
+
+exports.getAllVendors = async (req, res) => {
+  try {
+    const { error, value } = AdminValidation.vendorQuerySchema.validate(req.body, { abortEarly: false });
+
+    if (error) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: error.details.map(d => d.message)
+      });
+    }
+
+    const {
+      search = '',
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      page = 1,
+      limit = 10
+    } = value;
+
+    const skip = (page - 1) * limit;
+    const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+
+    // 🔍 Filter vendors by email/phone/name
+    const vendorFilter = {};
+    let vendorIdsFromFarms = [];
+
+    if (search && search.trim()) {
+      const query = search.trim();
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query);
+      const isPhone = /^[0-9]{10}$/.test(query);
+      const isMongoId = /^[0-9a-fA-F]{24}$/.test(query);
+
+      const $or = [];
+
+      if (isEmail) {
+        $or.push({ email: { $regex: query, $options: 'i' } });
+      } else if (isPhone) {
+        $or.push({ phone: { $regex: query } });
+      } else {
+        $or.push({ name: { $regex: query, $options: 'i' } });
+      }
+
+      vendorFilter.$or = $or;
+
+      // 🔁 Also search in farms
+      const farmSearchFilter = {};
+      if (!isEmail && !isPhone) {
+        if (isMongoId) {
+          farmSearchFilter._id = query;
+        } else {
+          farmSearchFilter.name = { $regex: query, $options: 'i' };
+        }
+
+        const farms = await Farm.find(farmSearchFilter).select('owner').lean();
+        vendorIdsFromFarms = farms.map(f => f.owner.toString());
+      }
+    }
+
+    // 🧠 Get vendors
+    let matchedVendors = await Vendor.find(vendorFilter).lean();
+
+    if (vendorIdsFromFarms.length) {
+      const uniqueSet = new Set([
+        ...matchedVendors.map(v => v._id.toString()),
+        ...vendorIdsFromFarms
+      ]);
+      matchedVendors = await Vendor.find({ _id: { $in: Array.from(uniqueSet) } }).lean();
+    }
+
+    // ✨ Clean + Attach Farms
+    const cleanVendors = await Promise.all(
+  matchedVendors.map(async (vendor) => {
+    const farms = await Farm.find({ owner: vendor._id })
+      .select('name description location capacity farmCategory isActive isApproved')
+      .populate('farmCategory', 'name') // Optional: populate category names if needed
+      .lean();
+
+    return {
+      id: vendor._id,
+      name: vendor.name,
+      email: vendor.email,
+      phone: vendor.phone,
+      businessName: vendor.businessName,
+      isActive: vendor.isActive,
+      isVerified: vendor.isVerified,
+      isBlocked: vendor.isBlocked,
+      farms
+    };
+  })
+);
+
+    // 📊 Sort + Paginate
+    const sorted = cleanVendors.sort((a, b) => {
+      const aVal = a[sortBy] || '';
+      const bVal = b[sortBy] || '';
+      return sortOrder === 'asc'
+        ? String(aVal).localeCompare(String(bVal))
+        : String(bVal).localeCompare(String(aVal));
+    });
+
+    const paginated = sorted.slice(skip, skip + limit);
+
+    return res.status(200).json({
+      message: '✅ Vendors fetched successfully.',
+      total: sorted.length,
+      page,
+      limit,
+      vendors: paginated
+    });
+  } catch (err) {
+    console.error('❌ Error fetching vendors:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
