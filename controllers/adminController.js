@@ -9,6 +9,7 @@ const Facility = require('../models/FarmFacility');
 const FarmBooking=require('../models/FarmBookingModel')
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
+const Customer = require('../models/CustomerModel')
 
 exports.registerAdmin = async (req, res) => {
   try {
@@ -352,5 +353,72 @@ exports.getAllBookings = async (req, res) => {
       success: false,
       message: 'Something went wrong while fetching bookings. Please try again later.'
     });
+  }
+};
+
+
+
+exports.getAllCustomers = async (req, res) => {
+  try {
+    // ✅ Validate request body
+    const { error, value } = AdminValidation.customerQuerySchema.validate(req.body, { abortEarly: false });
+
+    if (error) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: error.details.map(d => d.message)
+      });
+    }
+
+    // ✅ Destructure and safely handle defaults
+    const {
+      search = '',
+      isBlacklisted,
+      page = 1,
+      limit = 10
+    } = value;
+
+    const sortField = value.sortBy && value.sortBy !== '' ? value.sortBy : 'createdAt';
+    const sortDir = value.sortOrder === 'asc' ? 1 : -1;
+    const sort = { [sortField]: sortDir };
+
+    const skip = (page - 1) * limit;
+
+    // 🔍 Build filter
+    const filter = {};
+
+    if (typeof isBlacklisted === 'boolean') {
+      filter.isBlacklisted = isBlacklisted;
+    }
+
+    if (search && search.trim() !== '') {
+      filter.$or = [
+        { name: { $regex: search.trim(), $options: 'i' } },
+        { email: { $regex: search.trim(), $options: 'i' } },
+        { phone: { $regex: search.trim(), $options: 'i' } }
+      ];
+    }
+
+    // 🧠 Fetch data
+    const [customers, total] = await Promise.all([
+      Customer.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Customer.countDocuments(filter)
+    ]);
+
+    // ✅ Send response
+    return res.status(200).json({
+      message: '✅ Customers fetched successfully.',
+      total,
+      page,
+      limit,
+      customers
+    });
+  } catch (err) {
+    console.error('❌ Error fetching customers:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
   }
 };

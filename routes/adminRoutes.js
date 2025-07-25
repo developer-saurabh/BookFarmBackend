@@ -10,6 +10,7 @@ router.post('/update_status/:id',authenticateAdmin, adminController.updateVendor
 router.post('/add_farm_category',authenticateAdmin, adminController.addFarmCategory);
 router.post('/add_Farm_Facilities',authenticateAdmin, adminController.addFacilities);
 router.post('/get_all_bookings',authenticateAdmin, adminController.getAllBookings);
+router.post('/get_all_customers',authenticateAdmin, adminController.getAllCustomers);
 
 module.exports = router;
     

@@ -136,7 +136,45 @@ const getAllBookingsSchema = Joi.object({
     })
 });
 
+const customerQuerySchema = Joi.object({
+  search: Joi.string().allow('').optional(),
 
-module.exports = {adminRegisterSchema,updateVendorStatusSchema,getAllBookingsSchema,adminLoginSchema};
+  isBlacklisted: Joi.alternatives()
+    .try(Joi.boolean(), Joi.string().valid('true', 'false', ''))
+    .optional()
+    .custom((value, helpers) => {
+      if (value === '') return undefined;
+      if (value === 'true') return true;
+      if (value === 'false') return false;
+      return value;
+    }),
+
+  sortBy: Joi.string()
+    .valid('name', 'email', 'phone', 'createdAt', 'updatedAt', '')
+    .default('createdAt')
+    .custom((value) => (value === '' ? 'createdAt' : value)),
+
+  sortOrder: Joi.string()
+    .valid('asc', 'desc', '')
+    .default('desc')
+    .custom((value) => (value === '' ? 'desc' : value)),
+
+  page: Joi.alternatives()
+    .try(Joi.string().allow(''), Joi.number())
+    .custom((value) => {
+      const parsed = parseInt(value);
+      return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    })
+    .default(1),
+
+  limit: Joi.alternatives()
+    .try(Joi.string().allow(''), Joi.number())
+    .custom((value) => {
+      const parsed = parseInt(value);
+      return isNaN(parsed) || parsed < 1 ? 10 : parsed;
+    })
+    .default(10)
+});
+module.exports = {adminRegisterSchema,updateVendorStatusSchema,getAllBookingsSchema,customerQuerySchema,adminLoginSchema};
 
 
