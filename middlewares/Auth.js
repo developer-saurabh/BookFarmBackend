@@ -62,7 +62,7 @@ const authenticateAdmin = async (req, res, next) => {
     }
 
     // ✅ Attach to req
-    req.user = admin;
+    req.user = decoded;
     next();
   } catch (err) {
     console.error('🔐 Auth Middleware Error:', err);

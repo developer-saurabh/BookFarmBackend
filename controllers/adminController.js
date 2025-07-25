@@ -129,7 +129,7 @@ exports.loginAdmin = async (req, res) => {
 
 exports.updateVendorStatus = async (req, res) => {
   try {
-    const  vendorId  = req.params.id;
+    const  vendorId  = req.body.vendor_id;
 
     // ✅ 1) Validate request body
     const { error, value } =AdminValidation. updateVendorStatusSchema.validate(req.body);
@@ -144,9 +144,9 @@ exports.updateVendorStatus = async (req, res) => {
     }
 
     // ✅ 3) If vendor is blocked, no status updates allowed
-    if (vendor.isBlocked) {
-      return res.status(403).json({ error: 'Vendor is blocked. Status changes are not allowed. Contact SuperAdmin.' });
-    }
+    // if (vendor.isBlocked) {
+    //   return res.status(403).json({ error: 'Vendor is blocked. Status changes are not allowed. Contact SuperAdmin.' });
+    // }
 
     // ✅ 4) Check redundant updates
     if (typeof value.isActive === 'boolean' && vendor.isActive === value.isActive) {
@@ -187,6 +187,59 @@ exports.updateVendorStatus = async (req, res) => {
   }
 };
 
+exports.getAllApprovedVendors = async (req, res) => {
+  try {
+    const { error, value } = AdminValidation.approvedVendorQuerySchema.validate(req.body, { abortEarly: false });
+
+    if (error) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: error.details.map(d => d.message)
+      });
+    }
+
+    const page = parseInt(value.page) || 1;
+    const limit = parseInt(value.limit) || 10;
+
+    const skip = (page - 1) * limit;
+
+    // ✅ Use safe defaults for sort fields
+    const safeSortBy = value.sortBy && value.sortBy !== '' ? value.sortBy : 'createdAt';
+    const sortDir = value.sortOrder === 'asc' ? 1 : -1;
+    const sort = { [safeSortBy]: sortDir };
+
+    const vendors = await Vendor.find({
+      isActive: true,
+      isVerified: true,
+      isBlocked: false
+    })
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .select('-password -__v -createdAt -updatedAt')
+      .lean();
+
+    console.log("✅ vendor result:", vendors);
+
+    const total = await Vendor.countDocuments({
+      isActive: true,
+      isVerified: true,
+      isBlocked: false
+    });
+
+    return res.status(200).json({
+      message: '✅ Approved vendors fetched successfully.',
+      total,
+      page,
+      limit,
+      vendors
+    });
+
+  } catch (err) {
+    console.error('❌ Error fetching approved vendors:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+};
 
 exports.addFarmCategory = async (req, res) => {
   try {
@@ -537,3 +590,39 @@ exports.getAllVendors = async (req, res) => {
   }
 };
 
+exports.getAdminProfile = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate user ID from auth
+    const { error, value } =AdminValidation. getProfileSchema.validate({ id: req.user?.id });
+    if (error) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: error.details.map(d => d.message)
+      });
+    }
+
+    // ✅ Step 2: Find admin by ID
+    const admin = await Admin.findById(value.id).lean();
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found.' });
+    }
+
+    // ✅ Step 3: Return clean profile (no password or sensitive fields)
+    return res.status(200).json({
+      message: '✅ Admin profile fetched successfully.',
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone,
+        permissions: admin.permissions,
+        isSuperAdmin: admin.isSuperAdmin,
+        isActive: admin.isActive
+      }
+    });
+
+  } catch (err) {
+    console.error('🚨 Error fetching admin profile:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+};

@@ -6,12 +6,15 @@ const { authenticateAdmin } = require('../middlewares/Auth');
 // Example: protect this with an isSuperAdmin middleware in production
 router.post('/register', adminController.registerAdmin);
 router.post('/login', adminController.loginAdmin);
-router.post('/update_status/:id',authenticateAdmin, adminController.updateVendorStatus);
+router.post('/update_status',authenticateAdmin, adminController.updateVendorStatus);
+router.post('/get_all_aprrove_vendors',authenticateAdmin, adminController.getAllApprovedVendors);
 router.post('/add_farm_category',authenticateAdmin, adminController.addFarmCategory);
 router.post('/add_Farm_Facilities',authenticateAdmin, adminController.addFacilities);
 router.post('/get_all_bookings',authenticateAdmin, adminController.getAllBookings);
 router.post('/get_all_customers',authenticateAdmin, adminController.getAllCustomers);
 router.post('/get_all_vendors',authenticateAdmin, adminController.getAllVendors);
+
+router.post('/profile',authenticateAdmin, adminController.getAdminProfile);
 
 module.exports = router;
     

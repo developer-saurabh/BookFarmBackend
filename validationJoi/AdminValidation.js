@@ -5,7 +5,7 @@ const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]
 const phoneRegex = /^[0-9]{10}$/;
 
 
-const adminRegisterSchema = Joi.object({
+exports. adminRegisterSchema = Joi.object({
   name: Joi.string()
     .pattern(/^[A-Za-z]+(\s[A-Za-z]+)*$/)
     .required()
@@ -42,7 +42,7 @@ const adminRegisterSchema = Joi.object({
 
   isSuperAdmin: Joi.boolean().default(true)
 });
-const adminLoginSchema = Joi.object({
+exports. adminLoginSchema = Joi.object({
   email: Joi.string()
     .email()
     .required()
@@ -60,7 +60,15 @@ const adminLoginSchema = Joi.object({
     })
 });
 
-const updateVendorStatusSchema = Joi.object({
+exports. updateVendorStatusSchema = Joi.object({
+
+   vendor_id: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .required()
+    .messages({
+      'string.empty': 'vendor_id is required.',
+      'string.pattern.base': 'vendor_id must be a valid MongoDB ObjectId.'
+    }),
   isActive: Joi.boolean()
     .messages({
       'boolean.base': 'isActive must be a boolean value.'
@@ -79,11 +87,10 @@ const updateVendorStatusSchema = Joi.object({
   .messages({
     'object.missing': 'At least one of isActive, isVerified, or isBlocked must be provided.'
   });
-
 // Get All Bookings Schema
 
 
-const getAllBookingsSchema = Joi.object({
+exports. getAllBookingsSchema = Joi.object({
   page: Joi.alternatives()
     .try(Joi.number().integer().min(1), Joi.string().regex(/^\d+$/))
     .optional()
@@ -136,7 +143,7 @@ const getAllBookingsSchema = Joi.object({
     })
 });
 
-const customerQuerySchema = Joi.object({
+exports. customerQuerySchema = Joi.object({
   search: Joi.string().allow('').optional(),
 
   isBlacklisted: Joi.alternatives()
@@ -175,7 +182,7 @@ const customerQuerySchema = Joi.object({
     })
     .default(10)
 });
-const vendorQuerySchema = Joi.object({
+exports. vendorQuerySchema = Joi.object({
   search: Joi.string().allow('').optional(),
 
   sortBy: Joi.string()
@@ -204,6 +211,42 @@ const vendorQuerySchema = Joi.object({
     })
     .default(10)
 });
-module.exports = {adminRegisterSchema,updateVendorStatusSchema,vendorQuerySchema,getAllBookingsSchema,customerQuerySchema,adminLoginSchema};
+exports. getProfileSchema = Joi.object({
+  id: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .required()
+    .messages({
+      'string.empty': 'Admin ID is required.',
+      'string.pattern.base': 'Admin ID must be a valid MongoDB ObjectId.'
+    })
+});
+
+exports. approvedVendorQuerySchema = Joi.object({
+  sortBy: Joi.string()
+    .valid('name', 'email', 'phone', 'createdAt', 'updatedAt', '')
+    .custom(v => (v === '' ? 'createdAt' : v))
+    .default('createdAt'),
+
+  sortOrder: Joi.string()
+    .valid('asc', 'desc', '')
+    .custom(v => (v === '' ? 'desc' : v))
+    .default('desc'),
+
+  page: Joi.alternatives()
+    .try(Joi.string().allow(''), Joi.number())
+    .custom(val => {
+      const parsed = parseInt(val);
+      return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    })
+    .default(1),
+
+  limit: Joi.alternatives()
+    .try(Joi.string().allow(''), Joi.number())
+    .custom(val => {
+      const parsed = parseInt(val);
+      return isNaN(parsed) || parsed < 1 ? 10 : parsed;
+    })
+    .default(10)
+});
 
 
