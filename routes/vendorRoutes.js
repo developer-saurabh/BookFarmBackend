@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const vendorController = require('../controllers/vendorController');
 const ParseNest = require('../utils/ParseNest');
-const { vendorAuth } = require('../middlewares/vendorAuth');
+const { vendorAuth } = require('../middlewares/Auth');
 
 
 // Example: protect this with an isSuperAdmin middleware in production

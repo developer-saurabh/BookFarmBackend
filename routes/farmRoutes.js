@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const FarmController = require('../controllers/FarmController');
-const { vendorAuth } = require('../middlewares/vendorAuth');
+const { vendorAuth } = require('../middlewares/Auth');
 const ParseNest = require('../utils/ParseNest');
 
 

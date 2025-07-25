@@ -177,7 +177,7 @@ exports.bookFarm = async (req, res) => {
       });
     }
 
-    const { customerName, customerPhone, customerEmail, customer, farm_id, date, bookingModes } = value;
+    const { customerName, customerPhone, customerEmail, customer, farm_id, date, bookingModes,Guest_Count,Group_Category } = value;
     const normalizedDate = new Date(date);
     const isoDateStr = normalizedDate.toISOString().split('T')[0]; // YYYY-MM-DD
 
@@ -268,6 +268,8 @@ exports.bookFarm = async (req, res) => {
       farmType: farmDoc.farmType,
       date: normalizedDate,
       bookingModes,
+      Group_Category:Group_Category,
+      Guest_Count:Guest_Count,
       status: value.status || 'pending',
       paymentStatus: value.paymentStatus || 'unpaid',
       totalPrice,

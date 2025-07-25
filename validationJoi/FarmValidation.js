@@ -106,8 +106,31 @@ exports. farmBookingValidationSchema = Joi.object({
       'array.min': 'At least one booking mode must be selected.',
       'any.only': 'Booking mode must be one of full_day, day_slot, or night_slot.'
     }),
-
- 
+    
+Guest_Count: Joi.number()
+    .integer()
+    .min(1)
+    .max(500)
+    .required()
+    .messages({
+      'number.base': 'Guest count must be a number.',
+      'number.integer': 'Guest count must be an integer.',
+      'number.min': 'At least 1 guest is required.',
+      'number.max': 'Guest count must not exceed 500.',
+      'any.required': 'Guest count is required.'
+    })
+ ,
+ Group_Category: Joi.string()
+    .pattern(/^[A-Za-z\s]+$/)
+    .min(3)
+    .max(50)
+    .required()
+    .messages({
+      'string.pattern.base': 'Group category must contain only letters and spaces.',
+      'string.empty': 'Group category is required.',
+      'string.min': 'Group category must be at least 3 characters.',
+      'string.max': 'Group category must be at most 50 characters.'
+    })
 });
 
 

@@ -56,8 +56,12 @@ bookingSource: {
   enum: ['website', 'whatsapp'],
   default: 'website'
 },
-
-
+Guest_Count:{
+  type:Number
+},
+Group_Category:{
+  type:String
+}
 }, { timestamps: true });
 
 

@@ -1,20 +1,19 @@
 const Admin = require('../models/AdminModel');
 const bcrypt = require('bcryptjs');
-const {adminRegisterSchema} = require('../validationJoi/AdminValidation');
+const AdminValidation = require('../validationJoi/AdminValidation');
 const Vendor = require('../models/VendorModel');
-const {updateVendorStatusSchema,getAllBookingsSchema} = require('../validationJoi/AdminValidation');
 const {addFarmCategorySchema,addFacilitiesSchema}=require("../validationJoi/FarmCategoryAndFacilities")
 const FarmCategory = require('../models/FarmCategory');
 const Farm = require('../models/FarmModel'); // assuming Farm model file
 const Facility = require('../models/FarmFacility');
 const FarmBooking=require('../models/FarmBookingModel')
 const mongoose = require('mongoose');
-
+const jwt = require('jsonwebtoken');
 
 exports.registerAdmin = async (req, res) => {
   try {
     // ✅ Validate input
-    const { error, value } = adminRegisterSchema.validate(req.body);
+    const { error, value } =AdminValidation. adminRegisterSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
@@ -67,12 +66,72 @@ exports.registerAdmin = async (req, res) => {
   }
 };  
 
+
+exports.loginAdmin = async (req, res) => {
+  try {
+    // ✅ Validate input
+    const { error, value } = AdminValidation.adminLoginSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const { email, password } = value;
+
+    // ✅ Find admin by email
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      return res.status(401).json({ error: 'admin not found by email.' });
+    }
+
+    // ✅ Check if admin is active
+    if (!admin.isActive) {
+      return res.status(403).json({ error: 'Account is deactivated. Please contact support.' });
+    }
+
+    // ✅ Verify password
+    const isPasswordValid = await bcrypt.compare(password, admin.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    // ✅ Generate JWT
+    const token = jwt.sign(
+      {
+        id: admin._id,
+        email: admin.email,
+        isSuperAdmin: admin.isSuperAdmin,
+        permissions: admin.permissions
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' } // ⏳ Token validity
+    );
+   res.setHeader('Authorization', `Bearer ${token}`);
+    // ✅ Success response
+    return res.status(200).json({
+      message: '✅ Login successful.',
+      token,
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone,
+        isSuperAdmin: admin.isSuperAdmin,
+        permissions: admin.permissions
+      }
+    });
+  } catch (err) {
+    console.error('🚨 Admin login error:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+
 exports.updateVendorStatus = async (req, res) => {
   try {
     const  vendorId  = req.params.id;
 
     // ✅ 1) Validate request body
-    const { error, value } = updateVendorStatusSchema.validate(req.body);
+    const { error, value } =AdminValidation. updateVendorStatusSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
@@ -237,7 +296,7 @@ exports.addFacilities = async (req, res) => {
 exports.getAllBookings = async (req, res) => {
   try {
     // ✅ Validate input
-    const { error, value } = getAllBookingsSchema.validate(req.body);
+    const { error, value } = AdminValidation.getAllBookingsSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
         success: false,
