@@ -104,7 +104,7 @@ exports.loginAdmin = async (req, res) => {
         permissions: admin.permissions
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' } // ⏳ Token validity
+      { expiresIn: '1d' } // ⏳ Token validity
     );
    res.setHeader('Authorization', `Bearer ${token}`);
     // ✅ Success response
