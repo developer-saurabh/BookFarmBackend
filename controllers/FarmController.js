@@ -596,23 +596,41 @@ exports.getFarmById = async (req, res) => {
     const allModes = ['full_day', 'day_slot', 'night_slot'];
 
     // ✅ Build availability array with day name
-    const availability = next7Days.map(dayMoment => {
-      const dateStr = dayMoment.format('YYYY-MM-DD');
-      const dayName = dayMoment.format('dddd'); // ✅ Get day name
-      const isBlocked = blockedDates.includes(dateStr);
-      const booked = bookingMap[dateStr] || new Set();
+ // ✅ Build availability array with day name
+const availability = next7Days.map(dayMoment => {
+  const dateStr = dayMoment.format('YYYY-MM-DD');
+  const dayName = dayMoment.format('dddd');
+  const isBlocked = blockedDates.includes(dateStr);
+  const booked = bookingMap[dateStr] || new Set();
 
-      const slots = {};
+  const slots = {};
+  
+  // 🔹 Step 1: If date is blocked → all modes false
+  if (isBlocked) {
+    allModes.forEach(mode => slots[mode] = false);
+  } else {
+    // 🔹 Step 2: If full_day booked → all false
+    if (booked.has('full_day')) {
+      allModes.forEach(mode => slots[mode] = false);
+    } 
+    // 🔹 Step 3: If day_slot/night_slot booked → those false & full_day false
+    else {
       allModes.forEach(mode => {
-        slots[mode] = !isBlocked && !booked.has(mode);
+        if ((booked.has('day_slot') || booked.has('night_slot')) && mode === 'full_day') {
+          slots[mode] = false;
+        } else {
+          slots[mode] = !booked.has(mode);
+        }
       });
+    }
+  }
 
-      return {
-        date: dateStr,
-        dayName,
-        availableSlots: slots
-      };
-    });
+  return {
+    date: dateStr,
+    dayName,
+    availableSlots: slots
+  };
+});
 
     return res.status(200).json({
       success: true,
