@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Farm = require('./FarmModel'); // make sure this path is correct
 
+
 const farmBookingSchema = new mongoose.Schema({
   // 👤 Customer Info
   customerName: { type: String, required: true },
@@ -11,6 +12,10 @@ const farmBookingSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Customer',
     required: false
+  },
+  Booking_id:{
+    type:Number,
+    default:null
   },
 
   // 🌾 Farm Reference

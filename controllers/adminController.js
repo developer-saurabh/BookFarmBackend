@@ -626,3 +626,40 @@ exports.getAdminProfile = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error.' });
   }
 };
+
+
+
+
+exports.getBookingByBookingId = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate input
+    const { error, value } = AdminValidation.getBookingByIdSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { booking_id } = value;
+
+    // ✅ Step 2: Find booking by booking_id
+    const booking = await FarmBooking.findOne({ Booking_id: booking_id })
+      .populate('customer')
+      .populate('farm');
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    // ✅ Step 3: Return booking details
+    res.status(200).json({
+      message: 'Booking details fetched successfully',
+      data: booking
+    });
+
+  } catch (err) {
+    console.error('[GetBookingByBookingId Error]', err);
+    res.status(500).json({ error: 'Server error. Please try again later.' });
+  }
+};

@@ -439,8 +439,12 @@ exports.bookFarm = async (req, res) => {
       }
     }
 
+    // ✅ Step 7: Generate random 6-digit booking ID
+const generateBookingId = () => Math.floor(100000 + Math.random() * 900000);
+
     // ✅ Step 7: Save booking
     const booking = new FarmBooking({
+        Booking_id: generateBookingId(),
       customerName,
       customerPhone,
       customerEmail,
