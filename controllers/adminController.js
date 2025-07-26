@@ -367,7 +367,7 @@ exports.getAllBookings = async (req, res) => {
     const filter = {};
 
     if (bookingId) {
-      filter._id = bookingId;
+      filter.Booking_id = bookingId;
     }
 
     if (date) {

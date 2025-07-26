@@ -113,16 +113,17 @@ exports. getAllBookingsSchema = Joi.object({
       'number.max': 'Limit cannot exceed 100.',
       'string.pattern.base': 'Limit must be a numeric string.'
     }),
-
-  bookingId: Joi.string()
-    .length(24)
-    .hex()
-    .optional()
-    .allow('', null)
-    .messages({
-      'string.hex': 'Booking ID must be a valid hex string.',
-      'string.length': 'Booking ID must be exactly 24 characters.'
-    }),
+bookingId: Joi.alternatives().try(
+    Joi.number().integer().min(100000).max(999999),
+    Joi.string().valid('')
+  )
+  .optional()
+  .allow(null)
+  .messages({
+    'number.base': 'Booking ID must be a number.',
+    'number.min': 'Booking ID must be a 6-digit number.',
+    'number.max': 'Booking ID must be a 6-digit number.'
+  }),
 
   date: Joi.date()
     .iso()
