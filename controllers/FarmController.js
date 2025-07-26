@@ -167,6 +167,166 @@ exports.blockDate = async (req, res) => {
   }
 };
 
+// exports.bookFarm = async (req, res) => {
+//   try {
+//     const { error, value } = FarmValidation.farmBookingValidationSchema.validate(req.body, { abortEarly: false });
+//     if (error) {
+//       return res.status(400).json({
+//         message: 'Validation failed',
+//         errors: error.details.map(e => e.message)
+//       });
+//     }
+
+//     const { customerName, customerPhone, customerEmail, customer, farm_id, date, bookingModes,Guest_Count,Group_Category } = value;
+//     const normalizedDate = new Date(date);
+//     const isoDateStr = normalizedDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
+//     // ✅ Step 1: Find farm
+//     const farmDoc = await Farm.findById(farm_id);
+//     if (!farmDoc) {
+//       return res.status(404).json({ error: 'Farm not found' });
+//     }
+
+//     // ✅ Step 2: Block-date check
+//     const blockedDates = (farmDoc.unavailableDates || []).map(d =>
+//       new Date(d).toISOString().split('T')[0]
+//     );
+
+//     if (blockedDates.includes(isoDateStr)) {
+//       return res.status(403).json({
+//         error: `This farm is not accepting bookings on ${isoDateStr}. Please select another date.`
+//       });
+//     }
+// // ✅ Step 3: Check for existing bookings on this date
+// const existingBookings = await FarmBooking.find({
+//   farm: farm_id,
+//   date: normalizedDate,
+//   status: { $in: ['pending', 'confirmed'] }
+// });
+// // Step 3A: Enforce full-day <-> slot conflict rule
+// const existingModes = existingBookings.flatMap(b => b.bookingModes);
+
+// // ✅ Allow booking if request includes all three modes together
+// const isRequestingAllThree = ['full_day', 'day_slot', 'night_slot']
+//   .every(mode => bookingModes.includes(mode));
+
+// // If trying to book full_day (but NOT all three modes) and any booking exists
+// if (!isRequestingAllThree && bookingModes.includes('full_day') && existingBookings.length > 0) {
+//   return res.status(409).json({
+//     error: `Farm already has slot bookings on ${isoDateStr}, so full day booking is not allowed.`,
+//     conflict: existingModes
+//   });
+// }
+
+// // If trying to book a slot (day_slot/night_slot) but full_day already booked
+// if (!isRequestingAllThree &&
+//     (bookingModes.includes('day_slot') || bookingModes.includes('night_slot')) &&
+//     existingModes.includes('full_day')) {
+//   return res.status(409).json({
+//     error: `Farm is already booked for full day on ${isoDateStr}, so individual slot bookings are not allowed.`,
+//     conflict: ['full_day']
+//   });
+// }
+
+// // ✅ Step 3B: Existing mode conflicts for same modes
+// const conflicting = existingBookings.filter(b =>
+//   b.bookingModes.some(mode => bookingModes.includes(mode))
+// );
+
+// if (conflicting.length > 0) {
+//   const conflictModes = [...new Set(conflicting.flatMap(b => b.bookingModes))];
+//   return res.status(409).json({
+//     error: `Farm already booked for the following slot(s) on ${isoDateStr}: ${conflictModes.join(', ')}`,
+//     conflict: conflictModes
+//   });
+// }
+
+//     // ✅ Step 4: Calculate totalPrice + breakdown (based on dailyPricing or defaultPricing)
+//     const priceBreakdown = {};
+//     let totalPrice = 0;
+
+//     // Step 4A: Find date-specific pricing if exists
+//     const matchedDaily = farmDoc.dailyPricing?.find(
+//       d => new Date(d.date).toISOString().split('T')[0] === isoDateStr
+//     );
+
+//     const priceSource = matchedDaily?.slots || farmDoc.defaultPricing || {};
+
+//     for (let mode of bookingModes) {
+//       const modePrice = priceSource[mode];
+//       if (typeof modePrice !== 'number') {
+//         return res.status(400).json({
+//           error: `Pricing not configured for mode "${mode}" on ${isoDateStr}.`
+//         });
+//       }
+//       priceBreakdown[mode] = modePrice;
+//       totalPrice += modePrice;
+//     }
+
+//     // ✅ Step 5: Resolve customer
+//     let customerId = customer;
+//     if (!customerId) {
+//       let existingCustomer = await Customer.findOne({
+//         $or: [
+//           { phone: customerPhone },
+//           { email: customerEmail }
+//         ]
+//       });
+
+//       if (!existingCustomer) {
+//         const newCustomer = await Customer.create({
+//           name: customerName,
+//           phone: customerPhone,
+//           email: customerEmail
+//         });
+//         customerId = newCustomer._id;
+//       } else {
+//         customerId = existingCustomer._id;
+//       }
+//     }
+
+//     // ✅ Step 6: Save booking
+//     const booking = new FarmBooking({
+//       customerName,
+//       customerPhone,
+//       customerEmail,
+//       customer: customerId,
+//       farm: farm_id,
+//       farmType: farmDoc.farmType,
+//       date: normalizedDate,
+//       bookingModes,
+//       Group_Category:Group_Category,
+//       Guest_Count:Guest_Count,
+//       status: value.status || 'pending',
+//       paymentStatus: value.paymentStatus || 'unpaid',
+//       totalPrice,
+//       priceBreakdown
+//     });
+
+//     await booking.save();
+
+//     const plainBooking = booking.toObject();
+//     plainBooking.priceBreakdown = Object.fromEntries(booking.priceBreakdown);
+
+//     return res.status(201).json({
+//       message: 'Farm booked successfully!',
+//       data: plainBooking
+//     });
+
+//   } catch (err) {
+//     if (err.code === 11000) {
+//       return res.status(409).json({
+//         error: 'Duplicate booking detected. A booking for the same farm and date already exists.'
+//       });
+//     }
+
+//     console.error('[FarmBooking Error]', err);
+//     res.status(500).json({ error: 'Server error. Try again later.' });
+//   }
+// };
+
+
+
 exports.bookFarm = async (req, res) => {
   try {
     const { error, value } = FarmValidation.farmBookingValidationSchema.validate(req.body, { abortEarly: false });
@@ -177,9 +337,9 @@ exports.bookFarm = async (req, res) => {
       });
     }
 
-    const { customerName, customerPhone, customerEmail, customer, farm_id, date, bookingModes,Guest_Count,Group_Category } = value;
+    const { customerName, customerPhone, customerEmail, customer, farm_id, date, bookingModes, Guest_Count, Group_Category } = value;
     const normalizedDate = new Date(date);
-    const isoDateStr = normalizedDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    const isoDateStr = normalizedDate.toISOString().split('T')[0];
 
     // ✅ Step 1: Find farm
     const farmDoc = await Farm.findById(farm_id);
@@ -188,64 +348,65 @@ exports.bookFarm = async (req, res) => {
     }
 
     // ✅ Step 2: Block-date check
-    const blockedDates = (farmDoc.unavailableDates || []).map(d =>
-      new Date(d).toISOString().split('T')[0]
-    );
-
+    const blockedDates = (farmDoc.unavailableDates || []).map(d => new Date(d).toISOString().split('T')[0]);
     if (blockedDates.includes(isoDateStr)) {
       return res.status(403).json({
         error: `This farm is not accepting bookings on ${isoDateStr}. Please select another date.`
       });
     }
-// ✅ Step 3: Check for existing bookings on this date
-const existingBookings = await FarmBooking.find({
-  farm: farm_id,
-  date: normalizedDate,
-  status: { $in: ['pending', 'confirmed'] }
-});
 
-// Step 3A: Enforce full-day <-> slot conflict rule
-const existingModes = existingBookings.flatMap(b => b.bookingModes);
+    // ✅ Step 3: Validate slot combination (real world)
+    if (bookingModes.includes('full_day') && bookingModes.length > 1) {
+      return res.status(400).json({
+        error: `Invalid booking request. 'full_day' cannot be combined with other slots.`,
+        message: `Invalid booking request. 'full_day' cannot be combined with other slots.`
+      });
+    }
 
-// If trying to book full_day but any slot already exists
-if (bookingModes.includes('full_day') && existingBookings.length > 0) {
-  return res.status(409).json({
-    error: `Farm already has slot bookings on ${isoDateStr}, so full day booking is not allowed.`,
-    conflict: existingModes
-  });
-}
+    // ✅ Step 4: Check for existing bookings on this date
+    const existingBookings = await FarmBooking.find({
+      farm: farm_id,
+      date: normalizedDate,
+      status: { $in: ['pending', 'confirmed'] }
+    });
 
-// If trying to book a slot (day_slot/night_slot) but full_day already booked
-if ((bookingModes.includes('day_slot') || bookingModes.includes('night_slot')) &&
-    existingModes.includes('full_day')) {
-  return res.status(409).json({
-    error: `Farm is already booked for full day on ${isoDateStr}, so individual slot bookings are not allowed.`,
-    conflict: ['full_day']
-  });
-}
+    const existingModes = existingBookings.flatMap(b => b.bookingModes);
 
-// ✅ Step 3B: Existing mode conflicts for same modes
-const conflicting = existingBookings.filter(b =>
-  b.bookingModes.some(mode => bookingModes.includes(mode))
-);
+    // ✅ Step 4A: Full-day <-> slot conflict rule
+    if (bookingModes.includes('full_day') && existingBookings.length > 0) {
+      return res.status(409).json({
+        error: `Farm already has slot bookings on ${isoDateStr}, so full day booking is not allowed.`,
+        conflict: existingModes
+      });
+    }
 
-if (conflicting.length > 0) {
-  const conflictModes = [...new Set(conflicting.flatMap(b => b.bookingModes))];
-  return res.status(409).json({
-    error: `Farm already booked for the following slot(s) on ${isoDateStr}: ${conflictModes.join(', ')}`,
-    conflict: conflictModes
-  });
-}
+    if ((bookingModes.includes('day_slot') || bookingModes.includes('night_slot')) &&
+        existingModes.includes('full_day')) {
+      return res.status(409).json({
+        error: `Farm is already booked for full day on ${isoDateStr}, so individual slot bookings are not allowed.`,
+        conflict: ['full_day']
+      });
+    }
 
-    // ✅ Step 4: Calculate totalPrice + breakdown (based on dailyPricing or defaultPricing)
+    // ✅ Step 4B: Existing mode conflicts for same modes
+    const conflicting = existingBookings.filter(b =>
+      b.bookingModes.some(mode => bookingModes.includes(mode))
+    );
+    if (conflicting.length > 0) {
+      const conflictModes = [...new Set(conflicting.flatMap(b => b.bookingModes))];
+      return res.status(409).json({
+        error: `Farm already booked for the following slot(s) on ${isoDateStr}: ${conflictModes.join(', ')}`,
+        conflict: conflictModes
+      });
+    }
+
+    // ✅ Step 5: Calculate totalPrice + breakdown
     const priceBreakdown = {};
     let totalPrice = 0;
 
-    // Step 4A: Find date-specific pricing if exists
     const matchedDaily = farmDoc.dailyPricing?.find(
       d => new Date(d.date).toISOString().split('T')[0] === isoDateStr
     );
-
     const priceSource = matchedDaily?.slots || farmDoc.defaultPricing || {};
 
     for (let mode of bookingModes) {
@@ -259,14 +420,11 @@ if (conflicting.length > 0) {
       totalPrice += modePrice;
     }
 
-    // ✅ Step 5: Resolve customer
+    // ✅ Step 6: Resolve customer
     let customerId = customer;
     if (!customerId) {
       let existingCustomer = await Customer.findOne({
-        $or: [
-          { phone: customerPhone },
-          { email: customerEmail }
-        ]
+        $or: [{ phone: customerPhone }, { email: customerEmail }]
       });
 
       if (!existingCustomer) {
@@ -281,7 +439,7 @@ if (conflicting.length > 0) {
       }
     }
 
-    // ✅ Step 6: Save booking
+    // ✅ Step 7: Save booking
     const booking = new FarmBooking({
       customerName,
       customerPhone,
@@ -291,8 +449,8 @@ if (conflicting.length > 0) {
       farmType: farmDoc.farmType,
       date: normalizedDate,
       bookingModes,
-      Group_Category:Group_Category,
-      Guest_Count:Guest_Count,
+      Group_Category,
+      Guest_Count,
       status: value.status || 'pending',
       paymentStatus: value.paymentStatus || 'unpaid',
       totalPrice,
