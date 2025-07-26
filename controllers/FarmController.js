@@ -197,22 +197,45 @@ exports.bookFarm = async (req, res) => {
         error: `This farm is not accepting bookings on ${isoDateStr}. Please select another date.`
       });
     }
+// ✅ Step 3: Check for existing bookings on this date
+const existingBookings = await FarmBooking.find({
+  farm: farm_id,
+  date: normalizedDate,
+  status: { $in: ['pending', 'confirmed'] }
+});
 
-    // ✅ Step 3: Check for existing bookings on this date
-    const existing = await FarmBooking.find({
-      farm: farm_id,
-      date: normalizedDate,
-      bookingModes: { $in: bookingModes },
-      status: { $in: ['pending', 'confirmed'] }
-    });
+// Step 3A: Enforce full-day <-> slot conflict rule
+const existingModes = existingBookings.flatMap(b => b.bookingModes);
 
-    if (existing.length > 0) {
-      const conflictModes = [...new Set(existing.flatMap(b => b.bookingModes))];
-      return res.status(409).json({
-        error: `Farm already booked for the following slot(s) on ${isoDateStr}: ${conflictModes.join(', ')}`,
-        conflict: conflictModes
-      });
-    }
+// If trying to book full_day but any slot already exists
+if (bookingModes.includes('full_day') && existingBookings.length > 0) {
+  return res.status(409).json({
+    error: `Farm already has slot bookings on ${isoDateStr}, so full day booking is not allowed.`,
+    conflict: existingModes
+  });
+}
+
+// If trying to book a slot (day_slot/night_slot) but full_day already booked
+if ((bookingModes.includes('day_slot') || bookingModes.includes('night_slot')) &&
+    existingModes.includes('full_day')) {
+  return res.status(409).json({
+    error: `Farm is already booked for full day on ${isoDateStr}, so individual slot bookings are not allowed.`,
+    conflict: ['full_day']
+  });
+}
+
+// ✅ Step 3B: Existing mode conflicts for same modes
+const conflicting = existingBookings.filter(b =>
+  b.bookingModes.some(mode => bookingModes.includes(mode))
+);
+
+if (conflicting.length > 0) {
+  const conflictModes = [...new Set(conflicting.flatMap(b => b.bookingModes))];
+  return res.status(409).json({
+    error: `Farm already booked for the following slot(s) on ${isoDateStr}: ${conflictModes.join(', ')}`,
+    conflict: conflictModes
+  });
+}
 
     // ✅ Step 4: Calculate totalPrice + breakdown (based on dailyPricing or defaultPricing)
     const priceBreakdown = {};
