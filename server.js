@@ -3,7 +3,6 @@ const cors = require('cors');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
-const chatRoutes = require('./routes/chatRoutes');
 const venueRoutes = require('./routes/venueRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
 const AdminRoutes = require('./routes/adminRoutes');
@@ -42,7 +41,6 @@ app.get('/api/health', (req, res) => {
 });
 
 // ✅ Your routes
-app.use('/api/chat', chatRoutes);
 app.use('/api/venue', venueRoutes);
 app.use('/api/farm', farmRoutes);
 app.use('/api/vendor',vendorRoutes );
