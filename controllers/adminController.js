@@ -775,3 +775,62 @@ exports.getVendorWithFarms = async (req, res) => {
     return res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
+exports.getAllFarms = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate body for pagination only
+    const { error, value } = AdminValidation.getAllFarmsSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { page, limit } = value;
+
+    // ✅ Step 2: Pagination calculation
+    const skip = (page - 1) * limit;
+
+    // ✅ Step 3: Fetch all farms without filters
+    let farms = await Farm.find({})
+      .populate('farmCategory')
+      .populate('facilities')
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // ✅ Step 4: Clean unwanted fields
+    farms = farms.map(farm => {
+      delete farm.defaultPricing;
+      delete farm.bookingModes;
+
+      if (farm.dailyPricing && Array.isArray(farm.dailyPricing)) {
+        farm.dailyPricing = farm.dailyPricing.map(dp => ({
+          date: dp.date,
+          checkIn: dp.checkIn,
+          checkOut: dp.checkOut
+        }));
+      }
+      return farm;
+    });
+
+    // ✅ Step 5: Count total farms
+    const totalFarms = await Farm.countDocuments({});
+
+    // ✅ Step 6: Return response
+    return res.status(200).json({
+      message: 'All farms fetched successfully',
+      pagination: {
+        total: totalFarms,
+        page,
+        limit,
+        totalPages: Math.ceil(totalFarms / limit)
+      },
+      data: farms
+    });
+
+  } catch (err) {
+    console.error('[getAllFarms Error]', err);
+    return res.status(500).json({ error: 'Server error. Please try again later.' });
+  }
+};

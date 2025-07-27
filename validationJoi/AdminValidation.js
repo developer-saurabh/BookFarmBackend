@@ -277,3 +277,31 @@ exports.getVendorByIdSchema = Joi.object({
       'any.required': 'Vendor ID is required.'
     })
 }).options({ allowUnknown: false }); 
+
+exports.getAllFarmsSchema = Joi.object({
+  city: Joi.string().optional().allow('').messages({
+    'string.base': 'City must be a string.'
+  }),
+  state: Joi.string().optional().allow('').messages({
+    'string.base': 'State must be a string.'
+  }),
+  isActive: Joi.boolean().optional().messages({
+    'boolean.base': 'isActive must be a boolean value.'
+  }),
+  category: Joi.string().pattern(objectIdRegex).optional().allow('').messages({
+    'string.pattern.base': 'Category must be a valid ObjectId.'
+  }),
+  page: Joi.alternatives().try(
+    Joi.number().integer().min(1),
+    Joi.string().allow('').empty('').default(1)
+  ).default(1).messages({
+    'number.base': 'Page must be a number.'
+  }),
+  limit: Joi.alternatives().try(
+    Joi.number().integer().min(1).max(100),
+    Joi.string().allow('').empty('').default(10)
+  ).default(10).messages({
+    'number.base': 'Limit must be a number.',
+    'number.max': 'Limit cannot exceed 100.'
+  })
+}).options({ allowUnknown: true });
