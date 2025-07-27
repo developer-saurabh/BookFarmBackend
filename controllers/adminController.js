@@ -627,9 +627,6 @@ exports.getAdminProfile = async (req, res) => {
   }
 };
 
-
-
-
 exports.getBookingByBookingId = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -643,7 +640,7 @@ exports.getBookingByBookingId = async (req, res) => {
 
     const { booking_id } = value;
 
-    // ✅ Step 2: Find booking by booking_id
+    // ✅ Step 2: Find booking with populated farm
     const booking = await FarmBooking.findOne({ Booking_id: booking_id })
       .populate('customer')
       .populate('farm');
@@ -652,10 +649,55 @@ exports.getBookingByBookingId = async (req, res) => {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
-    // ✅ Step 3: Return booking details
+    // ✅ Step 3: Convert to object
+    const bookingObj = booking.toObject();
+
+    // ✅ Step 4: Extract correct checkIn/checkOut from farm.dailyPricing
+    let checkInOut = {};
+    if (bookingObj.farm?.dailyPricing && bookingObj.date) {
+      const bookingDate = new Date(bookingObj.date).toISOString().split('T')[0];
+
+      const matched = bookingObj.farm.dailyPricing.find(dp => {
+        const dpDate = new Date(dp.date).toISOString().split('T')[0];
+        return dpDate === bookingDate;
+      });
+
+      if (matched) {
+        checkInOut = { checkIn: matched.checkIn, checkOut: matched.checkOut };
+      }
+    }
+
+    // ✅ Step 5: Clean unwanted fields
+    delete bookingObj.__v;
+    delete bookingObj.createdAt;
+    delete bookingObj.updatedAt;
+
+    if (bookingObj.farm) {
+      delete bookingObj.farm.__v;
+      delete bookingObj.farm.createdAt;
+      delete bookingObj.farm.updatedAt;
+      delete bookingObj.farm.location;
+      delete bookingObj.farm.defaultPricing;
+      delete bookingObj.farm.farmCategory;
+      delete bookingObj.farm.images;
+      delete bookingObj.farm.bookingModes;
+      delete bookingObj.farm.facilities;
+      delete bookingObj.farm.owner;
+      delete bookingObj.farm.currency;
+      delete bookingObj.farm.capacity;
+      delete bookingObj.farm.unavailableDates;
+      delete bookingObj.farm.isActive;
+      delete bookingObj.farm.isApproved;
+      delete bookingObj.farm.dailyPricing; // remove original array
+
+      // ✅ Attach only the matched checkIn/Out
+      bookingObj.farm.checkInOut = checkInOut;
+    }
+
+    // ✅ Step 6: Return clean response
     res.status(200).json({
       message: 'Booking details fetched successfully',
-      data: booking
+      data: bookingObj
     });
 
   } catch (err) {
@@ -663,3 +705,41 @@ exports.getBookingByBookingId = async (req, res) => {
     res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
+
+
+
+
+
+// exports.getBookingByBookingId = async (req, res) => {
+//   try {
+//     // ✅ Step 1: Validate input
+//     const { error, value } = AdminValidation.getBookingByIdSchema.validate(req.body, { abortEarly: false });
+//     if (error) {
+//       return res.status(400).json({
+//         message: 'Validation failed',
+//         errors: error.details.map(e => e.message)
+//       });
+//     }
+
+//     const { booking_id } = value;
+
+//     // ✅ Step 2: Find booking by booking_id
+//     const booking = await FarmBooking.findOne({ Booking_id: booking_id })
+//       .populate('customer')
+//       .populate('farm');
+
+//     if (!booking) {
+//       return res.status(404).json({ error: 'Booking not found' });
+//     }
+
+//     // ✅ Step 3: Return booking details
+//     res.status(200).json({
+//       message: 'Booking details fetched successfully',
+//       data: booking
+//     });
+
+//   } catch (err) {
+//     console.error('[GetBookingByBookingId Error]', err);
+//     res.status(500).json({ error: 'Server error. Please try again later.' });
+//   }
+// };

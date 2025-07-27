@@ -56,7 +56,9 @@ dailyPricing: [{
     full_day: { type: Number, default: 0 },
     day_slot: { type: Number, default: 0 },
     night_slot: { type: Number, default: 0 }
-  }
+  },
+   checkIn: { type: String, default: '10:00' },   // ✅ HH:mm format
+    checkOut: { type: String, default: '18:00' }   // ✅ HH:mm format
 }],
 defaultPricing: {
   full_day: { type: Number },

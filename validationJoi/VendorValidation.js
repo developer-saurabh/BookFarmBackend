@@ -203,16 +203,15 @@ exports. farmAddValidationSchema = Joi.object({
     }),
 
 
-  farmCategory: Joi.string()
-    .hex()
-    .length(24)
-    .required()
-    .messages({
-      'string.hex': 'Farm category ID must be a valid ObjectId.',
-      'string.length': 'Farm category ID must be 24 characters.',
-      'any.required': 'Farm category is required.'
-    }),
-
+farmCategory: Joi.alternatives().try(
+  Joi.string().hex().length(24),
+  Joi.array().items(Joi.string().hex().length(24))
+).required().messages({
+  'string.hex': 'Each farm category ID must be a valid ObjectId.',
+  'string.length': 'Each farm category ID must be 24 characters.',
+  'array.base': 'Farm category must be an array of valid ObjectIds.',
+  'any.required': 'Farm category is required.'
+}),
 
   location: Joi.object({
     address: Joi.string().min(5).max(200).required().messages({
@@ -269,6 +268,7 @@ exports. farmAddValidationSchema = Joi.object({
     'any.required': 'Default pricing is required.'
   }),
 
+  // ✅ Updated dailyPricing with checkIn & checkOut
   dailyPricing: Joi.array().items(
     Joi.object({
       date: Joi.date().iso().required().messages({
@@ -291,10 +291,40 @@ exports. farmAddValidationSchema = Joi.object({
       }).required().messages({
         'object.base': 'Slots must be a valid object.',
         'any.required': 'Slots object is required.'
-      })
+      }),
+   checkIn: Joi.string()
+  .pattern(/^(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i)
+  .optional()
+  .messages({
+    'string.pattern.base': 'checkIn must be in hh:mm AM/PM format (e.g., 10:00 AM).'
+  }),
+
+checkOut: Joi.string()
+  .pattern(/^(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i)
+  .optional()
+  .messages({
+    'string.pattern.base': 'checkOut must be in hh:mm AM/PM format (e.g., 07:30 PM).'
+  }),
     })
   ).optional().messages({
     'array.base': 'Daily pricing must be an array of date-slot objects.'
+  }),
+
+  currency: Joi.string().valid('INR', 'USD', 'EUR').default('INR').messages({
+    'any.only': 'Currency must be INR, USD, or EUR.'
+  }),
+
+    facilities: Joi.array().items(Joi.string().hex().length(24).messages({
+      'string.hex': 'Each facility ID must be a valid ObjectId.',
+      'string.length': 'Each facility ID must be 24 characters.'
+    })).optional().messages({
+      'array.base': 'Facilities must be an array of valid IDs.'
+    }),
+
+  capacity: Joi.number().min(1).required().messages({
+    'number.base': 'Capacity must be a number.',
+    'number.min': 'Capacity must be at least 1.',
+    'any.required': 'Capacity is required.'
   }),
 
   currency: Joi.string()
