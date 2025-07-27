@@ -33,6 +33,12 @@ app.use(fileUpload({
   tempFileDir: '/tmp/' // or Windows safe path
 }));
 // ✅ Health check
+app.get("/",(req,res)=>{
+  res.json({
+    success:true,
+    message:"deployed on vercel success"
+  })
+})
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
