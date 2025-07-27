@@ -10,5 +10,8 @@ router.post('/register', vendorController.registerVendor);
 router.post('/login', vendorController.loginVendor);
 
 router.post('/add_Farm',ParseNest,vendorAuth,vendorController.addFarm);
+
+router.post('/add_Farm_images',ParseNest,vendorAuth,vendorController.updateFarmImages);
+
 module.exports = router;
     

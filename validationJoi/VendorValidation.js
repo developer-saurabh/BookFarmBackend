@@ -7,7 +7,7 @@ const onlyLetters = /^[A-Za-z\s]+$/;
 const alphaNumericSpacePunctuation = /^[a-zA-Z0-9 .,'"()-]*$/;
 const alphaSpace = /^[A-Za-z\s]+$/;
 const numericOnly = /^[0-9]+$/;
-
+const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
 exports. vendorRegistrationSchema = Joi.object({
   name: Joi.string()
@@ -357,3 +357,13 @@ checkOut: Joi.string()
   allowUnknown: false,
 });;
 
+
+exports.updateFarmImagesSchema = Joi.object({
+  farm_id: Joi.string()
+    .pattern(objectIdRegex)
+    .required()
+    .messages({
+      'string.pattern.base': 'Farm ID must be a valid MongoDB ObjectId.',
+      'any.required': 'Farm ID is required.'
+    })
+}).options({ allowUnknown: true }); // allow file uploads

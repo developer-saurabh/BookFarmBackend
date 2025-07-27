@@ -456,3 +456,56 @@ exports.addFarm = async (req, res) => {
     return res.status(500).json({ message: 'Server error. Please try again later.' });
   }
 };
+
+
+
+
+
+exports.updateFarmImages = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate body
+    const { error, value } = VendorValiidation.updateFarmImagesSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { farm_id } = value;
+
+    // ✅ Step 2: Check if farm exists
+    const farm = await Farm.findById(farm_id);
+    if (!farm) {
+      return res.status(404).json({ error: 'Farm not found' });
+    }
+
+    // ✅ Step 3: Check if files are uploaded
+    const uploadedFiles = req.files?.images || req.files?.image;
+    if (!uploadedFiles) {
+      return res.status(400).json({ error: 'No images uploaded.' });
+    }
+
+    // ✅ Step 4: Normalize files array
+    const filesArray = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
+
+    // ✅ Step 5: Upload new images to Cloudinary
+    const newImageUrls = await uploadFilesToCloudinary(filesArray, 'farms');
+
+    // ✅ Step 6: Replace old images with new images
+    farm.images = newImageUrls;
+
+    // ✅ Step 7: Save updated farm
+    await farm.save();
+
+    // ✅ Step 8: Response
+    return res.status(200).json({
+      message: 'Farm images replaced successfully',
+      newImages: newImageUrls
+    });
+
+  } catch (err) {
+    console.error('[updateFarmImages Error]', err);
+    return res.status(500).json({ error: 'Server error. Please try again later.' });
+  }
+};
