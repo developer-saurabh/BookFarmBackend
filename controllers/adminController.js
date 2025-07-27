@@ -748,7 +748,7 @@ exports.getVendorWithFarms = async (req, res) => {
     farms = farms.map(farm => {
       delete farm.defaultPricing;
       delete farm.bookingModes;
-      delete farm.dailyPricing;
+      // delete farm.dailyPricing;
       
 
       // ✅ Clean dailyPricing: remove "slots" but keep checkIn/checkOut
