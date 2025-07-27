@@ -635,12 +635,22 @@ const availability = next7Days.map(dayMoment => {
     availableSlots: slots
   };
 });
+    // ✅ Convert dailyPricing checkIn/checkOut to AM/PM
+    const farmObj = farm.toObject();
+    if (farmObj.dailyPricing && Array.isArray(farmObj.dailyPricing)) {
+      farmObj.dailyPricing = farmObj.dailyPricing.map(dp => ({
+        ...dp,
+        checkIn: dp.checkIn ? moment(dp.checkIn, 'HH:mm').format('hh:mm A') : '10:00 AM',
+        checkOut: dp.checkOut ? moment(dp.checkOut, 'HH:mm').format('hh:mm A') : '06:00 PM'
+      }));
+    }
 
+    // ✅ Response
     return res.status(200).json({
       success: true,
       message: 'Farm fetched successfully.',
       data: {
-        ...farm.toObject(),
+        ...farmObj,
         availability
       }
     });
