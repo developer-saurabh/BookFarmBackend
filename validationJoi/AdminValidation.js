@@ -305,3 +305,29 @@ exports.getAllFarmsSchema = Joi.object({
     'number.max': 'Limit cannot exceed 100.'
   })
 }).options({ allowUnknown: true });
+
+
+
+exports.updateFarmStatusSchema = Joi.object({
+  farm_id: Joi.string()
+    .pattern(objectIdRegex)
+    .required()
+    .messages({
+      'string.pattern.base': 'Farm ID must be a valid MongoDB ObjectId.',
+      'any.required': 'Farm ID is required.'
+    }),
+  isActive: Joi.boolean().optional().messages({
+    'boolean.base': 'isActive must be a boolean value.'
+  }),
+  isApproved: Joi.boolean().optional().messages({
+    'boolean.base': 'isApproved must be a boolean value.'
+  }),
+  isHold: Joi.boolean().optional().messages({
+    'boolean.base': 'isHold must be a boolean value.'
+  })
+})
+  .or('isActive', 'isApproved', 'isHold') // At least one field must be provided
+  .messages({
+    'object.missing': 'At least one status field (isActive, isApproved, or isHold) must be provided.'
+  })
+  .options({ allowUnknown: false });

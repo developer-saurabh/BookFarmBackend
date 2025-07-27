@@ -775,6 +775,8 @@ exports.getVendorWithFarms = async (req, res) => {
     return res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
+
+
 exports.getAllFarms = async (req, res) => {
   try {
     // ✅ Step 1: Validate body for pagination only
@@ -831,6 +833,109 @@ exports.getAllFarms = async (req, res) => {
 
   } catch (err) {
     console.error('[getAllFarms Error]', err);
+    return res.status(500).json({ error: 'Server error. Please try again later.' });
+  }
+};
+
+exports.updateFarmStatus = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate request body
+    const { error, value } =AdminValidation. updateFarmStatusSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { farm_id, isActive, isApproved, isHold } = value;
+
+    // ✅ Step 2: Find farm
+    const farm = await Farm.findById(farm_id);
+    if (!farm) {
+      return res.status(404).json({ error: 'Farm not found' });
+    }
+
+    // ✅ Step 3: Prepare potential new status (use existing if not provided)
+    const newStatus = {
+      isActive: typeof isActive !== 'undefined' ? isActive : farm.isActive,
+      isApproved: typeof isApproved !== 'undefined' ? isApproved : farm.isApproved,
+      isHold: typeof isHold !== 'undefined' ? isHold : farm.isHold
+    };
+
+    // ✅ Step 4: Business Rules Enforcement
+    if (newStatus.isActive === true && newStatus.isApproved === false) {
+      return res.status(400).json({
+        error: 'Cannot set isActive=true when isApproved=false.'
+      });
+    }
+
+    if (newStatus.isHold === true && newStatus.isActive === false) {
+      return res.status(400).json({
+        error: 'Cannot set isHold=true while isActive=false.'
+      });
+    }
+
+    // ✅ Step 5: Track changes
+    let changes = [];
+
+    if (typeof isActive !== 'undefined') {
+      if (farm.isActive === isActive) {
+        changes.push('isActive (no change)');
+      } else {
+        farm.isActive = isActive;
+        changes.push(`isActive → ${isActive}`);
+      }
+    }
+
+    if (typeof isApproved !== 'undefined') {
+      if (farm.isApproved === isApproved) {
+        changes.push('isApproved (no change)');
+      } else {
+        farm.isApproved = isApproved;
+        changes.push(`isApproved → ${isApproved}`);
+      }
+    }
+
+    if (typeof isHold !== 'undefined') {
+      if (farm.isHold === isHold) {
+        changes.push('isHold (no change)');
+      } else {
+        farm.isHold = isHold;
+        changes.push(`isHold → ${isHold}`);
+      }
+    }
+
+    // ✅ Step 6: Check if any real change happened
+    const hasRealChange = changes.some(c => !c.includes('(no change)'));
+    if (!hasRealChange) {
+      return res.status(200).json({
+        message: 'No status update required. Farm already has the provided statuses.',
+        currentStatus: {
+          isActive: farm.isActive,
+          isApproved: farm.isApproved,
+          isHold: farm.isHold
+        }
+      });
+    }
+
+    // ✅ Step 7: Save changes
+    await farm.save();
+
+    // ✅ Step 8: Send response
+    return res.status(200).json({
+      message: 'Farm status updated successfully',
+      updatedFields: changes,
+      data: {
+        farm_id: farm._id,
+        isActive: farm.isActive,
+        isApproved: farm.isApproved,
+        isHold: farm.isHold
+      }
+    });
+
+  } catch (err) {
+    console.error('[updateFarmStatus Error]', err);
     return res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };

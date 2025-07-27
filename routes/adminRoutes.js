@@ -16,6 +16,7 @@ router.post('/get_all_customers',authenticateAdmin, adminController.getAllCustom
 router.post('/get_all_vendors',authenticateAdmin, adminController.getAllVendors);
 router.post('/get_vendor_by_id',authenticateAdmin, adminController.getVendorWithFarms);
 router.post('/get_all_farms',authenticateAdmin, adminController.getAllFarms);
+router.post('/Change_farm_status',authenticateAdmin, adminController.updateFarmStatus);
 
 router.post('/profile',authenticateAdmin, adminController.getAdminProfile);
 
