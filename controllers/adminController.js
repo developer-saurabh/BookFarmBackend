@@ -389,7 +389,7 @@ exports.getAllBookings = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
-
+  //  console.log("booking ddata printing",bookings)
     return res.status(200).json({
       success: true,
       message: 'Bookings retrieved successfully',
