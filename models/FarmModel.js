@@ -108,7 +108,10 @@ defaultPricing: {
     type: Boolean,
     default: true
   },
-
+  isHold:{
+    type:Boolean,
+    default:false
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Farm', farmSchema);
