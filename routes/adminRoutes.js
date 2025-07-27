@@ -14,6 +14,7 @@ router.post('/get_all_bookings', authenticateAdmin,adminController.getAllBooking
 router.post('/get_booking_details',authenticateAdmin, adminController.getBookingByBookingId);
 router.post('/get_all_customers',authenticateAdmin, adminController.getAllCustomers);
 router.post('/get_all_vendors',authenticateAdmin, adminController.getAllVendors);
+router.post('/get_vendor_by_id',authenticateAdmin, adminController.getVendorWithFarms);
 
 router.post('/profile',authenticateAdmin, adminController.getAdminProfile);
 

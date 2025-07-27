@@ -264,3 +264,16 @@ exports.getBookingByIdSchema = Joi.object({
       'any.required': 'booking_id is required'
     })
 });
+const objectIdRegex = /^[0-9a-fA-F]{24}$/;
+
+exports.getVendorByIdSchema = Joi.object({
+  vendor_id: Joi.string()
+    .pattern(objectIdRegex)
+    .required()
+    .messages({
+      'string.base': 'Vendor ID must be a string.',
+      'string.empty': 'Vendor ID is required.',
+      'string.pattern.base': 'Vendor ID must be a valid MongoDB ObjectId.',
+      'any.required': 'Vendor ID is required.'
+    })
+}).options({ allowUnknown: false }); 

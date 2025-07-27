@@ -30,17 +30,20 @@ const vendorSchema = new mongoose.Schema({
   // ✅ Vendor status
   isActive: {
     type: Boolean,
-    default: false
+    default: true
   },
   isVerified: {
     type: Boolean,
-    default: false
+    default: true
   },
    isBlocked: {
     type: Boolean,
     default: false
   }
-  
+  ,isHold:{
+    type:Boolean,
+    default:false
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Vendor', vendorSchema);
