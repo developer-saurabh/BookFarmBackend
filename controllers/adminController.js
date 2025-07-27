@@ -652,7 +652,16 @@ exports.getBookingByBookingId = async (req, res) => {
     // ✅ Step 3: Convert to object
     const bookingObj = booking.toObject();
 
-    // ✅ Step 4: Extract correct checkIn/checkOut from farm.dailyPricing
+    // ✅ Helper to convert HH:mm → hh:mm AM/PM
+    const toAmPm = (time) => {
+      if (!time) return null;
+      let [h, m] = time.split(":").map(Number);
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      return `${h}:${m.toString().padStart(2, "0")} ${ampm}`;
+    };
+
+    // ✅ Step 4: Extract checkIn/checkOut for booking date
     let checkInOut = {};
     if (bookingObj.farm?.dailyPricing && bookingObj.date) {
       const bookingDate = new Date(bookingObj.date).toISOString().split('T')[0];
@@ -663,11 +672,14 @@ exports.getBookingByBookingId = async (req, res) => {
       });
 
       if (matched) {
-        checkInOut = { checkIn: matched.checkIn, checkOut: matched.checkOut };
+        checkInOut = { 
+          checkIn: toAmPm(matched.checkIn), 
+          checkOut: toAmPm(matched.checkOut) 
+        };
       }
     }
 
-    // ✅ Step 5: Clean unwanted fields
+    // ✅ Step 5: Remove unwanted fields
     delete bookingObj.__v;
     delete bookingObj.createdAt;
     delete bookingObj.updatedAt;
@@ -688,13 +700,13 @@ exports.getBookingByBookingId = async (req, res) => {
       delete bookingObj.farm.unavailableDates;
       delete bookingObj.farm.isActive;
       delete bookingObj.farm.isApproved;
-      delete bookingObj.farm.dailyPricing; // remove original array
+      delete bookingObj.farm.dailyPricing;
 
-      // ✅ Attach only the matched checkIn/Out
+      // ✅ Add only AM/PM formatted times
       bookingObj.farm.checkInOut = checkInOut;
     }
 
-    // ✅ Step 6: Return clean response
+    // ✅ Step 6: Send clean response
     res.status(200).json({
       message: 'Booking details fetched successfully',
       data: bookingObj
@@ -705,6 +717,87 @@ exports.getBookingByBookingId = async (req, res) => {
     res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
+
+
+
+// exports.getBookingByBookingId = async (req, res) => {
+//   try {
+//     // ✅ Step 1: Validate input
+//     const { error, value } = AdminValidation.getBookingByIdSchema.validate(req.body, { abortEarly: false });
+//     if (error) {
+//       return res.status(400).json({
+//         message: 'Validation failed',
+//         errors: error.details.map(e => e.message)
+//       });
+//     }
+
+//     const { booking_id } = value;
+
+//     // ✅ Step 2: Find booking with populated farm
+//     const booking = await FarmBooking.findOne({ Booking_id: booking_id })
+//       .populate('customer')
+//       .populate('farm');
+
+//     if (!booking) {
+//       return res.status(404).json({ error: 'Booking not found' });
+//     }
+
+//     // ✅ Step 3: Convert to object
+//     const bookingObj = booking.toObject();
+
+//     // ✅ Step 4: Extract correct checkIn/checkOut from farm.dailyPricing
+//     let checkInOut = {};
+//     if (bookingObj.farm?.dailyPricing && bookingObj.date) {
+//       const bookingDate = new Date(bookingObj.date).toISOString().split('T')[0];
+
+//       const matched = bookingObj.farm.dailyPricing.find(dp => {
+//         const dpDate = new Date(dp.date).toISOString().split('T')[0];
+//         return dpDate === bookingDate;
+//       });
+
+//       if (matched) {
+//         checkInOut = { checkIn: matched.checkIn, checkOut: matched.checkOut };
+//       }
+//     }
+
+//     // ✅ Step 5: Clean unwanted fields
+//     delete bookingObj.__v;
+//     delete bookingObj.createdAt;
+//     delete bookingObj.updatedAt;
+
+//     if (bookingObj.farm) {
+//       delete bookingObj.farm.__v;
+//       delete bookingObj.farm.createdAt;
+//       delete bookingObj.farm.updatedAt;
+//       delete bookingObj.farm.location;
+//       delete bookingObj.farm.defaultPricing;
+//       delete bookingObj.farm.farmCategory;
+//       delete bookingObj.farm.images;
+//       delete bookingObj.farm.bookingModes;
+//       delete bookingObj.farm.facilities;
+//       delete bookingObj.farm.owner;
+//       delete bookingObj.farm.currency;
+//       delete bookingObj.farm.capacity;
+//       delete bookingObj.farm.unavailableDates;
+//       delete bookingObj.farm.isActive;
+//       delete bookingObj.farm.isApproved;
+//       delete bookingObj.farm.dailyPricing; // remove original array
+
+//       // ✅ Attach only the matched checkIn/Out
+//       bookingObj.farm.checkInOut = checkInOut;
+//     }
+
+//     // ✅ Step 6: Return clean response
+//     res.status(200).json({
+//       message: 'Booking details fetched successfully',
+//       data: bookingObj
+//     });
+
+//   } catch (err) {
+//     console.error('[GetBookingByBookingId Error]', err);
+//     res.status(500).json({ error: 'Server error. Please try again later.' });
+//   }
+// };
 
 
 
