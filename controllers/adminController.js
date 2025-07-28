@@ -15,6 +15,7 @@ const {messages}=require("../messageTemplates/Message");
 const { sendEmail } = require('../utils/SendEmail');
 
 
+// Register 
 
 exports.sendAdminOtp = async (req, res) => {
   try {
@@ -88,8 +89,6 @@ exports.sendAdminOtp = async (req, res) => {
     });
   }
 };
-
-
 
 exports.registerAdmin = async (req, res) => {
   try {
@@ -192,7 +191,7 @@ exports.registerAdmin = async (req, res) => {
   }
 };
 
-
+// Login
 
 exports.loginAdmin = async (req, res) => {
   try {
@@ -230,23 +229,28 @@ exports.loginAdmin = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.'
+        message: 'Invalid password.'
       });
     }
 
-    // 🔹 Generate JWT Token
+    // ✅ Update last login timestamp
+    admin.lastLogin = new Date();
+    await admin.save();
+
+    // ✅ Generate JWT Token including lastLogin timestamp
     const token = jwt.sign(
       {
         id: admin._id,
         email: admin.email,
         isSuperAdmin: admin.isSuperAdmin,
-        permissions: admin.permissions
+        permissions: admin.permissions,
+        lastLogin: admin.lastLogin.getTime() // important for token invalidation
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' } // ⏳ Token valid for 7 days
+      { expiresIn: '7d' }
     );
 
-    // 🔹 Send token in header (optional for frontend handling)
+    // ✅ Send token in header for frontend convenience
     res.setHeader('Authorization', `Bearer ${token}`);
 
     // ✅ Success response
@@ -274,7 +278,8 @@ exports.loginAdmin = async (req, res) => {
   }
 };
 
-// Password Related 
+
+// Change Password  
 exports.changePassword = async (req, res) => {
   try {
     // ✅ Validate request body with Joi
@@ -483,6 +488,7 @@ exports.forgotPasswordReset = async (req, res) => {
   }
 };
 
+// vendor 
 
 exports.updateVendorStatus = async (req, res) => {
   try {
@@ -597,6 +603,7 @@ exports.getAllApprovedVendors = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error.' });
   }
 };
+
 
 exports.addFarmCategory = async (req, res) => {
   try {

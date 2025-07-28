@@ -36,7 +36,9 @@ phone: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Admin',
     default: null
-  }
+  },
+  lastLogin: { type: Date, default: null }
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('Admin', adminSchema);
