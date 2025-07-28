@@ -3,9 +3,20 @@ const router = express.Router();
 const adminController = require('../controllers/adminController');
 const { authenticateAdmin } = require('../middlewares/Auth');
 
-// Example: protect this with an isSuperAdmin middleware in production
+
+// Auth Routes
+
+router.post('/send_admin_otp', adminController.sendAdminOtp);
 router.post('/register', adminController.registerAdmin);
 router.post('/login', adminController.loginAdmin);
+
+// Change Password
+
+
+router.post('/change_password',authenticateAdmin, adminController.changePassword);
+
+
+
 router.post('/update_status',authenticateAdmin, adminController.updateVendorStatus);
 router.post('/get_all_aprrove_vendors',authenticateAdmin, adminController.getAllApprovedVendors);
 router.post('/add_farm_category',authenticateAdmin, adminController.addFarmCategory);

@@ -4,7 +4,12 @@ const Joi = require('joi');
 const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
 const phoneRegex = /^[0-9]{10}$/;
 
-
+exports.sendOtpSchema = Joi.object({
+  email: Joi.string().email().required().messages({
+    'string.empty': 'Email is required.',
+    'string.email': 'Email must be valid.'
+  })
+}).unknown(false);
 exports. adminRegisterSchema = Joi.object({
   name: Joi.string()
     .pattern(/^[A-Za-z]+(\s[A-Za-z]+)*$/)
@@ -36,11 +41,16 @@ exports. adminRegisterSchema = Joi.object({
       'string.pattern.base': 'Password must be at least 8 characters and include letters, numbers, and a special character.'
     }),
 
-  permissions: Joi.array()
-    .items(Joi.string())
-    .default([]),
 
-  isSuperAdmin: Joi.boolean().default(true)
+
+  isSuperAdmin: Joi.boolean().default(true),
+   otp: Joi.string()
+    .length(6)
+    .required()
+    .messages({
+      'string.empty': 'OTP is required.',
+      'string.length': 'OTP must be 6 digits.'
+    })
 });
 exports. adminLoginSchema = Joi.object({
   email: Joi.string()
@@ -60,6 +70,21 @@ exports. adminLoginSchema = Joi.object({
     })
 });
 
+exports.changePasswordSchema = Joi.object({
+  oldPassword: Joi.string().required().messages({
+    'string.empty': 'Old password is required.'
+  }),
+
+  newPassword: Joi.string().pattern(passwordRegex).required().messages({
+    'string.empty': 'New password is required.',
+    'string.pattern.base': 'Password must be at least 8 characters and include letters, numbers, and a special character.'
+  }),
+
+  confirmPassword: Joi.any().equal(Joi.ref('newPassword')).required().messages({
+    'any.only': 'Confirm password must match new password.',
+    'any.required': 'Confirm password is required.'
+  })
+}).unknown(false);
 exports. updateVendorStatusSchema = Joi.object({
 
    vendor_id: Joi.string()

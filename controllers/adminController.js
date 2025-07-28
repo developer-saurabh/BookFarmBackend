@@ -10,92 +10,231 @@ const FarmBooking=require('../models/FarmBookingModel')
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const Customer = require('../models/CustomerModel')
+const Otp=require("../models/OtpModel")
+const {messages}=require("../messageTemplates/Message");
+const { sendEmail } = require('../utils/SendEmail');
+
+
+
+exports.sendAdminOtp = async (req, res) => {
+  try {
+    // 🔹 Validate input
+    const { error, value } = AdminValidation.sendOtpSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { email } = value;
+
+    // 🔹 Check duplicate admin
+    const existingAdmin = await Admin.findOne({ email });
+    if (existingAdmin) {
+      return res.status(409).json({
+        success: false,
+        message: 'An admin with this email already exists.'
+      });
+    }
+
+    // 🔹 Check if OTP already exists and enforce cooldown
+    const existingOtp = await Otp.findOne({ email });
+    if (existingOtp) {
+      const timeSinceLastOtp = (Date.now() - existingOtp.updatedAt.getTime()) / 1000; // in seconds
+      if (timeSinceLastOtp < 60) {
+        return res.status(429).json({
+          success: false,
+          message: `Please wait ${Math.ceil(60 - timeSinceLastOtp)} seconds before requesting a new OTP.`
+        });
+      }
+    }
+
+    // 🔹 Generate OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
+
+    // 🔹 Save or update OTP
+    await Otp.findOneAndUpdate(
+      { email },
+      { otp: otpCode, expiresAt },
+      { upsert: true, new: true, timestamps: true }
+    );
+
+    // 🔹 Use message template
+    const { subject, html } = messages.otp({ otp: otpCode });
+
+    // // 🔹 Send email (uncomment in production)
+    // await sendEmail(email, subject, html);
+
+    // ✅ Success
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully to the provided email.',
+      data: {
+        email,
+        otp: otpCode,
+        expiresIn: '1 minutes'
+      }
+    });
+
+  } catch (err) {
+    console.error('🚨 Error sending OTP:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error while sending OTP.',
+      error: err.message
+    });
+  }
+};
+
+
 
 exports.registerAdmin = async (req, res) => {
   try {
-    // ✅ Validate input
-    const { error, value } =AdminValidation. adminRegisterSchema.validate(req.body);
+    // 🔹 Validate incoming request
+    const { error, value } = AdminValidation.adminRegisterSchema.validate(req.body, { abortEarly: false });
     if (error) {
-      return res.status(400).json({ error: error.details[0].message });
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
     }
 
-    // ✅ Check if email exists
-    const existingEmail = await Admin.findOne({ email: value.email });
-    if (existingEmail) {
-      return res.status(409).json({ error: 'An admin with this email already exists.' });
+    const { email, otp, name, phone, password, isSuperAdmin } = value;
+
+    // 🔹 Check OTP record
+    const otpRecord = await Otp.findOne({ email });
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP not found. Please request a new OTP.'
+      });
     }
 
-    // ✅ Check if phone exists
-    const existingPhone = await Admin.findOne({ phone: value.phone });
+    // 🔹 Check OTP correctness
+    if (otpRecord.otp !== otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP. Please try again with the correct code.'
+      });
+    }
+
+    // 🔹 Check OTP expiry
+    if (otpRecord.expiresAt < new Date()) {
+      await Otp.deleteOne({ email });
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one.'
+      });
+    }
+
+    // 🔹 OTP is valid → delete it
+    await Otp.deleteOne({ email });
+
+    // 🔹 Check if email is already registered (rare case after OTP sent)
+    const existingAdmin = await Admin.findOne({ email });
+    if (existingAdmin) {
+      return res.status(409).json({
+        success: false,
+        message: 'An admin with this email already exists.'
+      });
+    }
+
+    // 🔹 Check if phone already exists
+    const existingPhone = await Admin.findOne({ phone });
     if (existingPhone) {
-      return res.status(409).json({ error: 'An admin with this phone number already exists.' });
+      return res.status(409).json({
+        success: false,
+        message: 'An admin with this phone number already exists.'
+      });
     }
 
-    // ✅ Hash password
-    const hashedPassword = await bcrypt.hash(value.password, 10);
+    // 🔹 Hash password securely
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ✅ Create new Admin
+    // 🔹 Create Admin
     const admin = new Admin({
-      name: value.name,
-      email: value.email,
-      phone: value.phone,
+      name,
+      email,
+      phone,
       password: hashedPassword,
-      permissions: value.permissions,
-      isSuperAdmin: value.isSuperAdmin,
-      isActive: true,
-      createdBy: req.admin ? req.admin._id : null // Optional audit trail
+      
+      isSuperAdmin,
+      createdBy: req.admin ? req.admin._id : null
     });
 
     await admin.save();
 
+    // ✅ Success response
     return res.status(201).json({
-      message: '✅ Admin registered successfully.',
-      admin: {
+      success: true,
+      message: 'Admin registered successfully.',
+      data: {
         id: admin._id,
         name: admin.name,
         email: admin.email,
         phone: admin.phone,
         permissions: admin.permissions,
-        isSuperAdmin: admin.isSuperAdmin,
-        isActive: admin.isActive
+        isSuperAdmin: admin.isSuperAdmin
       }
     });
 
   } catch (err) {
     console.error('🚨 Error registering admin:', err);
-    return res.status(500).json({ error: 'Internal server error.' });
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error during admin registration.',
+      error: err.message
+    });
   }
-};  
+};
+
 
 
 exports.loginAdmin = async (req, res) => {
   try {
-    // ✅ Validate input
-    const { error, value } = AdminValidation.adminLoginSchema.validate(req.body);
+    // 🔹 Validate request body
+    const { error, value } = AdminValidation.adminLoginSchema.validate(req.body, { abortEarly: false });
     if (error) {
-      return res.status(400).json({ error: error.details[0].message });
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
     }
 
     const { email, password } = value;
 
-    // ✅ Find admin by email
+    // 🔹 Check if admin exists
     const admin = await Admin.findOne({ email });
     if (!admin) {
-      return res.status(401).json({ error: 'admin not found by email.' });
+      return res.status(401).json({
+        success: false,
+        message: 'Admin account not found with this email.'
+      });
     }
 
-    // ✅ Check if admin is active
+    // 🔹 Check if admin account is active
     if (!admin.isActive) {
-      return res.status(403).json({ error: 'Account is deactivated. Please contact support.' });
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is deactivated. Please contact support.'
+      });
     }
 
-    // ✅ Verify password
+    // 🔹 Verify password
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.'
+      });
     }
 
-    // ✅ Generate JWT
+    // 🔹 Generate JWT Token
     const token = jwt.sign(
       {
         id: admin._id,
@@ -104,14 +243,18 @@ exports.loginAdmin = async (req, res) => {
         permissions: admin.permissions
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' } // ⏳ Token validity
+      { expiresIn: '7d' } // ⏳ Token valid for 7 days
     );
-   res.setHeader('Authorization', `Bearer ${token}`);
+
+    // 🔹 Send token in header (optional for frontend handling)
+    res.setHeader('Authorization', `Bearer ${token}`);
+
     // ✅ Success response
     return res.status(200).json({
-      message: '✅ Login successful.',
+      success: true,
+      message: 'Login successful.',
       token,
-      admin: {
+      data: {
         id: admin._id,
         name: admin.name,
         email: admin.email,
@@ -120,9 +263,83 @@ exports.loginAdmin = async (req, res) => {
         permissions: admin.permissions
       }
     });
+
   } catch (err) {
     console.error('🚨 Admin login error:', err);
-    return res.status(500).json({ error: 'Internal server error.' });
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error during admin login.',
+      error: err.message
+    });
+  }
+};
+
+// Password Related 
+exports.changePassword = async (req, res) => {
+  try {
+    // ✅ Validate request body with Joi
+    const { error, value } = AdminValidation.changePasswordSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { oldPassword, newPassword, confirmPassword } = value;
+
+    // ✅ Extra check (controller-level) for confirmPassword
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Confirm password does not match the new password.'
+      });
+    }
+
+    // ✅ Find admin from token (ensure auth middleware sets req.admin)
+    const admin = await Admin.findById(req.user.id);
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin account not found.'
+      });
+    }
+
+    // ✅ Verify old password
+    const isOldPasswordValid = await bcrypt.compare(oldPassword, admin.password);
+    if (!isOldPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Old password is incorrect.'
+      });
+    }
+
+    // ✅ Prevent reusing old password
+    const isSamePassword = await bcrypt.compare(newPassword, admin.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password cannot be the same as the old password.'
+      });
+    }
+
+    // ✅ Hash and update password
+    admin.password = await bcrypt.hash(newPassword, 10);
+    await admin.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password changed successfully.'
+    });
+
+  } catch (err) {
+    console.error('🚨 Change password error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error while changing password.',
+      error: err.message
+    });
   }
 };
 
