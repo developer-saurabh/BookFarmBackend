@@ -66,8 +66,8 @@ exports.sendAdminOtp = async (req, res) => {
     // 🔹 Use message template
     const { subject, html } = messages.otp({ otp: otpCode });
 
-    // // 🔹 Send email (uncomment in production)
-    // await sendEmail(email, subject, html);
+    // 🔹 Send email (uncomment in production)
+    await sendEmail(email, subject, html);
 
     // ✅ Success
     return res.status(200).json({
@@ -389,7 +389,7 @@ exports.forgotPasswordSendOtp = async (req, res) => {
     );
 
     // ✅ Send email
-    const { subject, html } = messages.otp({ otp: otpCode });
+    const { subject, html } = messages.forgotPasswordOtp({ otp: otpCode });
     await sendEmail(email, subject, html);
 
     return res.status(200).json({
@@ -443,13 +443,15 @@ exports.forgotPasswordVerifyOtp = async (req, res) => {
 };
 exports.forgotPasswordReset = async (req, res) => {
   try {
-    const { resetToken, newPassword, confirmPassword } = req.body;
-
-    if (!resetToken) {
-      return res.status(400).json({ success: false, message: 'Reset token is required.' });
+    // ✅ Extract token from Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(400).json({ success: false, message: 'Reset token is missing in Authorization header.' });
     }
 
-    // ✅ Verify reset token
+    const resetToken = authHeader.split(' ')[1];
+
+    // ✅ Verify token
     let decoded;
     try {
       decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
@@ -458,13 +460,14 @@ exports.forgotPasswordReset = async (req, res) => {
     }
 
     const email = decoded.email;
+    const { newPassword, confirmPassword } = req.body;
 
-    // ✅ Confirm password match
+    // ✅ Check passwords match
     if (newPassword !== confirmPassword) {
       return res.status(400).json({ success: false, message: 'Confirm password does not match new password.' });
     }
 
-    // ✅ Find admin and update password
+    // ✅ Find admin
     const admin = await Admin.findOne({ email });
     if (!admin) {
       return res.status(404).json({ success: false, message: 'Admin account not found.' });
@@ -475,18 +478,21 @@ exports.forgotPasswordReset = async (req, res) => {
       return res.status(400).json({ success: false, message: 'New password cannot be the same as old password.' });
     }
 
+    // ✅ Update password
     admin.password = await bcrypt.hash(newPassword, 10);
     await admin.save();
 
-    // ✅ Delete OTP after reset
+    // ✅ Remove OTP record
     await Otp.deleteOne({ email });
 
-    res.status(200).json({ success: true, message: 'Password reset successfully.' });
+    return res.status(200).json({ success: true, message: 'Password reset successfully.' });
+
   } catch (err) {
     console.error('🚨 Reset Password Error:', err);
-    res.status(500).json({ success: false, message: 'Internal server error.', error: err.message });
+    return res.status(500).json({ success: false, message: 'Internal server error.', error: err.message });
   }
 };
+
 
 // vendor 
 

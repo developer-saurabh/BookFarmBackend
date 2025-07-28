@@ -104,9 +104,7 @@ exports.verifyOtpSchema = Joi.object({
   })
 }).unknown(false);
 exports.resetPasswordSchema = Joi.object({
-  resetToken: Joi.string().required().messages({
-    'string.empty': 'Reset token is required.'
-  }),
+
   newPassword: Joi.string().pattern(passwordRegex).required().messages({
     'string.empty': 'New password is required.',
     'string.pattern.base': 'Password must be at least 8 characters and include letters, numbers, and a special character.'
