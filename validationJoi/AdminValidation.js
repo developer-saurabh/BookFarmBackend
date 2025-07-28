@@ -1,8 +1,8 @@
 const Joi = require('joi');
 
-// Password: min 8 chars, at least 1 letter, 1 number, 1 special char
 const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
 const phoneRegex = /^[0-9]{10}$/;
+const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
 exports.sendOtpSchema = Joi.object({
   email: Joi.string().email().required().messages({
@@ -10,6 +10,7 @@ exports.sendOtpSchema = Joi.object({
     'string.email': 'Email must be valid.'
   })
 }).unknown(false);
+
 exports. adminRegisterSchema = Joi.object({
   name: Joi.string()
     .pattern(/^[A-Za-z]+(\s[A-Za-z]+)*$/)
@@ -52,6 +53,7 @@ exports. adminRegisterSchema = Joi.object({
       'string.length': 'OTP must be 6 digits.'
     })
 });
+
 exports. adminLoginSchema = Joi.object({
   email: Joi.string()
     .email()
@@ -85,6 +87,37 @@ exports.changePasswordSchema = Joi.object({
     'any.required': 'Confirm password is required.'
   })
 }).unknown(false);
+
+
+exports.forgotPasswordRequestSchema = Joi.object({
+  email: Joi.string().email().required().messages({
+    'string.empty': 'Email is required.',
+    'string.email': 'Enter a valid email address.'
+  })
+}).unknown(false);
+
+exports.verifyOtpSchema = Joi.object({
+  email: Joi.string().email().required(),
+  otp: Joi.string().length(6).required().messages({
+    'string.empty': 'OTP is required.',
+    'string.length': 'OTP must be 6 digits.'
+  })
+}).unknown(false);
+exports.resetPasswordSchema = Joi.object({
+  resetToken: Joi.string().required().messages({
+    'string.empty': 'Reset token is required.'
+  }),
+  newPassword: Joi.string().pattern(passwordRegex).required().messages({
+    'string.empty': 'New password is required.',
+    'string.pattern.base': 'Password must be at least 8 characters and include letters, numbers, and a special character.'
+  }),
+  confirmPassword: Joi.any().equal(Joi.ref('newPassword')).required().messages({
+    'any.only': 'Confirm password must match new password.',
+    'any.required': 'Confirm password is required.'
+  })
+}).unknown(false);
+
+
 exports. updateVendorStatusSchema = Joi.object({
 
    vendor_id: Joi.string()
@@ -112,6 +145,10 @@ exports. updateVendorStatusSchema = Joi.object({
   .messages({
     'object.missing': 'At least one of isActive, isVerified, or isBlocked must be provided.'
   });
+
+
+
+
 // Get All Bookings Schema
 
 
@@ -208,6 +245,7 @@ exports. customerQuerySchema = Joi.object({
     })
     .default(10)
 });
+
 exports. vendorQuerySchema = Joi.object({
   search: Joi.string().allow('').optional(),
 
@@ -237,6 +275,7 @@ exports. vendorQuerySchema = Joi.object({
     })
     .default(10)
 });
+
 exports. getProfileSchema = Joi.object({
   id: Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)
@@ -289,7 +328,6 @@ exports.getBookingByIdSchema = Joi.object({
       'any.required': 'booking_id is required'
     })
 });
-const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
 exports.getVendorByIdSchema = Joi.object({
   vendor_id: Joi.string()
@@ -330,8 +368,6 @@ exports.getAllFarmsSchema = Joi.object({
     'number.max': 'Limit cannot exceed 100.'
   })
 }).options({ allowUnknown: true });
-
-
 
 exports.updateFarmStatusSchema = Joi.object({
   farm_id: Joi.string()

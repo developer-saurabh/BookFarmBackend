@@ -12,10 +12,13 @@ router.post('/login', adminController.loginAdmin);
 
 // Change Password
 
-
 router.post('/change_password',authenticateAdmin, adminController.changePassword);
 
+// Forgot_Password
 
+router.post('/forgot_password_send_otp', adminController.forgotPasswordSendOtp);
+router.post('/forgot_password_verify_otp', adminController.forgotPasswordVerifyOtp);
+router.post('/forgot_password_reset', adminController.forgotPasswordReset);
 
 router.post('/update_status',authenticateAdmin, adminController.updateVendorStatus);
 router.post('/get_all_aprrove_vendors',authenticateAdmin, adminController.getAllApprovedVendors);
