@@ -399,3 +399,40 @@ exports.updateFarmStatusSchema = Joi.object({
     'object.missing': 'At least one status field (isActive, isApproved, or isHold) must be provided.'
   })
   .options({ allowUnknown: false });
+
+
+  // udpate admin profile
+
+
+  
+exports.adminUpdateSchema = Joi.object({
+  name: Joi.string()
+    .pattern(/^[A-Za-z]+(\s[A-Za-z]+)*$/)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Name must contain only letters and spaces.'
+    }),
+
+  email: Joi.string()
+    .email()
+    .optional()
+    .messages({
+      'string.email': 'Email must be a valid email address.'
+    }),
+
+  phone: Joi.string()
+    .pattern(phoneRegex)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Phone number must be exactly 10 digits.'
+    }),
+
+  address: Joi.string()
+    .min(5)
+    .max(200)
+    .optional()
+    .messages({
+      'string.min': 'Address must be at least 5 characters long.',
+      'string.max': 'Address must not exceed 200 characters.'
+    })
+});

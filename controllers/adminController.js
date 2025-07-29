@@ -13,6 +13,7 @@ const Customer = require('../models/CustomerModel')
 const Otp=require("../models/OtpModel")
 const {messages}=require("../messageTemplates/Message");
 const { sendEmail } = require('../utils/SendEmail');
+const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 
 
 // Register 
@@ -1312,3 +1313,175 @@ exports.updateFarmStatus = async (req, res) => {
     return res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
+
+
+
+// exports.updateAdminProfile = async (req, res) => {
+//   try {
+//     const adminId = req.user.id;
+
+//     // ✅ Ensure value is at least an empty object
+//     const { error, value = {} } = AdminValidation.adminUpdateSchema.validate(req.body || {}, { abortEarly: false });
+
+//     if (error) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Validation failed',
+//         errors: error.details.map(e => e.message)
+//       });
+//     }
+
+//     // ✅ Optional: Extract only if exists
+//     const email = value.email;
+//     const phone = value.phone;
+
+//     // ✅ Check duplicate email only if email is provided
+//     if (email) {
+//       const existing = await Admin.findOne({ email, _id: { $ne: adminId } });
+//       if (existing) {
+//         return res.status(409).json({ success: false, message: 'Email already in use by another admin.' });
+//       }
+//     }
+
+//     // ✅ Check duplicate phone only if phone is provided
+//     if (phone) {
+//       const existingPhone = await Admin.findOne({ phone, _id: { $ne: adminId } });
+//       if (existingPhone) {
+//         return res.status(409).json({ success: false, message: 'Phone number already in use by another admin.' });
+//       }
+//     }
+
+//     // ✅ If image is uploaded (form-data only)
+//     if (req.files && req.files.image) {
+//       try {
+//         const uploadedUrls = await uploadFilesToCloudinary([req.files.image], 'admin_profiles');
+//         value.image_url = uploadedUrls[0];
+//       } catch (uploadErr) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Image upload failed',
+//           error: uploadErr.message
+//         });
+//       }
+//     }
+
+//     // ✅ If no fields were provided at all
+//     if (Object.keys(value).length === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'No data provided for update.'
+//       });
+//     }
+
+//     // ✅ Perform update
+//     const updatedAdmin = await Admin.findByIdAndUpdate(
+//       adminId,
+//       { $set: value },
+//       { new: true, runValidators: true }
+//     ).select('-password');
+
+//     if (!updatedAdmin) {
+//       return res.status(404).json({ success: false, message: 'Admin not found.' });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Profile updated successfully.',
+//       data: updatedAdmin
+//     });
+
+//   } catch (err) {
+//     console.error('🚨 Error updating profile:', err);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error during profile update.',
+//       error: err.message
+//     });
+//   }
+// };
+
+exports.updateAdminProfile = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+
+    const { error, value = {} } =AdminValidation. adminUpdateSchema.validate(req.body || {}, { abortEarly: false });
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const email = value.email;
+    const phone = value.phone;
+
+    // ✅ Duplicate checks
+    if (email) {
+      const existing = await Admin.findOne({ email, _id: { $ne: adminId } });
+      if (existing) return res.status(409).json({ success: false, message: 'Email already in use by another admin.' });
+    }
+    if (phone) {
+      const existingPhone = await Admin.findOne({ phone, _id: { $ne: adminId } });
+      if (existingPhone) return res.status(409).json({ success: false, message: 'Phone number already in use by another admin.' });
+    }
+
+    // ✅ Handle image upload
+    if (req.files && req.files.image) {
+      try {
+        const uploadedUrls = await uploadFilesToCloudinary([req.files.image], 'admin_profiles');
+        value.image_url = uploadedUrls[0];
+      } catch (uploadErr) {
+        return res.status(400).json({
+          success: false,
+          message: 'Image upload failed',
+          error: uploadErr.message
+        });
+      }
+    }
+
+    if (Object.keys(value).length === 0) {
+      return res.status(400).json({ success: false, message: 'No data provided for update.' });
+    }
+
+    const updatedAdmin = await Admin.findByIdAndUpdate(
+      adminId,
+      { $set: value },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedAdmin) return res.status(404).json({ success: false, message: 'Admin not found.' });
+
+    // ✅ Map technical fields → user-friendly names
+    const fieldNames = {
+      name: 'Name',
+      email: 'Email',
+      phone: 'Phone Number',
+      address: 'Address',
+      image_url: 'Profile Image'
+    };
+
+    // ✅ Convert keys into readable list
+    const updatedKeys = Object.keys(value).map(k => fieldNames[k] || k);
+    const readableFields =
+      updatedKeys.length > 1
+        ? `${updatedKeys.slice(0, -1).join(', ')} and ${updatedKeys.slice(-1)}`
+        : updatedKeys[0];
+
+    return res.status(200).json({
+      success: true,
+      message: `${readableFields} ${updatedKeys.length > 1 ? 'were' : 'was'} updated successfully.`,
+      data: updatedAdmin
+    });
+
+  } catch (err) {
+    console.error('🚨 Error updating profile:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error during profile update.',
+      error: err.message
+    });
+  }
+};
+

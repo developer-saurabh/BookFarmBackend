@@ -32,7 +32,10 @@ router.post('/get_vendor_by_id',authenticateAdmin, adminController.getVendorWith
 router.post('/get_all_farms',authenticateAdmin, adminController.getAllFarms);
 router.post('/Change_farm_status',authenticateAdmin, adminController.updateFarmStatus);
 
+// Profile_apis
+
 router.post('/profile',authenticateAdmin, adminController.getAdminProfile);
+router.post('/update_profile',authenticateAdmin, adminController.updateAdminProfile);
 
 module.exports = router;
     
