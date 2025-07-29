@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { generateAvatarAndUpload } = require('../utils/AvatarGenerate');
 
 const vendorSchema = new mongoose.Schema({
   // ✅ Auth details
@@ -26,6 +27,9 @@ const vendorSchema = new mongoose.Schema({
   businessName: {
     type: String
   },
+  
+  // ✅ Vendor avatar
+  image_url: { type: String, default: null }  , 
 
   // ✅ Vendor status
   isActive: {
@@ -45,5 +49,17 @@ const vendorSchema = new mongoose.Schema({
     default:false
   }
 }, { timestamps: true });
+
+vendorSchema.pre('save', async function (next) {
+  try {
+    if (!this.image_url) {
+      this.image_url = await generateAvatarAndUpload(this.name, 'vendor_avatars');
+    }
+    next();
+  } catch (err) {
+    console.error('🔥 Vendor avatar generation failed:', err);
+    next(err);
+  }
+});
 
 module.exports = mongoose.model('Vendor', vendorSchema);

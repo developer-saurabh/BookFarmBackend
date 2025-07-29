@@ -514,10 +514,7 @@ exports.updateVendorStatus = async (req, res) => {
       return res.status(404).json({ error: 'Vendor not found.' });
     }
 
-    // ✅ 3) If vendor is blocked, no status updates allowed
-    // if (vendor.isBlocked) {
-    //   return res.status(403).json({ error: 'Vendor is blocked. Status changes are not allowed. Contact SuperAdmin.' });
-    // }
+    
 
     // ✅ 4) Check redundant updates
     if (typeof value.isActive === 'boolean' && vendor.isActive === value.isActive) {
