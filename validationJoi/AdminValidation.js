@@ -51,6 +51,15 @@ exports. adminRegisterSchema = Joi.object({
     .messages({
       'string.empty': 'OTP is required.',
       'string.length': 'OTP must be 6 digits.'
+    }),
+      address: Joi.string()    // ✅ Added Address Validation
+    .min(5)
+    .max(200)
+    .required()
+    .messages({
+      'string.empty': 'Address is required.',
+      'string.min': 'Address must be at least 5 characters long.',
+      'string.max': 'Address must not exceed 200 characters.'
     })
 });
 

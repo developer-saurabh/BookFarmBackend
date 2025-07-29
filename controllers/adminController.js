@@ -54,7 +54,7 @@ exports.sendAdminOtp = async (req, res) => {
 
     // 🔹 Generate OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     // 🔹 Save or update OTP
     await Otp.findOneAndUpdate(
@@ -76,7 +76,7 @@ exports.sendAdminOtp = async (req, res) => {
       data: {
         email,
         otp: otpCode,
-        expiresIn: '1 minutes'
+        expiresIn: '5 minutes'
       }
     });
 
@@ -101,15 +101,14 @@ exports.registerAdmin = async (req, res) => {
         errors: error.details.map(e => e.message)
       });
     }
-
-    const { email, otp, name, phone, password, isSuperAdmin } = value;
+   const { email, otp, name, phone, password, isSuperAdmin, address } = value
 
     // 🔹 Check OTP record
     const otpRecord = await Otp.findOne({ email });
     if (!otpRecord) {
       return res.status(400).json({
         success: false,
-        message: 'OTP not found. Please request a new OTP.'
+        message: 'OTP not found On This Email. Please request a new OTP.'
       });
     }
 
@@ -161,6 +160,7 @@ exports.registerAdmin = async (req, res) => {
       phone,
       password: hashedPassword,
       
+      address,    
       isSuperAdmin,
       createdBy: req.admin ? req.admin._id : null
     });
@@ -176,6 +176,7 @@ exports.registerAdmin = async (req, res) => {
         name: admin.name,
         email: admin.email,
         phone: admin.phone,
+          address: admin.address,
         permissions: admin.permissions,
         isSuperAdmin: admin.isSuperAdmin
       }
@@ -987,7 +988,9 @@ exports.getAdminProfile = async (req, res) => {
         phone: admin.phone,
         permissions: admin.permissions,
         isSuperAdmin: admin.isSuperAdmin,
-        isActive: admin.isActive
+        isActive: admin.isActive,
+        address: admin.address,
+        image_url:admin.image_url
       }
     });
 
