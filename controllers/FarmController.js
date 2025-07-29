@@ -1095,43 +1095,6 @@ exports.getFarmImagesByCategories = async (req, res) => {
 };
 
 
-// get all farms 
-// currently not in use 
-
-// exports.getAllFarms = async (req, res) => {
-//   try {
-//     // 1️⃣ Find farms with active + approved status
-//     const farms = await Farm.find({
-//       isActive: true,
-//       isApproved: true
-//     })
-//       .populate('farmCategory', '_id name')
-//       .populate('facilities', '_id name');
-
-//     // 2️⃣ Handle no farms case
-//     if (!farms || farms.length === 0) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'No farms found.'
-//       });
-//     }
-
-//     // 3️⃣ Respond with data
-//     return res.status(200).json({
-//       success: true,
-//       message: 'Farms fetched successfully.',
-//       data: farms
-//     });
-//   } catch (err) {
-//     console.error('[GetAllFarms Error]', err);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Internal server error. Please try again later.'
-//     });
-//   }
-// };
-
-
 
 
 
