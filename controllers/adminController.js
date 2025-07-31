@@ -649,22 +649,21 @@ exports.addFacilities = async (req, res) => {
   session.startTransaction();
 
   try {
-    // ✅ Step 1: Validate input using Joi
+    // ✅ Step 1: Validate input
     const { error, value } = addFacilitiesSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message
-      });
+      return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
     const facilitiesToAdd = value.facilities;
 
-    // ✅ Step 2: Normalize names (trim + lowercase)
+    // ✅ Step 2: Prepare normalized sets (only for provided class_name)
     const nameSet = new Set(facilitiesToAdd.map(f => f.name.trim().toLowerCase()));
-    const classNameSet = new Set(facilitiesToAdd.map(f => f.class_name.trim().toLowerCase()));
+    const classNameSet = new Set(
+      facilitiesToAdd.filter(f => f.class_name).map(f => f.class_name.trim().toLowerCase())
+    );
 
-    // ✅ Step 3: Check for existing facilities (case-insensitive)
+    // ✅ Step 3: Check for existing duplicates in DB
     const existingFacilities = await Facility.find({
       $or: [
         { name: { $in: Array.from(nameSet).map(n => new RegExp(`^${n}$`, 'i')) } },
@@ -684,14 +683,19 @@ exports.addFacilities = async (req, res) => {
       });
     }
 
-    // ✅ Step 4: Create sanitized insert payload
-    const newFacilities = facilitiesToAdd.map(facility => ({
-      name: facility.name.trim(),
-      class_name: facility.class_name.trim(),
-      icon: facility.icon?.trim() || null
-    }));
+    // ✅ Step 4: Build insert payload without adding `class_name` when empty
+    const newFacilities = facilitiesToAdd.map(facility => {
+      const data = {
+        name: facility.name.trim(),
+        icon: facility.icon?.trim() || null
+      };
+      if (facility.class_name && facility.class_name.trim() !== '') {
+        data.class_name = facility.class_name.trim();
+      }
+      return data;
+    });
 
-    // ✅ Step 5: Insert in transaction
+    // ✅ Step 5: Insert using transaction
     const insertedFacilities = await Facility.insertMany(newFacilities, { session });
 
     await session.commitTransaction();
