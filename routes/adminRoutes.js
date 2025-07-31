@@ -23,7 +23,7 @@ router.post('/forgot_password_reset', adminController.forgotPasswordReset);
 router.post('/update_status',authenticateAdmin, adminController.updateVendorStatus);
 router.post('/get_all_aprrove_vendors',authenticateAdmin, adminController.getAllApprovedVendors);
 router.post('/add_farm_category',authenticateAdmin, adminController.addFarmCategory);
-router.post('/add_Farm_Facilities', adminController.addFacilities);
+router.post('/add_Farm_Facilities',authenticateAdmin, adminController.addFacilities);
 router.post('/get_all_bookings', authenticateAdmin,adminController.getAllBookings);
 router.post('/get_booking_details',authenticateAdmin, adminController.getBookingByBookingId);
 router.post('/get_all_customers',authenticateAdmin, adminController.getAllCustomers);
