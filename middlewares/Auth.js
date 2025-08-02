@@ -1,8 +1,10 @@
 // middleware/vendorAuth.js
 
 const jwt = require('jsonwebtoken');
-
+const Vendor = require('../models/VendorModel');
 const Admin = require('../models/AdminModel');
+
+
 const vendorAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;

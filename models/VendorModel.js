@@ -26,7 +26,7 @@ const vendorSchema = new mongoose.Schema({
   // ✅ Business details
   aadhar_number: {
     type: String,
-    required:true
+    required:false
   },
   
   lastLogin: { type: Date, default: null },

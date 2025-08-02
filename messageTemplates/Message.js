@@ -11,7 +11,7 @@ exports.messages = {
 
   // 🔹 Forgot Password OTP Email (specific for password reset)
   forgotPasswordOtp: (data) => ({
-    subject: "Password Reset Request – Book My Farm Admin Panel",
+    subject: "Password Reset Request – Book My Farm ",
     html: `
       <div style="font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px;">
         <div style="max-width: 600px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">

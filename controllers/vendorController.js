@@ -8,7 +8,12 @@ const VendorValiidation= require('../validationJoi/VendorValidation');
 // const sendAdminEmail = require('../utils/sendAdminEmail');
 const Farm = require('../models/FarmModel');
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
+const Otp=require("../models/OtpModel")
+const { sendEmail } = require('../utils/SendEmail');
+const {messages}=require("../messageTemplates/Message");
 
+
+// Auth Apis
 
 exports.registerVendor = async (req, res) => {
   try {
@@ -131,7 +136,220 @@ exports.loginVendor = async (req, res) => {
   }
 };
 
+// Forgot Password
 
+exports.forgotPasswordSendOtp = async (req, res) => {
+  try {
+    const { error, value } = VendorValiidation.forgotPasswordRequestSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ success: false, message: 'Validation failed', errors: error.details.map(e => e.message) });
+    }
+
+    const { email } = value;
+
+    // ✅ Check if admin exists
+    const vendor = await Vendor.findOne({ email });
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor with this email does not exist.' });
+    }
+
+    // ✅ Check OTP cooldown (1 minute)
+    const existingOtp = await Otp.findOne({ email });
+    if (existingOtp) {
+      const secondsSinceLastOtp = (Date.now() - existingOtp.updatedAt.getTime()) / 1000;
+      if (secondsSinceLastOtp < 60) {
+        return res.status(429).json({
+          success: false,
+          message: `Please wait ${Math.ceil(60 - secondsSinceLastOtp)} seconds before requesting another OTP.`
+        });
+      }
+    }
+
+    // ✅ Generate OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
+
+    // ✅ Save/Update OTP with `isVerified=false`
+    await Otp.findOneAndUpdate(
+      { email },
+      { otp: otpCode, expiresAt, isVerified: false },
+      { upsert: true, new: true, timestamps: true }
+    );
+
+    // ✅ Send email
+    const { subject, html } = messages.forgotPasswordOtp({ otp: otpCode });
+    await sendEmail(email, subject, html);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email successfully.',
+      data: { email, expiresIn: '2 minutes',otp:otpCode }
+    });
+
+  } catch (err) {
+    console.error('🚨 Forgot Password Send OTP Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error while sending OTP.', error: err.message });
+  }
+};
+exports.forgotPasswordVerifyOtp = async (req, res) => {
+  try {
+    const { error, value } = VendorValiidation.verifyOtpSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ success: false, message: 'Validation failed', errors: error.details.map(e => e.message) });
+    }
+
+    const { email, otp } = value;
+    const otpRecord = await Otp.findOne({ email });
+
+    if (!otpRecord) {
+      return res.status(400).json({ success: false, message: 'No OTP found With This Email . Please request a new one.' });
+    }
+    if (otpRecord.otp !== otp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP.' });
+    }
+    if (otpRecord.expiresAt < new Date()) {
+      await Otp.deleteOne({ email });
+      return res.status(400).json({ success: false, message: 'OTP expired. Please request a new one.' });
+    }
+
+    // ✅ Mark OTP as verified
+    otpRecord.isVerified = true;
+    await otpRecord.save();
+
+     // ✅ Generate temporary reset token
+  const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '10m' });
+
+  res.status(200).json({
+    success: true,
+    message: 'OTP verified successfully. Use this token to reset your password.',
+    resetToken
+  });
+  } catch (err) {
+    console.error('🚨 Verify OTP Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error while verifying OTP.', error: err.message });
+  }
+};
+exports.forgotPasswordReset = async (req, res) => {
+  try {
+    // ✅ Extract token from Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(400).json({ success: false, message: 'Reset token is missing in Authorization header.' });
+    }
+
+    const resetToken = authHeader.split(' ')[1];
+
+    // ✅ Verify token
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired reset token.' });
+    }
+
+    const email = decoded.email;
+    const { newPassword, confirmPassword } = req.body;
+
+    // ✅ Check passwords match
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Confirm password does not match new password.' });
+    }
+
+    // ✅ Find admin
+    const vendor = await Vendor.findOne({ email });
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor account not found.' });
+    }
+
+    // ✅ Prevent reusing old password
+    if (await bcrypt.compare(newPassword, vendor.password)) {
+      return res.status(400).json({ success: false, message: 'New password cannot be the same as old password.' });
+    }
+
+    // ✅ Update password
+    vendor.password = await bcrypt.hash(newPassword, 10);
+    await vendor.save();
+
+    // ✅ Remove OTP record
+    await Otp.deleteOne({ email });
+
+    return res.status(200).json({ success: true, message: 'Password reset successfully.' });
+
+  } catch (err) {
+    console.error('🚨 Reset Password Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error.', error: err.message });
+  }
+};
+
+// change Passwrd
+
+exports.changePassword = async (req, res) => {
+  try {
+    // ✅ Validate request body with Joi
+    const { error, value } = VendorValiidation.changePasswordSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { oldPassword, newPassword, confirmPassword } = value;
+
+    // ✅ Extra check (controller-level) for confirmPassword
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Confirm password does not match the new password.'
+      });
+    }
+
+    // ✅ Find admin from token (ensure auth middleware sets req.admin)
+    const vendor = await Vendor.findById(req.user.id);
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'vendor account not found.'
+      });
+    }
+
+    // ✅ Verify old password
+    const isOldPasswordValid = await bcrypt.compare(oldPassword, vendor.password);
+    if (!isOldPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Old password is incorrect.'
+      });
+    }
+
+    // ✅ Prevent reusing old password
+    const isSamePassword = await bcrypt.compare(newPassword, vendor.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password cannot be the same as the old password.'
+      });
+    }
+
+    // ✅ Hash and update password
+    vendor.password = await bcrypt.hash(newPassword, 10);
+    await vendor.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password changed successfully.'
+    });
+
+  } catch (err) {
+    console.error('🚨 Change password error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error while changing password.',
+      error: err.message
+    });
+  }
+};
 
 
 exports.addFarm = async (req, res) => {

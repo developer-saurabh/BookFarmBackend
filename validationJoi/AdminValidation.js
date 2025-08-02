@@ -112,6 +112,8 @@ exports.verifyOtpSchema = Joi.object({
     'string.length': 'OTP must be 6 digits.'
   })
 }).unknown(false);
+
+
 exports.resetPasswordSchema = Joi.object({
 
   newPassword: Joi.string().pattern(passwordRegex).required().messages({
