@@ -29,7 +29,7 @@ router.post('/filter-farms', ParseNest,FarmController.FilterQueeryFarms);
 
 // gallary images 
 
-router.get('/get_farm_image_by_category', ParseNest,FarmController.getFarmImagesByCategories)
+router.post('/get_farm_image_by_category_id', ParseNest,FarmController.getFarmImagesByCategories)
 
 
 
