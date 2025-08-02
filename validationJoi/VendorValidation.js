@@ -9,7 +9,7 @@ const alphaSpace = /^[A-Za-z\s]+$/;
 const numericOnly = /^[0-9]+$/;
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
-exports. vendorRegistrationSchema = Joi.object({
+exports.vendorRegistrationSchema = Joi.object({
   name: Joi.string()
     .pattern(nameRegex)
     .required()
@@ -42,7 +42,21 @@ exports. vendorRegistrationSchema = Joi.object({
       'string.pattern.base': 'Password must be at least 8 characters and include letters, numbers, and a special character.'
     }),
 
-  businessName: Joi.string().allow('')
+  confirmPassword: Joi.string()
+    .required()
+    .valid(Joi.ref('password')) // ✅ must match password
+    .messages({
+      'any.only': 'Confirm Password must match Password.',
+      'string.empty': 'Confirm Password is required.'
+    }),
+
+  aadhar_number: Joi.string()
+    .pattern(/^[0-9]{12}$/)   // ✅ Ensures exactly 12 digits
+    .required()
+    .messages({
+      'string.empty': 'Aadhar number is required.',
+      'string.pattern.base': 'Aadhar number must be exactly 12 digits.'
+    })
 });
 
 exports. addVenueSchema = Joi.object({

@@ -18,29 +18,33 @@ exports.registerVendor = async (req, res) => {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    // ✅ 2) Check for duplicate email
+    // ✅ 2) Extra Safety Check: Password & Confirm Password Match
+    if (value.password !== value.confirmPassword) {
+      return res.status(400).json({ error: 'Password and Confirm Password do not match.' });
+    }
+
+    // ✅ 3) Check for duplicate email
     const existingEmail = await Vendor.findOne({ email: value.email });
     if (existingEmail) {
       return res.status(409).json({ error: 'A vendor with this email already exists.' });
     }
 
-    // ✅ 3) Check for duplicate phone
+    // ✅ 4) Check for duplicate phone
     const existingPhone = await Vendor.findOne({ phone: value.phone });
     if (existingPhone) {
       return res.status(409).json({ error: 'A vendor with this phone number already exists.' });
     }
 
-    // ✅ 4) Hash password securely
+    // ✅ 5) Hash password securely
     const hashedPassword = await bcrypt.hash(value.password, 10);
 
-    // ✅ 5) Save vendor
+    // ✅ 6) Save vendor
     const vendor = new Vendor({
       name: value.name,
       email: value.email,
       phone: value.phone,
       password: hashedPassword,
-      businessName: value.businessName,
-     
+      aadhar_number: value.aadhar_number
     });
 
     await vendor.save();
@@ -50,7 +54,6 @@ exports.registerVendor = async (req, res) => {
     //   subject: '🆕 New Vendor Registration',
     //   text: `A new vendor has registered: ${vendor.name} (${vendor.email}). Please review and verify.`
     // });
-
     return res.status(201).json({
       message: '✅ Vendor registered successfully. Awaiting admin approval.'
     });
@@ -60,9 +63,7 @@ exports.registerVendor = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
-
-
- exports.loginVendor = async (req, res) => {
+exports.loginVendor = async (req, res) => {
   try {
     // ✅ 1) Validate input
     const { error, value } = VendorValiidation.vendorLoginSchema.validate(req.body);
@@ -71,7 +72,7 @@ exports.registerVendor = async (req, res) => {
     }
 
     // ✅ 2) Find vendor by email
-      const vendor = await Vendor.findOne({ email: value.email });
+    const vendor = await Vendor.findOne({ email: value.email });
     if (!vendor) {
       return res.status(404).json({ error: 'Email not found. Please register first or check your email address.' });
     }
@@ -88,17 +89,31 @@ exports.registerVendor = async (req, res) => {
     }
 
     // ✅ 4) Compare password
-     const isMatch = await bcrypt.compare(value.password, vendor.password);
+    const isMatch = await bcrypt.compare(value.password, vendor.password);
     if (!isMatch) {
       return res.status(401).json({ error: 'Incorrect password. Please try again.' });
     }
-    // ✅ 5) Generate JWT
+
+    // ✅ 5) Update last login
+    vendor.lastLogin = new Date();
+    await vendor.save();
+
+    // ✅ 6) Generate JWT with lastLogin
     const token = jwt.sign(
-      { id: vendor._id, email: vendor.email, role: 'vendor' },
+      {
+        id: vendor._id,
+        email: vendor.email,
+        role: 'vendor',
+        lastLogin: vendor.lastLogin.getTime()
+      },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    // ✅ 7) Send token in header
     res.setHeader('Authorization', `Bearer ${token}`);
+
+    // ✅ 8) Response
     return res.status(200).json({
       message: '✅ Login successful.',
       token,
@@ -116,203 +131,6 @@ exports.registerVendor = async (req, res) => {
   }
 };
 
-
-
-// exports.addFarm = async (req, res) => {
-//   try {
-//     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(req.body, { abortEarly: false });
-
-//     if (error) {
-//       return res.status(400).json({
-//         message: 'Validation failed',
-//         errors: error.details.map(err => err.message)
-//       });
-//     }
-
-//     const ownerId = req.user.id;
-//     value.owner = ownerId;
-
-//     // ✅ Verify vendor
-//     const vendor = await Vendor.findById(ownerId);
-//     if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
-
-//     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
-//       return res.status(403).json({ error: 'Vendor is not eligible to add farms.' });
-//     }
-
-//     // 🔍 Check for duplicate farm name for this vendor
-//     const existingFarm = await Farm.findOne({ name: value.name, owner: ownerId });
-//     if (existingFarm) {
-//       return res.status(409).json({ error: 'A farm with this name already exists.' });
-//     }
-
-//     // ✅ Validate single farm category ID
-//     const validFarmCategory = await FarmCategory.findById(value.farmCategory);
-//     if (!validFarmCategory) {
-//       return res.status(400).json({ error: 'Invalid farm category selected.' });
-//     }
-
-//     // ✅ Validate facilities if present
-//     if (value.facilities && Array.isArray(value.facilities) && value.facilities.length > 0) {
-//       const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
-//       if (validFacilities.length !== value.facilities.length) {
-//         return res.status(400).json({ error: 'One or more selected facilities are invalid.' });
-//       }
-//     }
-//     // 📸 Handle images
-//     const uploaded = req.files?.images || req.files?.image;
-//     if (!uploaded) {
-//       return res.status(400).json({ error: 'At least one image must be uploaded.' });
-//     }
-
-//     const imagesArray = Array.isArray(uploaded) ? uploaded : [uploaded];
-//     const cloudUrls = await uploadFilesToCloudinary(imagesArray, 'farms');
-//     value.images = cloudUrls;
-
-//     // 🔁 Validate dailyPricing uniqueness (no duplicate dates)
-//     if (value.dailyPricing && Array.isArray(value.dailyPricing)) {
-//       const seenDates = new Set();
-//       for (const entry of value.dailyPricing) {
-//         const isoDate = new Date(entry.date).toISOString().slice(0, 10);
-//         if (seenDates.has(isoDate)) {
-//           return res.status(400).json({
-//             error: `Duplicate pricing found for date: ${isoDate}`
-//           });
-//         }
-//         seenDates.add(isoDate);
-//       }
-//     }
-
-//     const newFarm = await new Farm(value).save();
-
-//     // 🧠 Populate references
-//     const populatedFarm = await Farm.findById(newFarm._id)
-//       .populate('farmCategory')
-//       .populate('facilities');
-
-//     return res.status(201).json({
-//       message: 'Farm added successfully',
-//       data: populatedFarm
-//     });
-
-//   } catch (err) {
-//     console.error('[AddFarm Error]', err);
-//     return res.status(500).json({ message: 'Server error. Please try again later.' });
-//   }
-// };
-
-
-// exports.addFarm = async (req, res) => {
-//   try {
-//     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(req.body, { abortEarly: false });
-
-//     if (error) {
-//       return res.status(400).json({
-//         message: 'Validation failed',
-//         errors: error.details.map(err => err.message)
-//       });
-//     }
-
-//     const ownerId = req.user.id;
-//     value.owner = ownerId;
-
-//     // ✅ Verify vendor
-//     const vendor = await Vendor.findById(ownerId);
-//     if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
-
-//     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
-//       return res.status(403).json({ error: 'Vendor is not eligible to add farms.' });
-//     }
-
-//     // 🔍 Check for duplicate farm name for this vendor
-//     const existingFarm = await Farm.findOne({ name: value.name, owner: ownerId });
-//     if (existingFarm) {
-//       return res.status(409).json({ error: 'A farm with this name already exists.' });
-//     }
-
-//     // ✅ Validate single farm category ID
-//     const validFarmCategory = await FarmCategory.findById(value.farmCategory);
-//     if (!validFarmCategory) {
-//       return res.status(400).json({ error: 'Invalid farm category selected.' });
-//     }
-
-//     // ✅ Validate facilities if present
-//     if (value.facilities && Array.isArray(value.facilities) && value.facilities.length > 0) {
-//       const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
-//       if (validFacilities.length !== value.facilities.length) {
-//         return res.status(400).json({ error: 'One or more selected facilities are invalid.' });
-//       }
-//     }
-
-//     // 📸 Handle images
-//     const uploaded = req.files?.images || req.files?.image;
-//     if (!uploaded) {
-//       return res.status(400).json({ error: 'At least one image must be uploaded.' });
-//     }
-
-//     const imagesArray = Array.isArray(uploaded) ? uploaded : [uploaded];
-//     const cloudUrls = await uploadFilesToCloudinary(imagesArray, 'farms');
-//     value.images = cloudUrls;
-
-//     // 🔁 Validate dailyPricing: check duplicates + checkIn / checkOut times
-//     if (value.dailyPricing && Array.isArray(value.dailyPricing)) {
-//       const seenDates = new Set();
-//       const timeRegex = /^([0-1]\d|2[0-3]):([0-5]\d)$/;
-
-//       for (const entry of value.dailyPricing) {
-//         const isoDate = new Date(entry.date).toISOString().slice(0, 10);
-
-//         // ✅ No duplicate dates
-//         if (seenDates.has(isoDate)) {
-//           return res.status(400).json({
-//             error: `Duplicate pricing found for date: ${isoDate}`
-//           });
-//         }
-//         seenDates.add(isoDate);
-
-//         // ✅ Ensure checkIn / checkOut exist
-//         entry.checkIn = entry.checkIn || "10:00";
-//         entry.checkOut = entry.checkOut || "18:00";
-
-//         // ✅ Validate time format
-//         if (!timeRegex.test(entry.checkIn) || !timeRegex.test(entry.checkOut)) {
-//           return res.status(400).json({
-//             error: `Invalid time format for date ${isoDate}. Use HH:mm format.`
-//           });
-//         }
-
-//         // ✅ Ensure checkIn < checkOut
-//         const [inH, inM] = entry.checkIn.split(":").map(Number);
-//         const [outH, outM] = entry.checkOut.split(":").map(Number);
-//         const checkInMinutes = inH * 60 + inM;
-//         const checkOutMinutes = outH * 60 + outM;
-
-//         if (checkInMinutes >= checkOutMinutes) {
-//           return res.status(400).json({
-//             error: `For date ${isoDate}, checkIn must be earlier than checkOut.`
-//           });
-//         }
-//       }
-//     }
-
-//     // ✅ Save Farm
-//     const newFarm = await new Farm(value).save();
-
-//     // 🧠 Populate references
-//     const populatedFarm = await Farm.findById(newFarm._id)
-//       .populate('farmCategory')
-//       .populate('facilities');
-
-//     return res.status(201).json({
-//       message: 'Farm added successfully',
-//       data: populatedFarm
-//     });
-
-//   } catch (err) {
-//     console.error('[AddFarm Error]', err);
-//     return res.status(500).json({ message: 'Server error. Please try again later.' });
-//   }
-// };
 
 
 

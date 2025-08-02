@@ -29,6 +29,8 @@ const vendorSchema = new mongoose.Schema({
     required:true
   },
   
+  lastLogin: { type: Date, default: null },
+  
   // ✅ Vendor avatar
   image_url: { type: String, default: null }  , 
 
