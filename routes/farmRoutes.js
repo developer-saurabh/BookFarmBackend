@@ -27,7 +27,9 @@ router.get('/get_farm_by_image_url/:imageurl', ParseNest,FarmController.getFarmB
 
 router.post('/filter-farms', ParseNest,FarmController.FilterQueeryFarms);
 
-router.get('/get_farm_image_by_category/:categoryId', ParseNest,FarmController.getFarmImagesByCategories)
+// gallary images 
+
+router.get('/get_farm_image_by_category', ParseNest,FarmController.getFarmImagesByCategories)
 
 
 

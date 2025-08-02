@@ -24,8 +24,9 @@ const vendorSchema = new mongoose.Schema({
   },
 
   // ✅ Business details
-  businessName: {
-    type: String
+  aadhar_number: {
+    type: String,
+    required:true
   },
   
   // ✅ Vendor avatar
