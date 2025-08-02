@@ -95,7 +95,7 @@ exports.loginVendor = async (req, res) => {
     }
 
     // ✅ 5) Update last login
-    vendor.lastLogin = new Date();
+    vendor.lastLogin = new Date(); 
     await vendor.save();
 
     // ✅ 6) Generate JWT with lastLogin
