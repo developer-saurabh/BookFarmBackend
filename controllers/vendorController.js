@@ -13,6 +13,7 @@ const { sendEmail } = require('../utils/SendEmail');
 const {messages}=require("../messageTemplates/Message");
 
 
+
 // Auth Apis
 
 exports.registerVendor = async (req, res) => {
@@ -351,148 +352,360 @@ exports.changePassword = async (req, res) => {
   }
 };
 
+// Farms Apis
 
-exports.addFarm = async (req, res) => {
+
+// exports.addFarm = async (req, res) => {
+//   try {
+//     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(req.body, { abortEarly: false });
+//     if (error) {
+//       return res.status(400).json({
+//         message: 'Validation failed',
+//         errors: error.details.map(err => err.message)
+//       });
+//     }
+
+//     const ownerId = req.user.id;
+//     value.owner = ownerId;
+
+//     // ✅ Verify vendor
+//     const vendor = await Vendor.findById(ownerId);
+//     if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
+//     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
+//       return res.status(403).json({ error: 'Vendor is not eligible to add farms.' });
+//     }
+
+//     // 🔍 Check for duplicate farm name for this vendor
+//     const existingFarm = await Farm.findOne({ name: value.name, owner: ownerId });
+//     if (existingFarm) {
+//       return res.status(409).json({ error: 'A farm with this name already exists.' });
+//     }
+
+//     // ✅ Validate farmCategory (now supports array)
+//     if (Array.isArray(value.farmCategory)) {
+//       for (const catId of value.farmCategory) {
+//         const validCat = await FarmCategory.findById(catId);
+//         if (!validCat) return res.status(400).json({ error: 'Invalid farm category selected.' });
+//       }
+//     } else {
+//       const validCat = await FarmCategory.findById(value.farmCategory);
+//       if (!validCat) return res.status(400).json({ error: 'Invalid farm category selected.' });
+//     }
+
+//     // ✅ Validate facilities
+//     if (value.facilities && Array.isArray(value.facilities) && value.facilities.length > 0) {
+//       const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
+//       if (validFacilities.length !== value.facilities.length) {
+//         return res.status(400).json({ error: 'One or more selected facilities are invalid.' });
+//       }
+//     }
+
+//     // 📸 Handle images
+//     const uploaded = req.files?.images || req.files?.image;
+//     if (!uploaded) {
+//       return res.status(400).json({ error: 'At least one image must be uploaded.' });
+//     }
+
+//     const imagesArray = Array.isArray(uploaded) ? uploaded : [uploaded];
+//     const cloudUrls = await uploadFilesToCloudinary(imagesArray, 'farms');
+//     value.images = cloudUrls;
+
+//     // ✅ Time conversion helpers
+//     const to24Hour = (time) => {
+//       if (!time) return null;
+//       const [raw, modifier] = time.trim().split(/\s+/);
+//       let [h, m] = raw.split(":").map(Number);
+//       if (modifier?.toUpperCase() === "PM" && h !== 12) h += 12;
+//       if (modifier?.toUpperCase() === "AM" && h === 12) h = 0;
+//       return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+//     };
+
+//     const toAmPm = (time) => {
+//       if (!time) return null;
+//       let [h, m] = time.split(":").map(Number);
+//       const ampm = h >= 12 ? "PM" : "AM";
+//       h = h % 12 || 12;
+//       return `${h}:${m.toString().padStart(2, "0")} ${ampm}`;
+//     };
+
+//     // 🔁 Validate dailyPricing: check duplicates + checkIn/Out AM-PM format
+//     if (value.dailyPricing && Array.isArray(value.dailyPricing)) {
+//       const seenDates = new Set();
+//       const timeRegex = /^(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i;
+
+//       for (const entry of value.dailyPricing) {
+//         const isoDate = new Date(entry.date).toISOString().slice(0, 10);
+
+//         if (seenDates.has(isoDate)) {
+//           return res.status(400).json({ error: `Duplicate pricing found for date: ${isoDate}` });
+//         }
+//         seenDates.add(isoDate);
+
+//         // ✅ Validate time format (AM/PM)
+//         entry.checkIn = entry.checkIn || "10:00 AM";
+//         entry.checkOut = entry.checkOut || "06:00 PM";
+
+//         if (!timeRegex.test(entry.checkIn) || !timeRegex.test(entry.checkOut)) {
+//           return res.status(400).json({ error: `Invalid time format for date ${isoDate}. Use hh:mm AM/PM format.` });
+//         }
+
+//         // ✅ Convert to 24-hour before saving
+//         const checkIn24 = to24Hour(entry.checkIn);
+//         const checkOut24 = to24Hour(entry.checkOut);
+
+//         // ✅ Ensure checkIn < checkOut
+//         const [inH, inM] = checkIn24.split(":").map(Number);
+//         const [outH, outM] = checkOut24.split(":").map(Number);
+//         const checkInMinutes = inH * 60 + inM;
+//         const checkOutMinutes = outH * 60 + outM;
+
+//         if (checkInMinutes >= checkOutMinutes) {
+//           return res.status(400).json({ error: `For date ${isoDate}, checkIn must be earlier than checkOut.` });
+//         }
+
+//         entry.checkIn = checkIn24;  // store in 24-hour
+//         entry.checkOut = checkOut24;
+//       }
+//     }
+
+//     // ✅ Save Farm
+//     const newFarm = await new Farm(value).save();
+
+//     // 🧠 Populate references
+//     let populatedFarm = await Farm.findById(newFarm._id)
+//       .populate('farmCategory')
+//       .populate('facilities')
+//       .lean();
+
+//     // ✅ Convert times back to AM/PM for response
+//     if (populatedFarm.dailyPricing) {
+//       populatedFarm.dailyPricing.forEach(dp => {
+//         dp.checkIn = toAmPm(dp.checkIn);
+//         dp.checkOut = toAmPm(dp.checkOut);
+//       });
+//     }
+
+//     return res.status(201).json({
+//       message: 'Farm added successfully',
+//       data: populatedFarm
+//     });
+
+//   } catch (err) {
+//     console.error('[AddFarm Error]', err);
+//     return res.status(500).json({ message: 'Server error. Please try again later.' });
+//   }
+// };
+
+exports.addOrUpdateFarm = async (req, res) => {
   try {
-    const { error, value } = VendorValiidation.farmAddValidationSchema.validate(req.body, { abortEarly: false });
+
+    // ✅ Parse areaImages if it's sent as a string
+if (req.body.areaImages && typeof req.body.areaImages === "string") {
+  try {
+    req.body.areaImages = JSON.parse(req.body.areaImages);
+  } catch (err) {
+    return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
+  }
+}
+
+// ✅ Do the same for address, rules, propertyDetails if needed
+["rules", "address", "propertyDetails"].forEach(key => {
+  if (req.body[key] && typeof req.body[key] === "string") {
+    try { req.body[key] = JSON.parse(req.body[key]); } catch {}
+  }
+});
+    // ✅ 1. Validate Request with Joi
+    const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
+      req.body,
+      { abortEarly: false, allowUnknown: true }
+    );
+
     if (error) {
       return res.status(400).json({
-        message: 'Validation failed',
+        success: false,
+        message: "Validation failed",
         errors: error.details.map(err => err.message)
       });
     }
 
     const ownerId = req.user.id;
     value.owner = ownerId;
+    const farmId = value.farmId;
 
-    // ✅ Verify vendor
+    // ✅ 2. Verify Vendor
     const vendor = await Vendor.findById(ownerId);
-    if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
+    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found." });
     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
-      return res.status(403).json({ error: 'Vendor is not eligible to add farms.' });
+      return res.status(403).json({ success: false, message: "Vendor is not eligible to create/update farms." });
     }
 
-    // 🔍 Check for duplicate farm name for this vendor
-    const existingFarm = await Farm.findOne({ name: value.name, owner: ownerId });
-    if (existingFarm) {
-      return res.status(409).json({ error: 'A farm with this name already exists.' });
-    }
+    // ✅ 3. Validate farmCategory if provided
+    if (value.farmCategory) {
+  const categoryExists = await FarmCategory.findById(value.farmCategory);
+  if (!categoryExists) {
+    return res.status(400).json({ success: false, message: "Invalid farm category ID." });
+  }
+}
 
-    // ✅ Validate farmCategory (now supports array)
-    if (Array.isArray(value.farmCategory)) {
-      for (const catId of value.farmCategory) {
-        const validCat = await FarmCategory.findById(catId);
-        if (!validCat) return res.status(400).json({ error: 'Invalid farm category selected.' });
-      }
-    } else {
-      const validCat = await FarmCategory.findById(value.farmCategory);
-      if (!validCat) return res.status(400).json({ error: 'Invalid farm category selected.' });
-    }
-
-    // ✅ Validate facilities
-    if (value.facilities && Array.isArray(value.facilities) && value.facilities.length > 0) {
+    // ✅ 4. Validate facilities if provided
+    if (value.facilities?.length) {
       const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
       if (validFacilities.length !== value.facilities.length) {
-        return res.status(400).json({ error: 'One or more selected facilities are invalid.' });
+        return res.status(400).json({ success: false, message: "One or more facilities IDs are invalid." });
       }
     }
 
-    // 📸 Handle images
-    const uploaded = req.files?.images || req.files?.image;
-    if (!uploaded) {
-      return res.status(400).json({ error: 'At least one image must be uploaded.' });
-    }
-
-    const imagesArray = Array.isArray(uploaded) ? uploaded : [uploaded];
-    const cloudUrls = await uploadFilesToCloudinary(imagesArray, 'farms');
-    value.images = cloudUrls;
-
-    // ✅ Time conversion helpers
-    const to24Hour = (time) => {
-      if (!time) return null;
-      const [raw, modifier] = time.trim().split(/\s+/);
-      let [h, m] = raw.split(":").map(Number);
-      if (modifier?.toUpperCase() === "PM" && h !== 12) h += 12;
-      if (modifier?.toUpperCase() === "AM" && h === 12) h = 0;
-      return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-    };
-
-    const toAmPm = (time) => {
-      if (!time) return null;
-      let [h, m] = time.split(":").map(Number);
-      const ampm = h >= 12 ? "PM" : "AM";
-      h = h % 12 || 12;
-      return `${h}:${m.toString().padStart(2, "0")} ${ampm}`;
-    };
-
-    // 🔁 Validate dailyPricing: check duplicates + checkIn/Out AM-PM format
-    if (value.dailyPricing && Array.isArray(value.dailyPricing)) {
-      const seenDates = new Set();
-      const timeRegex = /^(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i;
-
-      for (const entry of value.dailyPricing) {
-        const isoDate = new Date(entry.date).toISOString().slice(0, 10);
-
-        if (seenDates.has(isoDate)) {
-          return res.status(400).json({ error: `Duplicate pricing found for date: ${isoDate}` });
-        }
-        seenDates.add(isoDate);
-
-        // ✅ Validate time format (AM/PM)
-        entry.checkIn = entry.checkIn || "10:00 AM";
-        entry.checkOut = entry.checkOut || "06:00 PM";
-
-        if (!timeRegex.test(entry.checkIn) || !timeRegex.test(entry.checkOut)) {
-          return res.status(400).json({ error: `Invalid time format for date ${isoDate}. Use hh:mm AM/PM format.` });
-        }
-
-        // ✅ Convert to 24-hour before saving
-        const checkIn24 = to24Hour(entry.checkIn);
-        const checkOut24 = to24Hour(entry.checkOut);
-
-        // ✅ Ensure checkIn < checkOut
-        const [inH, inM] = checkIn24.split(":").map(Number);
-        const [outH, outM] = checkOut24.split(":").map(Number);
-        const checkInMinutes = inH * 60 + inM;
-        const checkOutMinutes = outH * 60 + outM;
-
-        if (checkInMinutes >= checkOutMinutes) {
-          return res.status(400).json({ error: `For date ${isoDate}, checkIn must be earlier than checkOut.` });
-        }
-
-        entry.checkIn = checkIn24;  // store in 24-hour
-        entry.checkOut = checkOut24;
+    // ✅ 5. Embedded Rules → Ensure Always Array
+    if (value.rules) {
+      if (!Array.isArray(value.rules)) {
+        value.rules = [value.rules]; // normalize single object to array
       }
     }
 
-    // ✅ Save Farm
-    const newFarm = await new Farm(value).save();
-
-    // 🧠 Populate references
-    let populatedFarm = await Farm.findById(newFarm._id)
-      .populate('farmCategory')
-      .populate('facilities')
-      .lean();
-
-    // ✅ Convert times back to AM/PM for response
-    if (populatedFarm.dailyPricing) {
-      populatedFarm.dailyPricing.forEach(dp => {
-        dp.checkIn = toAmPm(dp.checkIn);
-        dp.checkOut = toAmPm(dp.checkOut);
-      });
+    // ✅ 6. Embedded Property Details → No DB Lookup
+    if (value.propertyDetails && typeof value.propertyDetails !== "object") {
+      return res.status(400).json({ success: false, message: "propertyDetails must be an object." });
     }
 
-    return res.status(201).json({
-      message: 'Farm added successfully',
+    // ✅ 7. Embedded Address → Must Be Object
+    if (value.address && typeof value.address !== "object") {
+      return res.status(400).json({ success: false, message: "Address must be an object." });
+    }
+// ✅ 8. Handle General Farm Images (main gallery)
+if (req.files?.images || req.files?.image) {
+  const imagesArray = Array.isArray(req.files.images) ? req.files.images : [req.files.image];
+  const uploadedUrls = await uploadFilesToCloudinary(imagesArray, "farms");
+  value.images = uploadedUrls;
+}
+
+// ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
+// ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
+if (req.body.areaImages) {
+  // ✅ Ensure areaImages is parsed if sent as string
+  let areaImagesParsed;
+  try {
+    areaImagesParsed = typeof req.body.areaImages === "string" ? JSON.parse(req.body.areaImages) : req.body.areaImages;
+  } catch (err) {
+    return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
+  }
+
+  const areaImagesData = [];
+
+  // ✅ Loop through each area group
+  for (let i = 0; i < areaImagesParsed.length; i++) {
+    const area = areaImagesParsed[i];
+    const fieldKey = `areaImages[${i}][images]`; // This matches Postman key names
+
+    // ✅ Find corresponding files in req.files
+    const files = req.files?.[fieldKey];
+    let uploadedUrls = [];
+
+    if (files) {
+      const filesArray = Array.isArray(files) ? files : [files];
+      uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${area.areaType}`);
+    }
+
+    // ✅ Push final structure
+    areaImagesData.push({
+      areaType: area.areaType,
+      images: uploadedUrls
+    });
+  }
+
+  value.areaImages = areaImagesData;
+}
+    // ✅ 9. Validate Daily Pricing (if provided)
+    if (value.dailyPricing?.length) {
+      const validateDailyPricing = (dailyPricing) => {
+        const seen = new Set();
+        const timeRegex = /^(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i;
+
+        const to24 = (t) => {
+          if (!t) return null;
+          const [raw, mod] = t.trim().split(/\s+/);
+          let [h, m] = raw.split(":").map(Number);
+          if (mod?.toUpperCase() === "PM" && h !== 12) h += 12;
+          if (mod?.toUpperCase() === "AM" && h === 12) h = 0;
+          return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+        };
+
+        dailyPricing.forEach((p) => {
+          const isoDate = new Date(p.date).toISOString().split("T")[0];
+          if (seen.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
+          seen.add(isoDate);
+
+          p.checkIn = p.checkIn || "10:00 AM";
+          p.checkOut = p.checkOut || "06:00 PM";
+
+          if (!timeRegex.test(p.checkIn) || !timeRegex.test(p.checkOut)) {
+            throw new Error(`Invalid time format for ${isoDate}. Use hh:mm AM/PM`);
+          }
+
+          const in24 = to24(p.checkIn);
+          const out24 = to24(p.checkOut);
+          const [inH, inM] = in24.split(":").map(Number);
+          const [outH, outM] = out24.split(":").map(Number);
+
+          if (inH * 60 + inM >= outH * 60 + outM) {
+            throw new Error(`Check-In must be before Check-Out for ${isoDate}`);
+          }
+
+          p.checkIn = in24;
+          p.checkOut = out24;
+        });
+
+        return dailyPricing;
+      };
+
+      try {
+        value.dailyPricing = validateDailyPricing(value.dailyPricing);
+      } catch (e) {
+        return res.status(400).json({ success: false, message: e.message });
+      }
+    }
+
+    // ✅ 10. Create or Update Farm Document
+    let farmDoc;
+    if (farmId) {
+      farmDoc = await Farm.findOneAndUpdate(
+        { _id: farmId, owner: ownerId },
+        { $set: value },
+        { new: true }
+      );
+      if (!farmDoc) {
+        return res.status(404).json({ success: false, message: "Farm not found or unauthorized." });
+      }
+    } else {
+      if (value.name) {
+        const duplicate = await Farm.findOne({ name: value.name, owner: ownerId });
+        if (duplicate) {
+          return res.status(409).json({ success: false, message: "A farm with this name already exists." });
+        }
+      }
+      farmDoc = await new Farm(value).save();
+    }
+
+    // ✅ 11. Populate References (rules/propertyDetails are embedded, no populate)
+    const populatedFarm = await Farm.findById(farmDoc._id)
+      .populate("farmCategory")
+      .populate("facilities");
+
+    // ✅ 12. Response
+    return res.status(farmId ? 200 : 201).json({
+      success: true,
+      message: farmId ? "Farm updated successfully." : "Farm created successfully.",
       data: populatedFarm
     });
 
   } catch (err) {
-    console.error('[AddFarm Error]', err);
-    return res.status(500).json({ message: 'Server error. Please try again later.' });
+    console.error("[AddOrUpdateFarm Error]", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message
+    });
   }
 };
-
 
 
 

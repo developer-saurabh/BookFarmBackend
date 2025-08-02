@@ -1,5 +1,5 @@
 const Joi = require('joi');
-
+const objectIdPattern = /^[0-9a-fA-F]{24}$/; // ✅ MongoDB ObjectId
 const nameRegex = /^[A-Za-z]+(\s[A-Za-z]+)*$/;
 const phoneRegex = /^[0-9]{10}$/;
 const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
@@ -61,8 +61,6 @@ exports.vendorRegistrationSchema = Joi.object({
 
 // Forgot Password 
 
-
-
 exports.forgotPasswordRequestSchema = Joi.object({
   email: Joi.string().email().required().messages({
     'string.empty': 'Email is required.',
@@ -77,8 +75,6 @@ exports.verifyOtpSchema = Joi.object({
     'string.length': 'OTP must be 6 digits.'
   })
 }).unknown(false);
-
-
 
 exports. vendorLoginSchema = Joi.object({
   email: Joi.string().email().required().messages({
@@ -107,182 +103,106 @@ exports.changePasswordSchema = Joi.object({
 }).unknown(false);
 
 
-exports. farmAddValidationSchema = Joi.object({
-  name: Joi.string()
-    .trim()
-    .min(3)
-    .max(100)
-    .required()
-    .messages({
-      'string.base': 'Farm name must be a string.',
-      'string.empty': 'Farm name is required.',
-      'string.min': 'Farm name must be at least 3 characters long.',
-      'string.max': 'Farm name cannot exceed 100 characters.'
-    }),
+exports.farmAddValidationSchema = Joi.object({
+  farmId: Joi.string().pattern(objectIdPattern).optional(),
 
-  description: Joi.string()
-    .max(1000)
-    .optional()
-    .allow('')
-    .messages({
-      'string.max': 'Description cannot exceed 1000 characters.'
-    }),
+  name: Joi.string().min(3).max(150).optional(),
 
+  description: Joi.string().allow("", null).optional(),
 
-farmCategory: Joi.alternatives().try(
-  Joi.string().hex().length(24),
-  Joi.array().items(Joi.string().hex().length(24))
-).required().messages({
-  'string.hex': 'Each farm category ID must be a valid ObjectId.',
-  'string.length': 'Each farm category ID must be 24 characters.',
-  'array.base': 'Farm category must be an array of valid ObjectIds.',
-  'any.required': 'Farm category is required.'
-}),
-
-  location: Joi.object({
-    address: Joi.string().min(5).max(200).required().messages({
-      'string.empty': 'Address is required.',
-      'string.min': 'Address must be at least 5 characters.',
-      'string.max': 'Address cannot exceed 200 characters.'
-    }),
-    city: Joi.string().pattern(/^[a-zA-Z\s]+$/).min(2).max(100).required().messages({
-      'string.empty': 'City is required.',
-      'string.pattern.base': 'City can only contain letters and spaces.',
-      'string.min': 'City must be at least 2 characters.',
-      'string.max': 'City cannot exceed 100 characters.'
-    }),
-    state: Joi.string().pattern(/^[a-zA-Z\s]+$/).min(2).max(100).required().messages({
-      'string.empty': 'State is required.',
-      'string.pattern.base': 'State can only contain letters and spaces.',
-      'string.min': 'State must be at least 2 characters.',
-      'string.max': 'State cannot exceed 100 characters.'
-    }),
-    pinCode: Joi.string().pattern(/^\d{6}$/).optional().messages({
-      'string.pattern.base': 'Pin code must be a valid 6-digit number.'
-    }),
-    mapLink: Joi.string().uri().optional().allow('').messages({
-      'string.uri': 'Map link must be a valid URL.'
-    })
-  }).required().messages({
-    'object.base': 'Location must be a valid object.',
-    'any.required': 'Location is required.'
+farmCategory_id: Joi.string().pattern(objectIdPattern).optional()
+  .messages({
+    "string.pattern.base": "farmCategory must be a valid ObjectId."
   }),
 
-  bookingModes: Joi.array()
-    .items(Joi.string().valid('full_day', 'day_slot', 'night_slot'))
-    .default(['full_day'])
-    .messages({
-      'array.base': 'Booking modes must be an array.',
-      'any.only': 'Each booking mode must be full_day, day_slot, or night_slot.'
-    }),
-
-  defaultPricing: Joi.object({
-    full_day: Joi.number().min(0).optional().messages({
-      'number.base': 'Full day price must be a number.',
-      'number.min': 'Full day price must be zero or greater.'
-    }),
-    day_slot: Joi.number().min(0).optional().messages({
-      'number.base': 'Day slot price must be a number.',
-      'number.min': 'Day slot price must be zero or greater.'
-    }),
-    night_slot: Joi.number().min(0).optional().messages({
-      'number.base': 'Night slot price must be a number.',
-      'number.min': 'Night slot price must be zero or greater.'
+  areaImages: Joi.array().items(
+    Joi.object({
+      areaType: Joi.string().trim().optional(),
+      images: Joi.array().items(Joi.string().uri()).optional()
     })
-  }).required().messages({
-    'object.base': 'Default pricing must be a valid object.',
-    'any.required': 'Default pricing is required.'
+  ).optional(),
+rules: Joi.array().items(
+  Joi.object({
+    title: Joi.string().min(3).max(200).required()
+      .messages({
+        "string.empty": "Rule title is required.",
+        "string.min": "Rule title must be at least 3 characters long.",
+        "string.max": "Rule title cannot exceed 200 characters."
+      }),
+ 
+    isActive: Joi.boolean().optional()
+      .messages({
+        "boolean.base": "isActive must be true or false."
+      })
+  })
+).optional()
+  .messages({
+    "array.base": "Rules must be an array of objects."
   }),
+propertyDetails: Joi.object({
+  bhk: Joi.string().optional().messages({
+    "string.base": "BHK must be a string."
+  }),
+  squareFeet: Joi.number().optional().messages({
+    "number.base": "SquareFeet must be a number."
+  }),
+  additionalInfo: Joi.string().allow("", null).optional().messages({
+    "string.base": "Additional Info must be a string."
+  })
+}).optional()
+  .messages({
+    "object.base": "propertyDetails must be an object."
+  }),
+address: Joi.object({
+  address: Joi.string().optional(),
+  city: Joi.string().optional(),
+  state: Joi.string().optional(),
+  pinCode: Joi.string().optional(),
+  areaName: Joi.string().optional(),
+  createdBy: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional()
+}).optional(),
 
-  // ✅ Updated dailyPricing with checkIn & checkOut
+
+  facilities: Joi.array().items(Joi.string().pattern(objectIdPattern)).optional(),
+
+  capacity: Joi.number().min(1).optional(),
+
+  bookingModes: Joi.array().items(
+    Joi.string().valid("full_day", "day_slot", "night_slot")
+  ).optional(),
+
   dailyPricing: Joi.array().items(
     Joi.object({
-      date: Joi.date().iso().required().messages({
-        'date.base': 'Each daily pricing date must be a valid ISO date.',
-        'any.required': 'Date is required for each pricing entry.'
-      }),
+      date: Joi.date().optional(),
       slots: Joi.object({
-        full_day: Joi.number().min(0).optional().messages({
-          'number.base': 'Full day slot price must be a number.',
-          'number.min': 'Full day slot price must be zero or more.'
-        }),
-        day_slot: Joi.number().min(0).optional().messages({
-          'number.base': 'Day slot price must be a number.',
-          'number.min': 'Day slot price must be zero or more.'
-        }),
-        night_slot: Joi.number().min(0).optional().messages({
-          'number.base': 'Night slot price must be a number.',
-          'number.min': 'Night slot price must be zero or more.'
-        })
-      }).required().messages({
-        'object.base': 'Slots must be a valid object.',
-        'any.required': 'Slots object is required.'
-      }),
-   checkIn: Joi.string()
-  .pattern(/^(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i)
-  .optional()
-  .messages({
-    'string.pattern.base': 'checkIn must be in hh:mm AM/PM format (e.g., 10:00 AM).'
-  }),
-
-checkOut: Joi.string()
-  .pattern(/^(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i)
-  .optional()
-  .messages({
-    'string.pattern.base': 'checkOut must be in hh:mm AM/PM format (e.g., 07:30 PM).'
-  }),
+        full_day: Joi.number().optional(),
+        day_slot: Joi.number().optional(),
+        night_slot: Joi.number().optional(),
+      }).optional(),
+      checkIn: Joi.string().optional(),
+      checkOut: Joi.string().optional(),
     })
-  ).optional().messages({
-    'array.base': 'Daily pricing must be an array of date-slot objects.'
-  }),
+  ).optional(),
 
-  currency: Joi.string().valid('INR', 'USD', 'EUR').default('INR').messages({
-    'any.only': 'Currency must be INR, USD, or EUR.'
-  }),
+  defaultPricing: Joi.object({
+    full_day: Joi.number().optional(),
+    day_slot: Joi.number().optional(),
+    night_slot: Joi.number().optional(),
+  }).optional(),
 
-    facilities: Joi.array().items(Joi.string().hex().length(24).messages({
-      'string.hex': 'Each facility ID must be a valid ObjectId.',
-      'string.length': 'Each facility ID must be 24 characters.'
-    })).optional().messages({
-      'array.base': 'Facilities must be an array of valid IDs.'
-    }),
+  defaultCheckIn: Joi.string().optional(),
+  defaultCheckOut: Joi.string().optional(),
 
-  capacity: Joi.number().min(1).required().messages({
-    'number.base': 'Capacity must be a number.',
-    'number.min': 'Capacity must be at least 1.',
-    'any.required': 'Capacity is required.'
-  }),
+  currency: Joi.string().optional(),
 
-  currency: Joi.string()
-    .valid('INR', 'USD', 'EUR')
-    .default('INR')
-    .messages({
-      'any.only': 'Currency must be INR, USD, or EUR.'
-    }),
+  images: Joi.array().items(Joi.string().uri()).optional(),
 
-  facilities: Joi.array()
-    .items(Joi.string().hex().length(24).messages({
-      'string.hex': 'Each facility ID must be a valid ObjectId.',
-      'string.length': 'Each facility ID must be 24 characters.'
-    }))
-    .optional()
-    .messages({
-      'array.base': 'Facilities must be an array of valid IDs.'
-    }),
+  unavailableDates: Joi.array().items(Joi.date()).optional(),
 
-  capacity: Joi.number()
-    .min(1)
-    .required()
-    .messages({
-      'number.base': 'Capacity must be a number.',
-      'number.min': 'Capacity must be at least 1.',
-      'any.required': 'Capacity is required.'
-    })
-}).options({
-  abortEarly: false,
-  allowUnknown: false,
-});;
-
+  isActive: Joi.boolean().optional(),
+  isApproved: Joi.boolean().optional(),
+  isHold: Joi.boolean().optional()
+}).options({ abortEarly: false, allowUnknown: true });
 
 exports.updateFarmImagesSchema = Joi.object({
   farm_id: Joi.string()

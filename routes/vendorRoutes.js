@@ -20,7 +20,7 @@ router.post('/forgot_password_reset', vendorController.forgotPasswordReset);
 router.post('/change_password',vendorAuth, vendorController.changePassword);
 
 
-router.post('/add_Farm',ParseNest,vendorAuth,vendorController.addFarm);
+router.post('/add_Farm',ParseNest,vendorAuth,vendorController.addOrUpdateFarm);
 router.post('/add_Farm_images',ParseNest,vendorAuth,vendorController.updateFarmImages);
 
 module.exports = router;
