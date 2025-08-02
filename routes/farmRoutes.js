@@ -23,13 +23,13 @@ router.get('/get_all_facilities', ParseNest,FarmController.getUsedFacilities);
 
 router.post('/get_farm_id', ParseNest,FarmController.getFarmById);
 
-router.get('/get_farm_by_image_url/:imageurl', ParseNest,FarmController.getFarmByImageUrl);
-
 router.post('/filter-farms', ParseNest,FarmController.FilterQueeryFarms);
 
 // gallary images 
 
 router.post('/get_farm_image_by_category_id', ParseNest,FarmController.getFarmImagesByCategories)
+
+router.post('/get_farm_by_image_url_and_id', ParseNest,FarmController.getFarmByImageUrl);
 
 
 

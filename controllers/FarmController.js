@@ -664,13 +664,12 @@ const availability = next7Days.map(dayMoment => {
   }
 };
 
-
 exports.getFarmByImageUrl = async (req, res) => {
   try {
-    // 1️⃣ Validate query param
-    console.log('req.query printing:', req.query);
+    console.log('req.body printing:', req.body);
 
-    const { error, value } = FarmValidation.getFarmByImageSchema.validate(req.query);
+    // ✅ Validate body
+    const { error, value } = FarmValidation.getFarmByImageSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -678,12 +677,21 @@ exports.getFarmByImageUrl = async (req, res) => {
       });
     }
 
-    const imageUrl = value.imageurl;
-    console.log('image url printing:', imageUrl);
+    const { farmId, imageurl } = value;
+    console.log('farmId:', farmId, 'imageurl:', imageurl);
 
-    // 2️⃣ Search for farm with matching image in the array
+    // ✅ Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(farmId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Farm ID.'
+      });
+    }
+
+    // ✅ Search for farm by ID and image match
     const farm = await Farm.findOne({
-      images: imageUrl,
+      _id: farmId,
+      images: imageurl,
       isActive: true,
       isApproved: true
     })
@@ -693,11 +701,11 @@ exports.getFarmByImageUrl = async (req, res) => {
     if (!farm) {
       return res.status(404).json({
         success: false,
-        message: 'No farm found with the provided image URL.'
+        message: 'No farm found with the provided ID and image URL.'
       });
     }
 
-    // 3️⃣ Respond with populated farm
+    // ✅ Respond with populated farm details
     return res.status(200).json({
       success: true,
       message: 'Farm found successfully.',
@@ -712,6 +720,7 @@ exports.getFarmByImageUrl = async (req, res) => {
     });
   }
 };
+
 const cleanInput = (input) => {
   const clone = { ...input };
 

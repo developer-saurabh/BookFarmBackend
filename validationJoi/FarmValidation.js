@@ -302,8 +302,14 @@ exports.FilterQueeryFarm = Joi.object({
   allowUnknown: true   // Allow extra keys in the request body for future compatibility
 });
 
-
 exports.getFarmByImageSchema = Joi.object({
+  farmId: Joi.string()
+    .required()
+    .messages({
+      'string.base': 'Farm ID must be a string.',
+      'string.empty': 'Farm ID is required.',
+      'any.required': 'Farm ID is required.'
+    }),
   imageurl: Joi.string()
     .uri({ scheme: ['http', 'https'] })
     .required()
