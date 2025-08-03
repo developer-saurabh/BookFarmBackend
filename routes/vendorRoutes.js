@@ -6,6 +6,9 @@ const { vendorAuth } = require('../middlewares/Auth');
 
 // auth 
 router.post('/register', vendorController.registerVendor);
+router.post('/verify_register_otp', vendorController.verifyVendorOtp);
+router.post('/resend_otp', vendorController.resendVendorOtp);
+
 router.post('/login', vendorController.loginVendor);
 
 // Forgot Password

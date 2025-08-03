@@ -14,61 +14,178 @@ const {messages}=require("../messageTemplates/Message");
 
 
 
-// Auth Apis
+// Register  Apis
 
 exports.registerVendor = async (req, res) => {
   try {
-    // ✅ 1) Validate input with Joi
+    // ✅ 1. Validate input
     const { error, value } = VendorValiidation.vendorRegistrationSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({ error: error.details[0].message });
+      return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
-    // ✅ 2) Extra Safety Check: Password & Confirm Password Match
+    // ✅ 2. Confirm password match
     if (value.password !== value.confirmPassword) {
-      return res.status(400).json({ error: 'Password and Confirm Password do not match.' });
+      return res.status(400).json({ success: false, message: 'Password and Confirm Password do not match.' });
     }
 
-    // ✅ 3) Check for duplicate email
+    // ✅ 3. Check if email already exists
     const existingEmail = await Vendor.findOne({ email: value.email });
     if (existingEmail) {
-      return res.status(409).json({ error: 'A vendor with this email already exists.' });
+      return res.status(409).json({ success: false, message: 'Vendor with this email already exists.' });
     }
 
-    // ✅ 4) Check for duplicate phone
+    // ✅ 4. Check if phone already exists
     const existingPhone = await Vendor.findOne({ phone: value.phone });
     if (existingPhone) {
-      return res.status(409).json({ error: 'A vendor with this phone number already exists.' });
+      return res.status(409).json({ success: false, message: 'Vendor with this phone number already exists.' });
     }
 
-    // ✅ 5) Hash password securely
+    // ✅ 5. Generate secure OTP
+   
+    // ✅ 5. Generate OTP (compatible with all Node versions)
+       const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP valid for 10 minutes
     const hashedPassword = await bcrypt.hash(value.password, 10);
 
-    // ✅ 6) Save vendor
-    const vendor = new Vendor({
-      name: value.name,
+    // ✅ 6. Store OTP and temp vendor data
+    await Otp.findOneAndUpdate(
+      { email: value.email },
+      {
+        otp: otpCode,
+        expiresAt,
+        isVerified: false,
+        tempVendorData: {
+          name: value.name,
+          email: value.email,
+          phone: value.phone,
+          aadhar_number: value.aadhar_number,
+          password: hashedPassword
+        }
+      },
+      { upsert: true, new: true }
+    );
+
+    // ✅ 7. Use email template & send OTP
+    const { subject, html } = messages.vendorRegistrationOtp({ name: value.name, otp: otpCode });
+    await sendEmail(value.email, subject, html);
+
+    // ✅ 8. Success Response
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully to your email. Please verify to complete registration.',
       email: value.email,
-      phone: value.phone,
-      password: hashedPassword,
-      aadhar_number: value.aadhar_number
-    });
-
-    await vendor.save();
-
-    // ✅ 6) Notify admin
-    // await sendAdminEmail({
-    //   subject: '🆕 New Vendor Registration',
-    //   text: `A new vendor has registered: ${vendor.name} (${vendor.email}). Please review and verify.`
-    // });
-    return res.status(201).json({
-      message: '✅ Vendor registered successfully. Awaiting admin approval.'
+      otp:otpCode
     });
 
   } catch (err) {
-    console.error('🚨 Error registering vendor:', err);
+    console.error("🚨 Error in registerVendor:", err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+exports.verifyVendorOtp = async (req, res) => {
+  try {
+    // ✅ Validate input
+    const { error, value } = VendorValiidation.verifyOtpSchema.validate(req.body);
+    if (error) return res.status(400).json({ error: error.details[0].message });
+
+    const { email, otp } = value;
+
+    const otpDoc = await Otp.findOne({ email });
+    if (!otpDoc) return res.status(400).json({ error: 'OTP not found. Please request a new one.' });
+    if (otpDoc.isVerified) return res.status(400).json({ error: 'OTP already used.' });
+    if (otpDoc.expiresAt < new Date()) return res.status(400).json({ error: 'OTP expired. Please request a new one.' });
+    if (otpDoc.otp !== otp) return res.status(400).json({ error: 'Invalid OTP.' });
+
+    // ✅ Mark OTP as verified
+    otpDoc.isVerified = true;
+    await otpDoc.save();
+
+    // ✅ Get temp vendor data
+    const vendorData = otpDoc.tempVendorData;
+    if (!vendorData || !vendorData.email) return res.status(400).json({ error: 'Vendor data missing. Please re-register.' });
+
+    // ✅ Create vendor
+    const newVendor = new Vendor(vendorData);
+    await newVendor.save();
+
+    // ✅ Delete OTP doc after successful verification (cleanup)
+    await Otp.deleteOne({ email });
+
+    return res.status(201).json({
+      message: '✅ Email verified & vendor registered successfully. Awaiting admin approval.',
+      vendorId: newVendor._id
+    });
+
+  } catch (err) {
+    console.error("🚨 Error in verifyVendorOtp:", err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+exports.resendVendorOtp = async (req, res) => {
+  try {
+    const { error, value } = VendorValiidation.resendOtpSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, message: error.details[0].message });
+
+    const { email } = value;
+
+    // ✅ If vendor is already registered, prevent resending OTP
+    const existingVendor = await Vendor.findOne({ email });
+    if (existingVendor) {
+      return res.status(409).json({ success: false, message: 'Vendor already registered with this email.' });
+    }
+
+    // ✅ Fetch existing OTP document
+    const otpDoc = await Otp.findOne({ email });
+    if (!otpDoc) {
+      return res.status(400).json({ success: false, message: 'Registration not initiated. Please register first.' });
+    }
+
+    // ✅ Check rate limit: last OTP sent within 1 minute?
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    if (otpDoc.updatedAt > oneMinuteAgo) {
+      const waitTime = Math.ceil((otpDoc.updatedAt.getTime() + 60000 - Date.now()) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `You can request a new OTP after ${waitTime} seconds.`
+      });
+    }
+
+    // ✅ Generate new OTP (secure fallback)
+    let otpCode;
+    try {
+      otpCode = (parseInt(crypto.randomBytes(3).toString('hex'), 16) % 1000000)
+        .toString()
+        .padStart(6, '0');
+    } catch (err) {
+      otpCode = Math.floor(100000 + Math.random() * 900000).toString(); // fallback
+    }
+
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // ✅ Update OTP while keeping tempVendorData intact
+    otpDoc.otp = otpCode;
+    otpDoc.expiresAt = expiresAt;
+    otpDoc.isVerified = false;
+    await otpDoc.save();
+
+    // ✅ Use template for resend
+    const { subject, html } = messages.vendorRegistrationOtp({ name: otpDoc.tempVendorData?.name || 'Vendor', otp: otpCode });
+    await sendEmail(email, subject, html);
+
+    return res.status(200).json({
+      success: true,
+      message: 'New OTP sent successfully. Please check your email.'
+    });
+
+  } catch (err) {
+    console.error("🚨 Error in resendVendorOtp:", err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+// Login apis
 exports.loginVendor = async (req, res) => {
   try {
     // ✅ 1) Validate input

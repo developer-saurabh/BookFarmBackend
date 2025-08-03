@@ -8,7 +8,8 @@ const alphaNumericSpacePunctuation = /^[a-zA-Z0-9 .,'"()-]*$/;
 const alphaSpace = /^[A-Za-z\s]+$/;
 const numericOnly = /^[0-9]+$/;
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
-
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Register Vendor 
 exports.vendorRegistrationSchema = Joi.object({
   name: Joi.string()
     .pattern(nameRegex)
@@ -59,6 +60,18 @@ exports.vendorRegistrationSchema = Joi.object({
     })
 });
 
+exports.verifyOtpSchema = Joi.object({
+  email: Joi.string().pattern(emailPattern).required()
+    .messages({ "string.pattern.base": "Invalid email format." }),
+  otp: Joi.string().length(6).required()
+    .messages({ "string.length": "OTP must be 6 digits." })
+});
+
+
+exports.resendOtpSchema = Joi.object({
+  email: Joi.string().pattern(emailPattern).required()
+    .messages({ "string.pattern.base": "Invalid email format." })
+});
 // Forgot Password 
 
 exports.forgotPasswordRequestSchema = Joi.object({
@@ -102,6 +115,10 @@ exports.changePasswordSchema = Joi.object({
   })
 }).unknown(false);
 const timePattern = /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]?\d|2[0-3]):([0-5]\d)$/;
+
+
+// Add Farm 
+
 
 exports.farmAddValidationSchema = Joi.object({
   farmId: Joi.string().pattern(objectIdPattern).optional(),
