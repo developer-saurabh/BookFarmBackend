@@ -569,10 +569,10 @@ exports.getFarmById = async (req, res) => {
 
     // 📅 Get next 7 days (from today)
     const today = moment().startOf('day');
-    const next7Days = [];
-    for (let i = 0; i < 7; i++) {
-      next7Days.push(today.clone().add(i, 'days'));
-    }
+    const next30Days = [];
+  for (let i = 0; i < 30; i++) {
+  next30Days.push(today.clone().add(i, 'days'));
+}
 
     // 🛑 Remove unavailableDates
     const blockedDates = (farm.unavailableDates || []).map(date =>
@@ -580,14 +580,14 @@ exports.getFarmById = async (req, res) => {
     );
 
     // 📦 Fetch bookings for this farm in the next 7 days
-    const bookings = await FarmBooking.find({
-      farm: farm._id,
-      date: {
-        $gte: today.toDate(),
-        $lte: today.clone().add(6, 'days').endOf('day').toDate()
-      },
-      status: { $in: ['pending', 'confirmed'] }
-    });
+ const bookings = await FarmBooking.find({
+  farm: farm._id,
+  date: {
+    $gte: today.toDate(),
+    $lte: today.clone().add(29, 'days').endOf('day').toDate() // ✅ 30 days window
+  },
+  status: { $in: ['pending', 'confirmed'] }
+});
 
     // 📊 Create map of booked modes by date
     const bookingMap = {};
@@ -601,7 +601,7 @@ exports.getFarmById = async (req, res) => {
 
     // ✅ Build availability array with day name
  // ✅ Build availability array with day name
-const availability = next7Days.map(dayMoment => {
+const availability = next30Days.map(dayMoment => {
   const dateStr = dayMoment.format('YYYY-MM-DD');
   const dayName = dayMoment.format('dddd');
   const isBlocked = blockedDates.includes(dateStr);
