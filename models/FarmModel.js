@@ -65,28 +65,49 @@ const farmSchema = new mongoose.Schema(
       default: ["full_day"],
     },
 
-    // 💰 Pricing
-    dailyPricing: [
-      {
-        date: { type: Date },
-        slots: {
-          full_day: { type: Number, default: 0 },
-          day_slot: { type: Number, default: 0 },
-          night_slot: { type: Number, default: 0 },
-        },
+dailyPricing: [
+  {
+    date: { type: Date },
+    slots: {
+      full_day: { type: Number, default: 0 },
+      day_slot: { type: Number, default: 0 },
+      night_slot: { type: Number, default: 0 },
+    },
+    timings: {    // ✅ Added timings object
+      full_day: {
         checkIn: { type: String, default: "10:00" },
         checkOut: { type: String, default: "18:00" },
       },
-    ],
-
-    defaultPricing: {
-      full_day: { type: Number },
-      day_slot: { type: Number },
-      night_slot: { type: Number },
-    },
-
-    defaultCheckIn: { type: String, default: "10:00" },
-    defaultCheckOut: { type: String, default: "18:00" },
+      day_slot: {
+        checkIn: { type: String, default: "10:00" },
+        checkOut: { type: String, default: "15:00" },
+      },
+      night_slot: {
+        checkIn: { type: String, default: "16:00" },
+        checkOut: { type: String, default: "22:00" },
+      }
+    }
+  },
+],
+defaultPricing: {
+  full_day: { type: Number },
+  day_slot: { type: Number },
+  night_slot: { type: Number },
+},
+defaultTimings: {   // ✅ Add per-slot timings
+  full_day: {
+    checkIn: { type: String, default: "10:00" },
+    checkOut: { type: String, default: "18:00" },
+  },
+  day_slot: {
+    checkIn: { type: String, default: "10:00" },
+    checkOut: { type: String, default: "15:00" },
+  },
+  night_slot: {
+    checkIn: { type: String, default: "16:00" },
+    checkOut: { type: String, default: "22:00" },
+  }
+},
 
     currency: { type: String, default: "INR" },
 

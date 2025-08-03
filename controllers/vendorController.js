@@ -475,46 +475,37 @@ if (req.body.areaImages) {
 }
     // ✅ 9. Validate Daily Pricing (if provided)
     if (value.dailyPricing?.length) {
-      const validateDailyPricing = (dailyPricing) => {
-        const seen = new Set();
-        const timeRegex = /^(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)$/i;
+     const validateDailyPricing = (dailyPricing) => {
+  const seen = new Set();
+  const timeRegex = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/; // 24-hour format HH:mm
 
-        const to24 = (t) => {
-          if (!t) return null;
-          const [raw, mod] = t.trim().split(/\s+/);
-          let [h, m] = raw.split(":").map(Number);
-          if (mod?.toUpperCase() === "PM" && h !== 12) h += 12;
-          if (mod?.toUpperCase() === "AM" && h === 12) h = 0;
-          return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-        };
+  dailyPricing.forEach((p) => {
+    const isoDate = new Date(p.date).toISOString().split("T")[0];
+    if (seen.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
+    seen.add(isoDate);
 
-        dailyPricing.forEach((p) => {
-          const isoDate = new Date(p.date).toISOString().split("T")[0];
-          if (seen.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
-          seen.add(isoDate);
+    // ✅ Ensure timings object exists
+    if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
 
-          p.checkIn = p.checkIn || "10:00 AM";
-          p.checkOut = p.checkOut || "06:00 PM";
+    // ✅ Validate each slot timings
+    ["full_day", "day_slot", "night_slot"].forEach(slot => {
+      const t = p.timings[slot];
+      if (!t) throw new Error(`Missing timings for ${slot} on ${isoDate}`);
+      if (!timeRegex.test(t.checkIn) || !timeRegex.test(t.checkOut)) {
+        throw new Error(`Invalid time format for ${slot} on ${isoDate}. Use HH:mm`);
+      }
 
-          if (!timeRegex.test(p.checkIn) || !timeRegex.test(p.checkOut)) {
-            throw new Error(`Invalid time format for ${isoDate}. Use hh:mm AM/PM`);
-          }
+      // Compare times (in minutes)
+      const [inH, inM] = t.checkIn.split(":").map(Number);
+      const [outH, outM] = t.checkOut.split(":").map(Number);
+      if (inH * 60 + inM >= outH * 60 + outM) {
+        throw new Error(`Check-In must be before Check-Out for ${slot} on ${isoDate}`);
+      }
+    });
+  });
 
-          const in24 = to24(p.checkIn);
-          const out24 = to24(p.checkOut);
-          const [inH, inM] = in24.split(":").map(Number);
-          const [outH, outM] = out24.split(":").map(Number);
-
-          if (inH * 60 + inM >= outH * 60 + outM) {
-            throw new Error(`Check-In must be before Check-Out for ${isoDate}`);
-          }
-
-          p.checkIn = in24;
-          p.checkOut = out24;
-        });
-
-        return dailyPricing;
-      };
+  return dailyPricing;
+};
 
       try {
         value.dailyPricing = validateDailyPricing(value.dailyPricing);
