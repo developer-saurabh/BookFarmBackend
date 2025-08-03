@@ -4,8 +4,7 @@ const vendorController = require('../controllers/vendorController');
 const ParseNest = require('../utils/ParseNest');
 const { vendorAuth } = require('../middlewares/Auth');
 
-
-// Example: protect this with an isSuperAdmin middleware in production
+// auth 
 router.post('/register', vendorController.registerVendor);
 router.post('/login', vendorController.loginVendor);
 
@@ -19,9 +18,14 @@ router.post('/forgot_password_reset', vendorController.forgotPasswordReset);
 
 router.post('/change_password',vendorAuth, vendorController.changePassword);
 
+// farms 
 
 router.post('/add_Farm',ParseNest,vendorAuth,vendorController.addOrUpdateFarm);
 router.post('/add_Farm_images',ParseNest,vendorAuth,vendorController.updateFarmImages);
 
+// all categoriess and facilites 
+
+router.get('/get_all_categories',ParseNest,vendorAuth,vendorController.getAllCategories);
+router.get('/get_all_facilites',ParseNest,vendorAuth,vendorController.getAllFacilities);
 module.exports = router;
     
