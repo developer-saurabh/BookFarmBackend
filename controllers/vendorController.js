@@ -939,6 +939,69 @@ exports.getVendorFarms = async (req, res) => {
   }
 };
 
+
+exports.getVendorFarmById = async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+
+    // ✅ 1. Validate Request Body
+    const { error, value } = VendorValiidation.getFarmByVendorSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { farmId } = value;
+
+    // ✅ 2. Check if farmId is valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(farmId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid farmId format"
+      });
+    }
+
+    // ✅ 3. Check if farm exists (without owner check first)
+    const farmExists = await Farm.findById(farmId)
+      .populate("farmCategory", "_id name")
+      .populate("facilities", "_id name icon");
+
+    if (!farmExists) {
+      return res.status(404).json({
+        success: false,
+        message: "Farm not found. Please check the farmId and try again.This Farm Not Belongs To YOU!!!!"
+      });
+    }
+
+    // ✅ 4. Check if the farm belongs to the vendor
+    if (farmExists.owner.toString() !== ownerId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to access this farm."
+      });
+    }
+
+    // ✅ 5. Send Success Response
+    return res.status(200).json({
+      success: true,
+      message: "Farm details fetched successfully",
+      data: farmExists
+    });
+
+  } catch (err) {
+    console.error("[GetVendorFarmById Error]", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message
+    });
+  }
+};
+
+
 exports.getAllFacilities = async (req, res) => {
   try {
     // You can add query filters later if needed
@@ -1041,5 +1104,68 @@ exports.updateFarmImages = async (req, res) => {
   } catch (err) {
     console.error('[updateFarmImages Error]', err);
     return res.status(500).json({ error: 'Server error. Please try again later.' });
+  }
+};
+
+
+// delete farm
+
+
+exports.deleteVendorFarm = async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+
+    // ✅ Step 1: Validate Request Body
+    const { error, value } = VendorValiidation.deleteVendorFarmSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { farmId } = value;
+
+    // ✅ Step 2: Check if farmId is valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(farmId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid farmId format"
+      });
+    }
+
+    // ✅ Step 3: Check if farm exists
+    const farm = await Farm.findById(farmId);
+    if (!farm) {
+      return res.status(404).json({
+        success: false,
+        message: "Farm not found. Please check the farmId."
+      });
+    }
+
+    // ✅ Step 4: Check if the farm belongs to the vendor
+    if (farm.owner.toString() !== ownerId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to delete this farm."
+      });
+    }
+
+    // ✅ Step 5: Delete Farm
+    await Farm.deleteOne({ _id: farmId });
+
+    return res.status(200).json({
+      success: true,
+      message: `Farm '${farm.name}' has been deleted successfully.`
+    });
+
+  } catch (err) {
+    console.error("[DeleteVendorFarm Error]", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message
+    });
   }
 };

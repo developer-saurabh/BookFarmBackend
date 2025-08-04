@@ -29,8 +29,11 @@ router.post('/add_Farm_images',ParseNest,vendorAuth,vendorController.updateFarmI
 // get vendor farmns
 
 router.post('/get_vendor_farm',ParseNest,vendorAuth,vendorController.getVendorFarms);
+router.post('/get_vendor_farm_by_id',ParseNest,vendorAuth,vendorController.getVendorFarmById);
 
+// delte farm 
 
+router.delete('/delete_vendor_farm',ParseNest,vendorAuth,vendorController.deleteVendorFarm);
 // all categoriess and facilites 
 
 router.get('/get_all_categories',ParseNest,vendorAuth,vendorController.getAllCategories);

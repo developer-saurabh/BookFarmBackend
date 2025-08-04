@@ -261,6 +261,27 @@ exports.getVendorFarmsSchema = Joi.object({
     .custom((val) => (val === "" ? 10 : Number(val)))
 });
 
+
+exports.getFarmByVendorSchema = Joi.object({
+  farmId: Joi.string()
+    .required()
+    .pattern(/^[0-9a-fA-F]{24}$/) // ✅ Must be valid ObjectId format
+    .messages({
+      "any.required": "farmId is required",
+      "string.pattern.base": "farmId must be a valid MongoDB ObjectId"
+    })
+});
+
+// delete farm
+exports.deleteVendorFarmSchema = Joi.object({
+  farmId: Joi.string()
+    .required()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .messages({
+      "any.required": "farmId is required",
+      "string.pattern.base": "farmId must be a valid MongoDB ObjectId"
+    })
+});
 exports.updateFarmImagesSchema = Joi.object({
   farm_id: Joi.string()
     .pattern(objectIdRegex)
