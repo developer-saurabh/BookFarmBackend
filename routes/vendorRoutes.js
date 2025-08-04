@@ -34,9 +34,16 @@ router.post('/get_vendor_farm_by_id',ParseNest,vendorAuth,vendorController.getVe
 // delte farm 
 
 router.delete('/delete_vendor_farm',ParseNest,vendorAuth,vendorController.deleteVendorFarm);
+
+
 // all categoriess and facilites 
 
 router.get('/get_all_categories',ParseNest,vendorAuth,vendorController.getAllCategories);
 router.get('/get_all_facilites',ParseNest,vendorAuth,vendorController.getAllFacilities);
+
+// get vendor booking
+
+router.post('/get_vendor_farm_bookings',ParseNest,vendorAuth,vendorController.getVendorFarmBookings);
+router.post('/get_booking_details',ParseNest,vendorAuth,vendorController.getBookingByBookingId);
 module.exports = router;
     

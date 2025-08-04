@@ -1191,3 +1191,183 @@ exports.deleteVendorFarm = async (req, res) => {
     });
   }
 };
+
+
+
+exports.getVendorFarmBookings = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+
+    // ✅ 1. Validate Request Body
+   const { error, value } =VendorValiidation. getVendorBookingsSchema.validate(req.body, { abortEarly: false, allowUnknown: true });
+if (error) {
+  return res.status(400).json({
+    success: false,
+    message: "Validation failed", 
+    errors: error.details.map(e => e.message)
+  });
+}
+
+let { status, search, startDate, endDate, page, limit } = value;
+
+// ✅ Normalize empty strings
+if (!status) status = ""; // means no status filter
+if (!search) search = "";
+
+    // ✅ 2. Get all farms owned by vendor
+    const vendorFarms = await Farm.find({ owner: vendorId }).select("_id").lean();
+    if (!vendorFarms.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No farms found for this vendor. No bookings available."
+      });
+    }
+
+    const farmIds = vendorFarms.map(f => f._id);
+
+    // ✅ 3. Build Booking Query
+    const query = { farm: { $in: farmIds } };
+
+    if (status) query.status = status;
+
+    // ✅ 4. Search by customer name or phone
+    if (search && search.trim() !== "") {
+      query.$or = [
+        { customerName: { $regex: search.trim(), $options: "i" } },
+        { customerPhone: { $regex: search.trim(), $options: "i" } }
+      ];
+    }
+
+    // ✅ 5. Filter by date range
+    if (startDate && endDate) {
+      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    } else if (startDate) {
+      query.date = { $gte: new Date(startDate) };
+    } else if (endDate) {
+      query.date = { $lte: new Date(endDate) };
+    }
+
+    // ✅ 6. Pagination
+    const skip = (page - 1) * limit;
+
+    // ✅ 7. Fetch Bookings (Optimized with .lean())
+    const bookings = await FarmBooking.find(query)
+      .populate("farm", "_id name address farmCategory")
+      .sort({ date: -1 }) // latest bookings first
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const totalBookings = await FarmBooking.countDocuments(query);
+
+    // ✅ 8. Response
+    return res.status(200).json({
+      success: true,
+      message: "Vendor farm bookings fetched successfully",
+      total: totalBookings,
+      page,
+      limit,
+      data: bookings
+    });
+
+  } catch (err) {
+    console.error("[GetVendorFarmBookings Error]", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message
+    });
+  }
+};
+
+
+exports.getBookingByBookingId = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate input
+    const { error, value } = VendorValiidation.getBookingByIdSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { booking_id } = value;
+
+    // ✅ Step 2: Find booking with populated farm
+    const booking = await FarmBooking.findOne({ Booking_id: booking_id })
+      .populate('customer')
+      .populate('farm');
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    // ✅ Step 3: Convert to object
+    const bookingObj = booking.toObject();
+
+    // ✅ Helper to convert HH:mm → hh:mm AM/PM
+    const toAmPm = (time) => {
+      if (!time) return null;
+      let [h, m] = time.split(":").map(Number);
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      return `${h}:${m.toString().padStart(2, "0")} ${ampm}`;
+    };
+
+    // ✅ Step 4: Extract checkIn/checkOut for booking date
+    let checkInOut = {};
+    if (bookingObj.farm?.dailyPricing && bookingObj.date) {
+      const bookingDate = new Date(bookingObj.date).toISOString().split('T')[0];
+
+      const matched = bookingObj.farm.dailyPricing.find(dp => {
+        const dpDate = new Date(dp.date).toISOString().split('T')[0];
+        return dpDate === bookingDate;
+      });
+
+      if (matched) {
+        checkInOut = { 
+          checkIn: toAmPm(matched.checkIn), 
+          checkOut: toAmPm(matched.checkOut) 
+        };
+      }
+    }
+
+    // ✅ Step 5: Remove unwanted fields
+    delete bookingObj.__v;
+    delete bookingObj.createdAt;
+    delete bookingObj.updatedAt;
+
+    if (bookingObj.farm) {
+      delete bookingObj.farm.__v;
+      delete bookingObj.farm.createdAt;
+      delete bookingObj.farm.updatedAt;
+      delete bookingObj.farm.location;
+      delete bookingObj.farm.defaultPricing;
+      delete bookingObj.farm.farmCategory;
+      delete bookingObj.farm.images;
+      delete bookingObj.farm.bookingModes;
+      delete bookingObj.farm.facilities;
+      delete bookingObj.farm.owner;
+      delete bookingObj.farm.currency;
+      delete bookingObj.farm.capacity;
+      delete bookingObj.farm.unavailableDates;
+      delete bookingObj.farm.isActive;
+      delete bookingObj.farm.isApproved;
+      delete bookingObj.farm.dailyPricing;
+
+      // ✅ Add only AM/PM formatted times
+      bookingObj.farm.checkInOut = checkInOut;
+    }
+
+    // ✅ Step 6: Send clean response
+    res.status(200).json({
+      message: 'Booking details fetched successfully',
+      data: bookingObj
+    });
+
+  } catch (err) {
+    console.error('[GetBookingByBookingId Error]', err);
+    res.status(500).json({ error: 'Server error. Please try again later.' });
+  }
+};
