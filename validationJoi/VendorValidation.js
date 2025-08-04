@@ -246,8 +246,20 @@ exports.farmAddValidationSchema = Joi.object({
 }).options({ abortEarly: false, allowUnknown: true });
 
 
+// get farm 
 
-
+exports.getVendorFarmsSchema = Joi.object({
+  search: Joi.string().allow("").optional().default(""),
+  status: Joi.string().allow("").valid("active", "inactive", "all", "").default("all"),
+  page: Joi.alternatives()
+    .try(Joi.number().integer().min(1), Joi.string().allow(""))
+    .default(1)
+    .custom((val) => (val === "" ? 1 : Number(val))),
+  limit: Joi.alternatives()
+    .try(Joi.number().integer().min(1).max(100), Joi.string().allow(""))
+    .default(10)
+    .custom((val) => (val === "" ? 10 : Number(val)))
+});
 
 exports.updateFarmImagesSchema = Joi.object({
   farm_id: Joi.string()

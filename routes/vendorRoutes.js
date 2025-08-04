@@ -26,6 +26,11 @@ router.post('/change_password',vendorAuth, vendorController.changePassword);
 router.post('/add_Farm',ParseNest,vendorAuth,vendorController.addOrUpdateFarm);
 router.post('/add_Farm_images',ParseNest,vendorAuth,vendorController.updateFarmImages);
 
+// get vendor farmns
+
+router.post('/get_vendor_farm',ParseNest,vendorAuth,vendorController.getVendorFarms);
+
+
 // all categoriess and facilites 
 
 router.get('/get_all_categories',ParseNest,vendorAuth,vendorController.getAllCategories);
