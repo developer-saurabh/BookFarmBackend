@@ -135,7 +135,12 @@ defaultTimings: {   // ✅ Add per-slot timings
     isActive: { type: Boolean, default: true },
     isApproved: { type: Boolean, default: true },
     isHold: { type: Boolean, default: false },
+     // 🔥 NEW FIELDS
+    currentStep: { type: Number, default: 1 },
+    isDraft: { type: Boolean, default: true },
+    completedSteps: { type: [Number], default: [] }
   },
+  
   { timestamps: true }
 );
 

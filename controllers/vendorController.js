@@ -472,254 +472,35 @@ exports.changePassword = async (req, res) => {
 // Farms Apis
 
 
-// exports.addOrUpdateFarm = async (req, res) => {
-//   try {
-
-//     // ✅ Parse areaImages if it's sent as a string
-// if (req.body.areaImages && typeof req.body.areaImages === "string") {
-//   try {
-//     req.body.areaImages = JSON.parse(req.body.areaImages);
-//   } catch (err) {
-//     return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
-//   }
-// }
-
-// // ✅ Do the same for address, rules, propertyDetails if needed
-// ["rules", "address", "propertyDetails"].forEach(key => {
-//   if (req.body[key] && typeof req.body[key] === "string") {
-//     try { req.body[key] = JSON.parse(req.body[key]); } catch {}
-//   }
-// });
-//     // ✅ 1. Validate Request with Joi
-//     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
-//       req.body,
-//       { abortEarly: false, allowUnknown: true }
-//     );
-
-//     if (error) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Validation failed",
-//         errors: error.details.map(err => err.message)
-//       });
-//     }
-
-//     const ownerId = req.user.id;
-//     value.owner = ownerId;
-//     const farmId = value.farmId;
-
-//     // ✅ 2. Verify Vendor
-//     const vendor = await Vendor.findById(ownerId);
-//     if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found." });
-//     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
-//       return res.status(403).json({ success: false, message: "Vendor is not eligible to create/update farms." });
-//     }
-
-//     // ✅ 3. Validate farmCategory if provided
-//     if (value.farmCategory) {
-//   const categoryExists = await FarmCategory.findById(value.farmCategory);
-//   if (!categoryExists) {
-//     return res.status(400).json({ success: false, message: "Invalid farm category ID." });
-//   }
-// }
-
-//     // ✅ 4. Validate facilities if provided
-//     if (value.facilities?.length) {
-//       const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
-//       if (validFacilities.length !== value.facilities.length) {
-//         return res.status(400).json({ success: false, message: "One or more facilities IDs are invalid." });
-//       }
-//     }
-
-//     // ✅ 5. Embedded Rules → Ensure Always Array
-//     if (value.rules) {
-//       if (!Array.isArray(value.rules)) {
-//         value.rules = [value.rules]; // normalize single object to array
-//       }
-//     }
-
-//     // ✅ 6. Embedded Property Details → No DB Lookup
-//     if (value.propertyDetails && typeof value.propertyDetails !== "object") {
-//       return res.status(400).json({ success: false, message: "propertyDetails must be an object." });
-//     }
-
-//     // ✅ 7. Embedded Address → Must Be Object
-//     if (value.address && typeof value.address !== "object") {
-//       return res.status(400).json({ success: false, message: "Address must be an object." });
-//     }
-// // ✅ 8. Handle General Farm Images (main gallery)
-// if (req.files?.images || req.files?.image) {
-//   const imagesArray = Array.isArray(req.files.images) ? req.files.images : [req.files.image];
-//   const uploadedUrls = await uploadFilesToCloudinary(imagesArray, "farms");
-//   value.images = uploadedUrls;
-// }
-
-// // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
-// // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
-// if (req.body.areaImages) {
-//   // ✅ Ensure areaImages is parsed if sent as string
-//   let areaImagesParsed;
-//   try {
-//     areaImagesParsed = typeof req.body.areaImages === "string" ? JSON.parse(req.body.areaImages) : req.body.areaImages;
-//   } catch (err) {
-//     return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
-//   }
-
-//   const areaImagesData = [];
-
-//   // ✅ Loop through each area group
-//   for (let i = 0; i < areaImagesParsed.length; i++) {
-//     const area = areaImagesParsed[i];
-//     const fieldKey = `areaImages[${i}][images]`; // This matches Postman key names
-
-//     // ✅ Find corresponding files in req.files
-//     const files = req.files?.[fieldKey];
-//     let uploadedUrls = [];
-
-//     if (files) {
-//       const filesArray = Array.isArray(files) ? files : [files];
-//       uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${area.areaType}`);
-//     }
-
-//     // ✅ Push final structure
-//     areaImagesData.push({
-//       areaType: area.areaType,
-//       images: uploadedUrls
-//     });
-//   }
-
-//   value.areaImages = areaImagesData;
-// }
-//     // ✅ 9. Validate Daily Pricing (if provided)
-//     if (value.dailyPricing?.length) {
-//      const validateDailyPricing = (dailyPricing) => {
-//   const seen = new Set();
-//  const timeRegex = /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
-
-// const toMinutes = (timeStr) => {
-//   if (/AM|PM/i.test(timeStr)) {
-//     // AM/PM conversion
-//     const [, hh, mm, meridian] = timeStr.match(/(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i);
-//     let hours = parseInt(hh, 10);
-//     const minutes = parseInt(mm, 10);
-//     if (meridian.toUpperCase() === "PM" && hours !== 12) hours += 12;
-//     if (meridian.toUpperCase() === "AM" && hours === 12) hours = 0;
-//     return hours * 60 + minutes;
-//   } else {
-//     // 24-hour format
-//     const [h, m] = timeStr.split(":").map(Number);
-//     return h * 60 + m;
-//   }
-// };
-
-//   dailyPricing.forEach((p) => {
-//     const isoDate = new Date(p.date).toISOString().split("T")[0];
-//     if (seen.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
-//     seen.add(isoDate);
-
-//     if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
-
-//     ["full_day", "day_slot", "night_slot"].forEach((slot) => {
-//       const t = p.timings[slot];
-//       if (!t) throw new Error(`Missing timings for ${slot} on ${isoDate}`);
-
-//       if (!timeRegex.test(t.checkIn) || !timeRegex.test(t.checkOut)) {
-//         throw new Error(`Invalid time format for ${slot} on ${isoDate}. Use hh:mm AM/PM`);
-//       }
-
-//       const inMin = toMinutes(t.checkIn);
-//       const outMin = toMinutes(t.checkOut);
-
-//       if (inMin >= outMin) {
-//         throw new Error(`Check-In must be before Check-Out for ${slot} on ${isoDate}`);
-//       }
-//     });
-//   });
-
-//   return dailyPricing;
-// };
-//       try {
-//         value.dailyPricing = validateDailyPricing(value.dailyPricing);
-//       } catch (e) {
-//         return res.status(400).json({ success: false, message: e.message });
-//       }
-//     }
-
-//     // ✅ 10. Create or Update Farm Document
-//     let farmDoc;
-//     if (farmId) {
-//       farmDoc = await Farm.findOneAndUpdate(
-//         { _id: farmId, owner: ownerId },
-//         { $set: value },
-//         { new: true }
-//       );
-//       if (!farmDoc) {
-//         return res.status(404).json({ success: false, message: "Farm not found or unauthorized." });
-//       }
-//     } else {
-//       if (value.name) {
-//         const duplicate = await Farm.findOne({ name: value.name, owner: ownerId });
-//         if (duplicate) {
-//           return res.status(409).json({ success: false, message: "A farm with this name already exists." });
-//         }
-//       }
-//       farmDoc = await new Farm(value).save();
-//     }
-
-//     // ✅ 11. Populate References (rules/propertyDetails are embedded, no populate)
-//     const populatedFarm = await Farm.findById(farmDoc._id)
-//       .populate("farmCategory")
-//       .populate("facilities");
-
-//     // ✅ 12. Response
-//     return res.status(farmId ? 200 : 201).json({
-//       success: true,
-//       message: farmId ? "Farm updated successfully." : "Farm created successfully.",
-//       data: populatedFarm
-//     });
-
-//   } catch (err) {
-//     console.error("[AddOrUpdateFarm Error]", err);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error",
-//       error: err.message
-//     });
-//   }
-// };
-
-
 exports.addOrUpdateFarm = async (req, res) => {
   try {
-    // ✅ Parse areaImages if sent as a string
-    if (req.body.areaImages && typeof req.body.areaImages === "string") {
-      try {
-        req.body.areaImages = JSON.parse(req.body.areaImages);
-      } catch (err) {
-        return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
-      }
-    }
 
-    // ✅ Parse other JSON string fields
-    ["rules", "address", "propertyDetails", "defaultTimings"].forEach((key) => {
-      if (req.body[key] && typeof req.body[key] === "string") {
-        try {
-          req.body[key] = JSON.parse(req.body[key]);
-        } catch {}
-      }
-    });
+    // ✅ Parse areaImages if it's sent as a string
+if (req.body.areaImages && typeof req.body.areaImages === "string") {
+  try {
+    req.body.areaImages = JSON.parse(req.body.areaImages);
+  } catch (err) {
+    return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
+  }
+}
 
-    // ✅ 1. Joi Validation
-    const { error, value } = VendorValiidation.farmAddValidationSchema.validate(req.body, {
-      abortEarly: false,
-      allowUnknown: true,
-    });
+// ✅ Do the same for address, rules, propertyDetails if needed
+["rules", "address", "propertyDetails"].forEach(key => {
+  if (req.body[key] && typeof req.body[key] === "string") {
+    try { req.body[key] = JSON.parse(req.body[key]); } catch {}
+  }
+});
+    // ✅ 1. Validate Request with Joi
+    const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
+      req.body,
+      { abortEarly: false, allowUnknown: true }
+    );
 
     if (error) {
       return res.status(400).json({
         success: false,
         message: "Validation failed",
-        errors: error.details.map((err) => err.message),
+        errors: error.details.map(err => err.message)
       });
     }
 
@@ -734,15 +515,15 @@ exports.addOrUpdateFarm = async (req, res) => {
       return res.status(403).json({ success: false, message: "Vendor is not eligible to create/update farms." });
     }
 
-    // ✅ 3. Validate Farm Category
+    // ✅ 3. Validate farmCategory if provided
     if (value.farmCategory) {
-      const categoryExists = await FarmCategory.findById(value.farmCategory);
-      if (!categoryExists) {
-        return res.status(400).json({ success: false, message: "Invalid farm category ID." });
-      }
-    }
+  const categoryExists = await FarmCategory.findById(value.farmCategory);
+  if (!categoryExists) {
+    return res.status(400).json({ success: false, message: "Invalid farm category ID." });
+  }
+}
 
-    // ✅ 4. Validate Facilities
+    // ✅ 4. Validate facilities if provided
     if (value.facilities?.length) {
       const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
       if (validFacilities.length !== value.facilities.length) {
@@ -750,154 +531,545 @@ exports.addOrUpdateFarm = async (req, res) => {
       }
     }
 
-    // ✅ 5. Normalize Rules to Array
-    if (value.rules && !Array.isArray(value.rules)) {
-      value.rules = [value.rules];
+    // ✅ 5. Embedded Rules → Ensure Always Array
+    if (value.rules) {
+      if (!Array.isArray(value.rules)) {
+        value.rules = [value.rules]; // normalize single object to array
+      }
     }
 
-    // ✅ 6. Ensure propertyDetails is Object
+    // ✅ 6. Embedded Property Details → No DB Lookup
     if (value.propertyDetails && typeof value.propertyDetails !== "object") {
       return res.status(400).json({ success: false, message: "propertyDetails must be an object." });
     }
 
-    // ✅ 7. Ensure address is Object
+    // ✅ 7. Embedded Address → Must Be Object
     if (value.address && typeof value.address !== "object") {
       return res.status(400).json({ success: false, message: "Address must be an object." });
     }
+// ✅ 8. Handle General Farm Images (main gallery)
+if (req.files?.images || req.files?.image) {
+  const imagesArray = Array.isArray(req.files.images) ? req.files.images : [req.files.image];
+  const uploadedUrls = await uploadFilesToCloudinary(imagesArray, "farms");
+  value.images = uploadedUrls;
+}
 
-    // ✅ 8. Upload General Images
-    if (req.files?.images || req.files?.image) {
-      const imagesArray = Array.isArray(req.files.images) ? req.files.images : [req.files.image];
-      const uploadedUrls = await uploadFilesToCloudinary(imagesArray, "farms");
-      value.images = uploadedUrls;
+// ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
+// ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
+if (req.body.areaImages) {
+  // ✅ Ensure areaImages is parsed if sent as string
+  let areaImagesParsed;
+  try {
+    areaImagesParsed = typeof req.body.areaImages === "string" ? JSON.parse(req.body.areaImages) : req.body.areaImages;
+  } catch (err) {
+    return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
+  }
+
+  const areaImagesData = [];
+
+  // ✅ Loop through each area group
+  for (let i = 0; i < areaImagesParsed.length; i++) {
+    const area = areaImagesParsed[i];
+    const fieldKey = `areaImages[${i}][images]`; // This matches Postman key names
+
+    // ✅ Find corresponding files in req.files
+    const files = req.files?.[fieldKey];
+    let uploadedUrls = [];
+
+    if (files) {
+      const filesArray = Array.isArray(files) ? files : [files];
+      uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${area.areaType}`);
     }
 
-    // ✅ 9. Handle Area-wise Images
-    if (req.body.areaImages) {
-      const areaImagesParsed = Array.isArray(req.body.areaImages) ? req.body.areaImages : [];
-      const areaImagesData = [];
+    // ✅ Push final structure
+    areaImagesData.push({
+      areaType: area.areaType,
+      images: uploadedUrls
+    });
+  }
 
-      for (let i = 0; i < areaImagesParsed.length; i++) {
-        const area = areaImagesParsed[i];
-        const fieldKey = `areaImages[${i}][images]`;
-        const files = req.files?.[fieldKey];
-        let uploadedUrls = [];
-
-        if (files) {
-          const filesArray = Array.isArray(files) ? files : [files];
-          uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${area.areaType}`);
-        }
-
-        areaImagesData.push({
-          areaType: area.areaType,
-          images: uploadedUrls,
-        });
-      }
-
-      value.areaImages = areaImagesData;
-    }
-
-    // ✅ Helper: Time Parser (Supports HH:mm & hh:mm AM/PM)
-    const toMinutes = (timeStr) => {
-      if (!timeStr) return null;
-
-      // If AM/PM
-      const ampm = timeStr.match(/(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i);
-      if (ampm) {
-        let [, hh, mm, meridian] = ampm;
-        let hours = parseInt(hh, 10);
-        const minutes = parseInt(mm, 10);
-        if (meridian.toUpperCase() === "PM" && hours !== 12) hours += 12;
-        if (meridian.toUpperCase() === "AM" && hours === 12) hours = 0;
-        return hours * 60 + minutes;
-      }
-
-      // If 24-hour
-      const hhmm = timeStr.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
-      if (hhmm) {
-        const [_, hh, mm] = hhmm;
-        return parseInt(hh, 10) * 60 + parseInt(mm, 10);
-      }
-
-      return null;
-    };
-
-    // ✅ Validate Timings (dailyPricing & defaultTimings)
-    const validateTimings = (timings, dateLabel) => {
-      ["full_day", "day_slot", "night_slot"].forEach((slot) => {
-        const t = timings[slot];
-        if (!t) throw new Error(`Missing timings for ${slot} on ${dateLabel}`);
-
-        const inMin = toMinutes(t.checkIn);
-        const outMin = toMinutes(t.checkOut);
-
-        if (inMin === null || outMin === null) {
-          throw new Error(`Invalid time format for ${slot} on ${dateLabel}. Use hh:mm AM/PM or HH:mm`);
-        }
-        if (inMin >= outMin) {
-          throw new Error(`Check-In must be before Check-Out for ${slot} on ${dateLabel}`);
-        }
-      });
-    };
-
-    // ✅ 10. Validate Daily Pricing Timings
+  value.areaImages = areaImagesData;
+}
+    // ✅ 9. Validate Daily Pricing (if provided)
     if (value.dailyPricing?.length) {
-      const seen = new Set();
+     const validateDailyPricing = (dailyPricing) => {
+  const seen = new Set();
+ const timeRegex = /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
+
+const toMinutes = (timeStr) => {
+  if (/AM|PM/i.test(timeStr)) {
+    // AM/PM conversion
+    const [, hh, mm, meridian] = timeStr.match(/(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i);
+    let hours = parseInt(hh, 10);
+    const minutes = parseInt(mm, 10);
+    if (meridian.toUpperCase() === "PM" && hours !== 12) hours += 12;
+    if (meridian.toUpperCase() === "AM" && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  } else {
+    // 24-hour format
+    const [h, m] = timeStr.split(":").map(Number);
+    return h * 60 + m;
+  }
+};
+
+  dailyPricing.forEach((p) => {
+    const isoDate = new Date(p.date).toISOString().split("T")[0];
+    if (seen.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
+    seen.add(isoDate);
+
+    if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
+
+    ["full_day", "day_slot", "night_slot"].forEach((slot) => {
+      const t = p.timings[slot];
+      if (!t) throw new Error(`Missing timings for ${slot} on ${isoDate}`);
+
+      if (!timeRegex.test(t.checkIn) || !timeRegex.test(t.checkOut)) {
+        throw new Error(`Invalid time format for ${slot} on ${isoDate}. Use hh:mm AM/PM`);
+      }
+
+      const inMin = toMinutes(t.checkIn);
+      const outMin = toMinutes(t.checkOut);
+
+      if (inMin >= outMin) {
+        throw new Error(`Check-In must be before Check-Out for ${slot} on ${isoDate}`);
+      }
+    });
+  });
+
+  return dailyPricing;
+};
       try {
-        value.dailyPricing.forEach((p) => {
-          const isoDate = new Date(p.date).toISOString().split("T")[0];
-          if (seen.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
-          seen.add(isoDate);
-          if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
-          validateTimings(p.timings, isoDate);
-        });
+        value.dailyPricing = validateDailyPricing(value.dailyPricing);
       } catch (e) {
         return res.status(400).json({ success: false, message: e.message });
       }
     }
 
-    // ✅ 11. Validate Default Timings
-    if (value.defaultTimings) {
-      try {
-        validateTimings(value.defaultTimings, "defaultTimings");
-      } catch (e) {
-        return res.status(400).json({ success: false, message: e.message });
-      }
-    }
-
-    // ✅ 12. Create or Update Farm
+    // ✅ 10. Create or Update Farm Document
     let farmDoc;
     if (farmId) {
-      farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: value }, { new: true });
-      if (!farmDoc) return res.status(404).json({ success: false, message: "Farm not found or unauthorized." });
+      farmDoc = await Farm.findOneAndUpdate(
+        { _id: farmId, owner: ownerId },
+        { $set: value },
+        { new: true }
+      );
+      if (!farmDoc) {
+        return res.status(404).json({ success: false, message: "Farm not found or unauthorized." });
+      }
     } else {
       if (value.name) {
         const duplicate = await Farm.findOne({ name: value.name, owner: ownerId });
-        if (duplicate) return res.status(409).json({ success: false, message: "A farm with this name already exists." });
+        if (duplicate) {
+          return res.status(409).json({ success: false, message: "A farm with this name already exists." });
+        }
       }
       farmDoc = await new Farm(value).save();
     }
 
-    // ✅ 13. Populate References
+    // ✅ 11. Populate References (rules/propertyDetails are embedded, no populate)
     const populatedFarm = await Farm.findById(farmDoc._id)
       .populate("farmCategory")
       .populate("facilities");
 
-    // ✅ 14. Send Response
+    // ✅ 12. Response
     return res.status(farmId ? 200 : 201).json({
       success: true,
       message: farmId ? "Farm updated successfully." : "Farm created successfully.",
-      data: populatedFarm,
+      data: populatedFarm
     });
+
   } catch (err) {
     console.error("[AddOrUpdateFarm Error]", err);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: err.message,
+      error: err.message
     });
   }
 };
+
+
+// exports.addOrUpdateFarm = async (req, res) => {
+//   try {
+//     // ✅ Parse areaImages if sent as a string
+//     if (req.body.areaImages && typeof req.body.areaImages === "string") {
+//       try {
+//         req.body.areaImages = JSON.parse(req.body.areaImages);
+//       } catch (err) {
+//         return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
+//       }
+//     }
+
+//     // ✅ Parse other JSON string fields
+//     ["rules", "address", "propertyDetails", "defaultTimings"].forEach((key) => {
+//       if (req.body[key] && typeof req.body[key] === "string") {
+//         try {
+//           req.body[key] = JSON.parse(req.body[key]);
+//         } catch {}
+//       }
+//     });
+
+//     // ✅ 1. Joi Validation
+//     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(req.body, {
+//       abortEarly: false,
+//       allowUnknown: true,
+//     });
+
+//     if (error) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Validation failed",
+//         errors: error.details.map((err) => err.message),
+//       });
+//     }
+
+//     const ownerId = req.user.id;
+//     value.owner = ownerId;
+//     const farmId = value.farmId;
+
+//     // ✅ 2. Verify Vendor
+//     const vendor = await Vendor.findById(ownerId);
+//     if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found." });
+//     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
+//       return res.status(403).json({ success: false, message: "Vendor is not eligible to create/update farms." });
+//     }
+
+//     // ✅ 3. Validate Farm Category
+//     if (value.farmCategory) {
+//       const categoryExists = await FarmCategory.findById(value.farmCategory);
+//       if (!categoryExists) {
+//         return res.status(400).json({ success: false, message: "Invalid farm category ID." });
+//       }
+//     }
+
+//     // ✅ 4. Validate Facilities
+//     if (value.facilities?.length) {
+//       const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
+//       if (validFacilities.length !== value.facilities.length) {
+//         return res.status(400).json({ success: false, message: "One or more facilities IDs are invalid." });
+//       }
+//     }
+
+//     // ✅ 5. Normalize Rules to Array
+//     if (value.rules && !Array.isArray(value.rules)) {
+//       value.rules = [value.rules];
+//     }
+
+//     // ✅ 6. Ensure propertyDetails is Object
+//     if (value.propertyDetails && typeof value.propertyDetails !== "object") {
+//       return res.status(400).json({ success: false, message: "propertyDetails must be an object." });
+//     }
+
+//     // ✅ 7. Ensure address is Object
+//     if (value.address && typeof value.address !== "object") {
+//       return res.status(400).json({ success: false, message: "Address must be an object." });
+//     }
+
+//     // ✅ 8. Upload General Images
+//     if (req.files?.images || req.files?.image) {
+//       const imagesArray = Array.isArray(req.files.images) ? req.files.images : [req.files.image];
+//       const uploadedUrls = await uploadFilesToCloudinary(imagesArray, "farms");
+//       value.images = uploadedUrls;
+//     }
+
+//     // ✅ 9. Handle Area-wise Images
+//     if (req.body.areaImages) {
+//       const areaImagesParsed = Array.isArray(req.body.areaImages) ? req.body.areaImages : [];
+//       const areaImagesData = [];
+
+//       for (let i = 0; i < areaImagesParsed.length; i++) {
+//         const area = areaImagesParsed[i];
+//         const fieldKey = `areaImages[${i}][images]`;
+//         const files = req.files?.[fieldKey];
+//         let uploadedUrls = [];
+
+//         if (files) {
+//           const filesArray = Array.isArray(files) ? files : [files];
+//           uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${area.areaType}`);
+//         }
+
+//         areaImagesData.push({
+//           areaType: area.areaType,
+//           images: uploadedUrls,
+//         });
+//       }
+
+//       value.areaImages = areaImagesData;
+//     }
+
+//     // ✅ Helper: Time Parser (Supports HH:mm & hh:mm AM/PM)
+//     const toMinutes = (timeStr) => {
+//       if (!timeStr) return null;
+
+//       // If AM/PM
+//       const ampm = timeStr.match(/(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i);
+//       if (ampm) {
+//         let [, hh, mm, meridian] = ampm;
+//         let hours = parseInt(hh, 10);
+//         const minutes = parseInt(mm, 10);
+//         if (meridian.toUpperCase() === "PM" && hours !== 12) hours += 12;
+//         if (meridian.toUpperCase() === "AM" && hours === 12) hours = 0;
+//         return hours * 60 + minutes;
+//       }
+
+//       // If 24-hour
+//       const hhmm = timeStr.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+//       if (hhmm) {
+//         const [_, hh, mm] = hhmm;
+//         return parseInt(hh, 10) * 60 + parseInt(mm, 10);
+//       }
+
+//       return null;
+//     };
+
+//     // ✅ Validate Timings (dailyPricing & defaultTimings)
+//     const validateTimings = (timings, dateLabel) => {
+//       ["full_day", "day_slot", "night_slot"].forEach((slot) => {
+//         const t = timings[slot];
+//         if (!t) throw new Error(`Missing timings for ${slot} on ${dateLabel}`);
+
+//         const inMin = toMinutes(t.checkIn);
+//         const outMin = toMinutes(t.checkOut);
+
+//         if (inMin === null || outMin === null) {
+//           throw new Error(`Invalid time format for ${slot} on ${dateLabel}. Use hh:mm AM/PM or HH:mm`);
+//         }
+//         if (inMin >= outMin) {
+//           throw new Error(`Check-In must be before Check-Out for ${slot} on ${dateLabel}`);
+//         }
+//       });
+//     };
+
+//     // ✅ 10. Validate Daily Pricing Timings
+//     if (value.dailyPricing?.length) {
+//       const seen = new Set();
+//       try {
+//         value.dailyPricing.forEach((p) => {
+//           const isoDate = new Date(p.date).toISOString().split("T")[0];
+//           if (seen.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
+//           seen.add(isoDate);
+//           if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
+//           validateTimings(p.timings, isoDate);
+//         });
+//       } catch (e) {
+//         return res.status(400).json({ success: false, message: e.message });
+//       }
+//     }
+
+//     // ✅ 11. Validate Default Timings
+//     if (value.defaultTimings) {
+//       try {
+//         validateTimings(value.defaultTimings, "defaultTimings");
+//       } catch (e) {
+//         return res.status(400).json({ success: false, message: e.message });
+//       }
+//     }
+
+//     // ✅ 12. Create or Update Farm
+//     let farmDoc;
+//     if (farmId) {
+//       farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: value }, { new: true });
+//       if (!farmDoc) return res.status(404).json({ success: false, message: "Farm not found or unauthorized." });
+//     } else {
+//       if (value.name) {
+//         const duplicate = await Farm.findOne({ name: value.name, owner: ownerId });
+//         if (duplicate) return res.status(409).json({ success: false, message: "A farm with this name already exists." });
+//       }
+//       farmDoc = await new Farm(value).save();
+//     }
+
+//     // ✅ 13. Populate References
+//     const populatedFarm = await Farm.findById(farmDoc._id)
+//       .populate("farmCategory")
+//       .populate("facilities");
+
+//     // ✅ 14. Send Response
+//     return res.status(farmId ? 200 : 201).json({
+//       success: true,
+//       message: farmId ? "Farm updated successfully." : "Farm created successfully.",
+//       data: populatedFarm,
+//     });
+//   } catch (err) {
+//     console.error("[AddOrUpdateFarm Error]", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//       error: err.message,
+//     });
+//   }
+// };
+
+
+
+exports.handleFarmSteps = async (req, res) => {
+  try {
+    const { step, farmId } = req.body;
+    const ownerId = req.user.id;
+
+    if (!step) return res.status(400).json({ success: false, message: "Step is required" });
+
+    // ✅ Vendor verification
+    const vendor = await Vendor.findById(ownerId);
+    if (!vendor || !vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
+      return res.status(403).json({ success: false, message: "Vendor not authorized to create/update farms" });
+    }
+
+    let updateData = {};
+    let farmDoc;
+
+    // ✅ Step-wise logic
+    switch (parseInt(step)) {
+      /**
+       * STEP 1: Create Farm with Basic Info & Address
+       */
+   case 1: {
+  const { name, description, address } = req.body;
+
+  if (!name || !address) {
+    return res.status(400).json({ success: false, message: "Name & Address are required for Step 1" });
+  }
+
+  if (farmId) {
+    // ✅ If farmId exists, update existing farm instead of creating new
+    farmDoc = await Farm.findOneAndUpdate(
+      { _id: farmId, owner: ownerId },
+      { $set: { name, description, address, currentStep: 1 } },
+      { new: true }
+    );
+    if (!farmDoc) return res.status(404).json({ success: false, message: "Farm not found" });
+  } else {
+    // ✅ If no farmId, create a new farm
+    farmDoc = new Farm({ name, description, address, owner: ownerId, isDraft: true, currentStep: 1 });
+    await farmDoc.save();
+  }
+  break;
+}
+
+      /**
+       * STEP 2: Update Capacity, Category, Default Pricing & Timings
+       */
+      case 2: {
+        if (!farmId) return res.status(400).json({ success: false, message: "farmId is required" });
+
+        const { capacity, farmCategory, defaultPricing, defaultTimings } = req.body;
+
+        if (farmCategory) {
+          const categoryExists = await FarmCategory.findById(farmCategory);
+          if (!categoryExists) return res.status(400).json({ success: false, message: "Invalid farm category ID" });
+        }
+
+        updateData = { capacity, farmCategory, defaultPricing, defaultTimings, currentStep: 2 };
+        farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: updateData }, { new: true });
+        if (!farmDoc) return res.status(404).json({ success: false, message: "Farm not found" });
+        break;
+      }
+
+      /**
+       * STEP 3: Update Daily Pricing & Timings
+       */
+      case 3: {
+        if (!farmId) return res.status(400).json({ success: false, message: "farmId is required" });
+
+        const { dailyPricing } = req.body;
+        if (!Array.isArray(dailyPricing) || !dailyPricing.length) {
+          return res.status(400).json({ success: false, message: "dailyPricing must be a non-empty array" });
+        }
+
+        updateData = { dailyPricing, currentStep: 3 };
+        farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: updateData }, { new: true });
+        break;
+      }
+
+      /**
+       * STEP 4: Update Facilities & Rules
+       */
+      case 4: {
+        if (!farmId) return res.status(400).json({ success: false, message: "farmId is required" });
+
+        const { facilities, rules } = req.body;
+        if (facilities?.length) {
+          const validFacilities = await Facility.find({ _id: { $in: facilities } });
+          if (validFacilities.length !== facilities.length) {
+            return res.status(400).json({ success: false, message: "Invalid facility ID(s)" });
+          }
+        }
+
+        updateData = { facilities, rules, currentStep: 4 };
+        farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: updateData }, { new: true });
+        break;
+      }
+
+      /**
+       * STEP 5: Update Property Details
+       */
+      case 5: {
+        if (!farmId) return res.status(400).json({ success: false, message: "farmId is required" });
+
+        const { propertyDetails } = req.body;
+        if (!propertyDetails) return res.status(400).json({ success: false, message: "propertyDetails is required" });
+
+        updateData = { propertyDetails, currentStep: 5 };
+        farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: updateData }, { new: true });
+        break;
+      }
+
+      /**
+       * STEP 6: Upload Area Images (multipart/form-data)
+       */
+      case 6: {
+        const farmIdForm = req.body.farmId || req.query.farmId;
+        if (!farmIdForm) return res.status(400).json({ success: false, message: "farmId is required" });
+
+        let areaImagesData = [];
+
+        // ✅ Loop through areaTypes
+        Object.keys(req.body).forEach((key) => {
+          if (key.startsWith("areaImages")) {
+            // areaImages[0][areaType]: Pool
+            const match = key.match(/areaImages\[(\d+)\]\[areaType\]/);
+            if (match) {
+              const index = parseInt(match[1]);
+              areaImagesData[index] = areaImagesData[index] || {};
+              areaImagesData[index].areaType = req.body[key];
+              areaImagesData[index].images = [];
+            }
+          }
+        });
+
+        // ✅ Handle image uploads per areaType
+        for (let i = 0; i < areaImagesData.length; i++) {
+          const fieldKey = `areaImages[${i}][images]`;
+          if (req.files?.[fieldKey]) {
+            const filesArray = Array.isArray(req.files[fieldKey]) ? req.files[fieldKey] : [req.files[fieldKey]];
+            const uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${areaImagesData[i].areaType}`);
+            areaImagesData[i].images = uploadedUrls;
+          }
+        }
+
+        updateData = { areaImages: areaImagesData, currentStep: 6, isDraft: false, isApproved: true };
+        farmDoc = await Farm.findOneAndUpdate({ _id: farmIdForm, owner: ownerId }, { $set: updateData }, { new: true });
+        break;
+      }
+
+      default:
+        return res.status(400).json({ success: false, message: "Invalid step" });
+    }
+
+    // ✅ Populate refs & send response
+    const populatedFarm = await Farm.findById(farmDoc._id).populate("farmCategory").populate("facilities");
+
+    return res.status(200).json({
+      success: true,
+      message: `Step ${step} processed successfully`,
+      data: populatedFarm
+    });
+
+  } catch (err) {
+    console.error("[FarmStepController Error]", err);
+    return res.status(500).json({ success: false, message: "Internal Server Error", error: err.message });
+  }
+};
+
 
 
 // get Category and facilites apis
