@@ -12,7 +12,7 @@ const Otp=require("../models/OtpModel")
 const { sendEmail } = require('../utils/SendEmail');
 const {messages}=require("../messageTemplates/Message");
 const mongoose = require("mongoose");
-
+const FarmBooking = require("../models/FarmBookingModel");
 
 // Register  Apis
 
@@ -1111,13 +1111,19 @@ exports.updateFarmImages = async (req, res) => {
 // delete farm
 
 
+
 exports.deleteVendorFarm = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
   try {
     const ownerId = req.user.id;
 
-    // ✅ Step 1: Validate Request Body
+    // ✅ 1. Validate Body
     const { error, value } = VendorValiidation.deleteVendorFarmSchema.validate(req.body, { abortEarly: false });
     if (error) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: "Validation failed",
@@ -1127,40 +1133,56 @@ exports.deleteVendorFarm = async (req, res) => {
 
     const { farmId } = value;
 
-    // ✅ Step 2: Check if farmId is valid ObjectId
+    // ✅ 2. Check ObjectId Validity
     if (!mongoose.Types.ObjectId.isValid(farmId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid farmId format"
-      });
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ success: false, message: "Invalid farmId format" });
     }
 
-    // ✅ Step 3: Check if farm exists
-    const farm = await Farm.findById(farmId);
+    // ✅ 3. Find Farm
+    const farm = await Farm.findById(farmId).session(session);
     if (!farm) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({
         success: false,
         message: "Farm not found. Please check the farmId."
       });
     }
 
-    // ✅ Step 4: Check if the farm belongs to the vendor
+    // ✅ 4. Ownership Check
     if (farm.owner.toString() !== ownerId.toString()) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(403).json({
         success: false,
         message: "You are not authorized to delete this farm."
       });
     }
 
-    // ✅ Step 5: Delete Farm
-    await Farm.deleteOne({ _id: farmId });
+    // ✅ 5. Cancel All Related Bookings
+    const cancelResult = await FarmBooking.updateMany(
+      { farm: farmId, status: { $nin: ["cancelled", "complete"] } },
+      { $set: { status: "cancelled" } },
+      { session }
+    );
 
+    // ✅ 6. Delete Farm
+    await Farm.deleteOne({ _id: farmId }).session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // ✅ 7. Return Response
     return res.status(200).json({
       success: true,
-      message: `Farm '${farm.name}' has been deleted successfully.`
+      message: `Farm '${farm.name}' deleted successfully. ${cancelResult.modifiedCount} bookings were cancelled.`
     });
 
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
     console.error("[DeleteVendorFarm Error]", err);
     return res.status(500).json({
       success: false,
