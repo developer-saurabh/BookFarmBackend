@@ -1,5 +1,4 @@
 const Vendor = require('../models/VendorModel');
-const Joi = require('joi');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const FarmCategory=require("../models/FarmCategory")
@@ -1001,6 +1000,8 @@ exports.getVendorFarmById = async (req, res) => {
   }
 };
 
+// get all facilites and categories  without any restriction 
+
 
 exports.getAllFacilities = async (req, res) => {
   try {
@@ -1110,8 +1111,6 @@ exports.updateFarmImages = async (req, res) => {
 
 // delete farm
 
-
-
 exports.deleteVendorFarm = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -1192,7 +1191,7 @@ exports.deleteVendorFarm = async (req, res) => {
   }
 };
 
-
+// vendor booking related 
 
 exports.getVendorFarmBookings = async (req, res) => {
   try {

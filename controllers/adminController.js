@@ -609,6 +609,7 @@ exports.getAllApprovedVendors = async (req, res) => {
   }
 };
 
+// add categori and facilites  
 
 exports.addFarmCategory = async (req, res) => {
   try {
@@ -718,6 +719,7 @@ exports.addFacilities = async (req, res) => {
   }
 };
 
+// all bookings 
 
 exports.getAllBookings = async (req, res) => {
   try {
@@ -781,6 +783,99 @@ exports.getAllBookings = async (req, res) => {
   }
 };
 
+
+exports.getBookingByBookingId = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate input
+    const { error, value } = AdminValidation.getBookingByIdSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: error.details.map(e => e.message)
+      });
+    }
+
+    const { booking_id } = value;
+
+    // ✅ Step 2: Find booking with populated farm
+    const booking = await FarmBooking.findOne({ Booking_id: booking_id })
+      .populate('customer')
+      .populate('farm');
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    // ✅ Step 3: Convert to object
+    const bookingObj = booking.toObject();
+
+    // ✅ Helper to convert HH:mm → hh:mm AM/PM
+    const toAmPm = (time) => {
+      if (!time) return null;
+      let [h, m] = time.split(":").map(Number);
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      return `${h}:${m.toString().padStart(2, "0")} ${ampm}`;
+    };
+
+    // ✅ Step 4: Extract checkIn/checkOut for booking date
+    let checkInOut = {};
+    if (bookingObj.farm?.dailyPricing && bookingObj.date) {
+      const bookingDate = new Date(bookingObj.date).toISOString().split('T')[0];
+
+      const matched = bookingObj.farm.dailyPricing.find(dp => {
+        const dpDate = new Date(dp.date).toISOString().split('T')[0];
+        return dpDate === bookingDate;
+      });
+
+      if (matched) {
+        checkInOut = { 
+          checkIn: toAmPm(matched.checkIn), 
+          checkOut: toAmPm(matched.checkOut) 
+        };
+      }
+    }
+
+    // ✅ Step 5: Remove unwanted fields
+    delete bookingObj.__v;
+    delete bookingObj.createdAt;
+    delete bookingObj.updatedAt;
+
+    if (bookingObj.farm) {
+      delete bookingObj.farm.__v;
+      delete bookingObj.farm.createdAt;
+      delete bookingObj.farm.updatedAt;
+      delete bookingObj.farm.location;
+      delete bookingObj.farm.defaultPricing;
+      delete bookingObj.farm.farmCategory;
+      delete bookingObj.farm.images;
+      delete bookingObj.farm.bookingModes;
+      delete bookingObj.farm.facilities;
+      delete bookingObj.farm.owner;
+      delete bookingObj.farm.currency;
+      delete bookingObj.farm.capacity;
+      delete bookingObj.farm.unavailableDates;
+      delete bookingObj.farm.isActive;
+      delete bookingObj.farm.isApproved;
+      delete bookingObj.farm.dailyPricing;
+
+      // ✅ Add only AM/PM formatted times
+      bookingObj.farm.checkInOut = checkInOut;
+    }
+
+    // ✅ Step 6: Send clean response
+    res.status(200).json({
+      message: 'Booking details fetched successfully',
+      data: bookingObj
+    });
+
+  } catch (err) {
+    console.error('[GetBookingByBookingId Error]', err);
+    res.status(500).json({ error: 'Server error. Please try again later.' });
+  }
+};
+
+// all customers 
 
 exports.getAllCustomers = async (req, res) => {
   try {
@@ -847,6 +942,7 @@ exports.getAllCustomers = async (req, res) => {
   }
 };
 
+// all vendors 
 
 exports.getAllVendors = async (req, res) => {
   try {
@@ -963,49 +1059,71 @@ exports.getAllVendors = async (req, res) => {
   }
 };
 
-exports.getAdminProfile = async (req, res) => {
+exports.getVendorFarmById = async (req, res) => {
   try {
-    // ✅ Step 1: Validate user ID from auth
-    const { error, value } =AdminValidation. getProfileSchema.validate({ id: req.user?.id });
+    // const ownerId = req.user.id;
+
+    // ✅ 1. Validate Request Body
+    const { error, value } = AdminValidation.getFarmByVendorSchema.validate(req.body, { abortEarly: false });
     if (error) {
       return res.status(400).json({
-        error: 'Validation failed',
-        details: error.details.map(d => d.message)
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map(e => e.message)
       });
     }
 
-    // ✅ Step 2: Find admin by ID
-    const admin = await Admin.findById(value.id).lean();
-    if (!admin) {
-      return res.status(404).json({ error: 'Admin not found.' });
+    const { farmId } = value;
+
+    // ✅ 2. Check if farmId is valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(farmId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid farmId format"
+      });
     }
 
-    // ✅ Step 3: Return clean profile (no password or sensitive fields)
+    // ✅ 3. Check if farm exists (without owner check first)
+    const farmExists = await Farm.findById(farmId)
+      .populate("farmCategory", "_id name")
+      .populate("facilities", "_id name icon");
+
+    if (!farmExists) {
+      return res.status(404).json({
+        success: false,
+        message: "Farm not found. Please check the farmId and try again."
+      });
+    }
+
+    // ✅ 4. Check if the farm belongs to the vendor
+    // if (farmExists.owner.toString() !== ownerId.toString()) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "You are not authorized to access this farm."
+    //   });
+    // }
+
+    // ✅ 5. Send Success Response
     return res.status(200).json({
-      message: '✅ Admin profile fetched successfully.',
-      admin: {
-        id: admin._id,
-        name: admin.name,
-        email: admin.email,
-        phone: admin.phone,
-        permissions: admin.permissions,
-        isSuperAdmin: admin.isSuperAdmin,
-        isActive: admin.isActive,
-        address: admin.address,
-        image_url:admin.image_url
-      }
+      success: true,
+      message: "Farm details fetched successfully",
+      data: farmExists
     });
 
   } catch (err) {
-    console.error('🚨 Error fetching admin profile:', err);
-    return res.status(500).json({ error: 'Internal server error.' });
+    console.error("[GetVendorFarmById Error]", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message
+    });
   }
 };
 
-exports.getBookingByBookingId = async (req, res) => {
+exports.getVendorWithFarms = async (req, res) => {
   try {
-    // ✅ Step 1: Validate input
-    const { error, value } = AdminValidation.getBookingByIdSchema.validate(req.body, { abortEarly: false });
+    // ✅ Step 1: Validate input (vendor_id in body)
+    const { error, value } =AdminValidation.getVendorByIdSchema.validate(req.body, { abortEarly: false });
     if (error) {
       return res.status(400).json({
         message: 'Validation failed',
@@ -1013,83 +1131,49 @@ exports.getBookingByBookingId = async (req, res) => {
       });
     }
 
-    const { booking_id } = value;
+    const vendorId = value.vendor_id;
 
-    // ✅ Step 2: Find booking with populated farm
-    const booking = await FarmBooking.findOne({ Booking_id: booking_id })
-      .populate('customer')
-      .populate('farm');
-
-    if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
+    // ✅ Step 2: Fetch Vendor (excluding password)
+    const vendor = await Vendor.findById(vendorId).select('-password');
+    if (!vendor) {
+      return res.status(404).json({ error: 'Vendor not found' });
     }
 
-    // ✅ Step 3: Convert to object
-    const bookingObj = booking.toObject();
+    // ✅ Step 3: Fetch Farms owned by vendor
+    let farms = await Farm.find({ owner: vendorId })
+      .populate('farmCategory')
+      .populate('facilities')
+      .lean(); // Convert to plain objects for modification
 
-    // ✅ Helper to convert HH:mm → hh:mm AM/PM
-    const toAmPm = (time) => {
-      if (!time) return null;
-      let [h, m] = time.split(":").map(Number);
-      const ampm = h >= 12 ? "PM" : "AM";
-      h = h % 12 || 12;
-      return `${h}:${m.toString().padStart(2, "0")} ${ampm}`;
-    };
+    // ✅ Step 4: Remove unwanted fields from farms
+    farms = farms.map(farm => {
+      delete farm.defaultPricing;
+      delete farm.bookingModes;
+      // delete farm.dailyPricing;
+      
 
-    // ✅ Step 4: Extract checkIn/checkOut for booking date
-    let checkInOut = {};
-    if (bookingObj.farm?.dailyPricing && bookingObj.date) {
-      const bookingDate = new Date(bookingObj.date).toISOString().split('T')[0];
-
-      const matched = bookingObj.farm.dailyPricing.find(dp => {
-        const dpDate = new Date(dp.date).toISOString().split('T')[0];
-        return dpDate === bookingDate;
-      });
-
-      if (matched) {
-        checkInOut = { 
-          checkIn: toAmPm(matched.checkIn), 
-          checkOut: toAmPm(matched.checkOut) 
-        };
+      // ✅ Clean dailyPricing: remove "slots" but keep checkIn/checkOut
+      if (farm.dailyPricing && Array.isArray(farm.dailyPricing)) {
+        farm.dailyPricing = farm.dailyPricing.map(dp => ({
+          date: dp.date,
+          checkIn: dp.checkIn,
+          checkOut: dp.checkOut
+        }));
       }
-    }
 
-    // ✅ Step 5: Remove unwanted fields
-    delete bookingObj.__v;
-    delete bookingObj.createdAt;
-    delete bookingObj.updatedAt;
+      return farm;
+    });
 
-    if (bookingObj.farm) {
-      delete bookingObj.farm.__v;
-      delete bookingObj.farm.createdAt;
-      delete bookingObj.farm.updatedAt;
-      delete bookingObj.farm.location;
-      delete bookingObj.farm.defaultPricing;
-      delete bookingObj.farm.farmCategory;
-      delete bookingObj.farm.images;
-      delete bookingObj.farm.bookingModes;
-      delete bookingObj.farm.facilities;
-      delete bookingObj.farm.owner;
-      delete bookingObj.farm.currency;
-      delete bookingObj.farm.capacity;
-      delete bookingObj.farm.unavailableDates;
-      delete bookingObj.farm.isActive;
-      delete bookingObj.farm.isApproved;
-      delete bookingObj.farm.dailyPricing;
-
-      // ✅ Add only AM/PM formatted times
-      bookingObj.farm.checkInOut = checkInOut;
-    }
-
-    // ✅ Step 6: Send clean response
-    res.status(200).json({
-      message: 'Booking details fetched successfully',
-      data: bookingObj
+    // ✅ Step 5: Send response
+    return res.status(200).json({
+      message: 'Vendor details fetched successfully',
+      vendor,
+      farms
     });
 
   } catch (err) {
-    console.error('[GetBookingByBookingId Error]', err);
-    res.status(500).json({ error: 'Server error. Please try again later.' });
+    console.error('[getVendorWithFarms Error]', err);
+    return res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
 
@@ -1150,6 +1234,49 @@ exports.getVendorWithFarms = async (req, res) => {
     return res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
+
+
+
+exports.getAdminProfile = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate user ID from auth
+    const { error, value } =AdminValidation. getProfileSchema.validate({ id: req.user?.id });
+    if (error) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: error.details.map(d => d.message)
+      });
+    }
+
+    // ✅ Step 2: Find admin by ID
+    const admin = await Admin.findById(value.id).lean();
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found.' });
+    }
+
+    // ✅ Step 3: Return clean profile (no password or sensitive fields)
+    return res.status(200).json({
+      message: '✅ Admin profile fetched successfully.',
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone,
+        permissions: admin.permissions,
+        isSuperAdmin: admin.isSuperAdmin,
+        isActive: admin.isActive,
+        address: admin.address,
+        image_url:admin.image_url
+      }
+    });
+
+  } catch (err) {
+    console.error('🚨 Error fetching admin profile:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+};
+
+
 
 
 exports.getAllFarms = async (req, res) => {
@@ -1402,63 +1529,3 @@ exports.updateAdminProfile = async (req, res) => {
   }
 };
 
-exports.getVendorFarmById = async (req, res) => {
-  try {
-    // const ownerId = req.user.id;
-
-    // ✅ 1. Validate Request Body
-    const { error, value } = AdminValidation.getFarmByVendorSchema.validate(req.body, { abortEarly: false });
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: "Validation failed",
-        errors: error.details.map(e => e.message)
-      });
-    }
-
-    const { farmId } = value;
-
-    // ✅ 2. Check if farmId is valid ObjectId
-    if (!mongoose.Types.ObjectId.isValid(farmId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid farmId format"
-      });
-    }
-
-    // ✅ 3. Check if farm exists (without owner check first)
-    const farmExists = await Farm.findById(farmId)
-      .populate("farmCategory", "_id name")
-      .populate("facilities", "_id name icon");
-
-    if (!farmExists) {
-      return res.status(404).json({
-        success: false,
-        message: "Farm not found. Please check the farmId and try again."
-      });
-    }
-
-    // ✅ 4. Check if the farm belongs to the vendor
-    // if (farmExists.owner.toString() !== ownerId.toString()) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "You are not authorized to access this farm."
-    //   });
-    // }
-
-    // ✅ 5. Send Success Response
-    return res.status(200).json({
-      success: true,
-      message: "Farm details fetched successfully",
-      data: farmExists
-    });
-
-  } catch (err) {
-    console.error("[GetVendorFarmById Error]", err);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: err.message
-    });
-  }
-};
