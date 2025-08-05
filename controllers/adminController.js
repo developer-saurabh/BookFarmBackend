@@ -1434,7 +1434,7 @@ exports.getVendorFarmById = async (req, res) => {
     if (!farmExists) {
       return res.status(404).json({
         success: false,
-        message: "Farm not found. Please check the farmId and try again.This Farm Not Belongs To YOU!!!!"
+        message: "Farm not found. Please check the farmId and try again."
       });
     }
 
