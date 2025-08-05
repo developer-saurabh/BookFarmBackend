@@ -127,10 +127,11 @@ exports.farmAddValidationSchema = Joi.object({
 
   description: Joi.string().allow("", null).optional(),
 
-  farmCategory_id: Joi.string().pattern(objectIdPattern).optional()
-    .messages({
-      "string.pattern.base": "farmCategory must be a valid ObjectId."
-    }),
+farmCategory: Joi.array().items(
+  Joi.string().pattern(objectIdPattern)
+    .messages({ "string.pattern.base": "Each farmCategory ID must be a valid ObjectId." })
+).optional()
+  .messages({ "array.base": "farmCategory must be an array of ObjectIds." }),
 
   areaImages: Joi.array().items(
     Joi.object({
@@ -160,7 +161,7 @@ exports.farmAddValidationSchema = Joi.object({
   }).optional()
     .messages({ "object.base": "propertyDetails must be an object." }),
 
-  address: Joi.object({
+  location: Joi.object({
     address: Joi.string().optional(),
     city: Joi.string().optional(),
     state: Joi.string().optional(),

@@ -41,7 +41,14 @@ const farmSchema = new mongoose.Schema(
     description: { type: String },
 
     // 🔗 Farm Category (array but optional)
-  farmCategory: { type: mongoose.Schema.Types.ObjectId, ref: "FarmCategory", required: false },
+farmCategory: [
+  {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "FarmCategory",
+    required: false
+  }
+],
+
 
 
     // 📸 Area-wise Images
@@ -58,7 +65,7 @@ const farmSchema = new mongoose.Schema(
     // 🔗 Property Details
     propertyDetails: propertyDetailSchema,
 
-    address: addressSchema, // ✅ Embedded directly
+    location: addressSchema, // ✅ Embedded directly
     bookingModes: {
       type: [String],
       enum: ["full_day", "day_slot", "night_slot"],
@@ -132,8 +139,8 @@ defaultTimings: {   // ✅ Add per-slot timings
     unavailableDates: { type: [Date], default: [] },
 
     // 📊 Status
-    isActive: { type: Boolean, default: true },
-    isApproved: { type: Boolean, default: true },
+    isActive: { type: Boolean, default: false },
+    isApproved: { type: Boolean, default: false },
     isHold: { type: Boolean, default: false },
      // 🔥 NEW FIELDS
     currentStep: { type: Number, default: 1 },

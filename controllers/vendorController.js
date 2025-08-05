@@ -516,10 +516,10 @@ if (req.body.areaImages && typeof req.body.areaImages === "string") {
     }
 
     // ✅ 3. Validate farmCategory if provided
-    if (value.farmCategory) {
-  const categoryExists = await FarmCategory.findById(value.farmCategory);
-  if (!categoryExists) {
-    return res.status(400).json({ success: false, message: "Invalid farm category ID." });
+if (value.farmCategory?.length) {
+  const categoryExists = await FarmCategory.find({ _id: { $in: value.farmCategory } });
+  if (categoryExists.length !== value.farmCategory.length) {
+    return res.status(400).json({ success: false, message: "One or more farmCategory IDs are invalid." });
   }
 }
 
