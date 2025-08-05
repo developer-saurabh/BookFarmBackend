@@ -407,6 +407,15 @@ exports.updateFarmStatusSchema = Joi.object({
 
 
   
+  exports.getFarmByVendorSchema = Joi.object({
+    farmId: Joi.string()
+      .required()
+      .pattern(/^[0-9a-fA-F]{24}$/) // ✅ Must be valid ObjectId format
+      .messages({
+        "any.required": "farmId is required",
+        "string.pattern.base": "farmId must be a valid MongoDB ObjectId"
+      })
+  });
 exports.adminUpdateSchema = Joi.object({
   name: Joi.string()
     .pattern(/^[A-Za-z]+(\s[A-Za-z]+)*$/)

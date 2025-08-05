@@ -32,6 +32,10 @@ router.post('/get_vendor_by_id',authenticateAdmin, adminController.getVendorWith
 router.post('/get_all_farms',authenticateAdmin, adminController.getAllFarms);
 router.post('/Change_farm_status',authenticateAdmin, adminController.updateFarmStatus);
 
+// get farm by id apis
+
+router.post('/get_vendor_farm_by_id',adminController.getVendorFarmById);
+
 // Profile_apis
 
 router.post('/profile',authenticateAdmin, adminController.getAdminProfile);
