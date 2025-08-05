@@ -958,7 +958,10 @@ exports.getFarmCategories = async (req, res) => {
     }
 
     // 1️⃣ Get distinct farmCategory IDs from Farm collection
-    const categoryIds = await Farm.distinct('farmCategory');
+    const categoryIds = await Farm.distinct('farmCategory', {
+      isActive: true,
+      isApproved: true
+    });;
 
     if (!categoryIds || categoryIds.length === 0) {
       return res.status(404).json({
