@@ -188,7 +188,11 @@ exports.bookFarm = async (req, res) => {
     if (!farmDoc) {
       return res.status(404).json({ error: 'Farm not found' });
     }
-
+if (Guest_Count > farmDoc.capacity) {
+  return res.status(400).json({
+    error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}). Please reduce the number of guests or choose another farm.`
+  });
+}
     // ✅ Step 2: Block-date check
     const blockedDates = (farmDoc.unavailableDates || []).map(d => new Date(d).toISOString().split('T')[0]);
     if (blockedDates.includes(isoDateStr)) {

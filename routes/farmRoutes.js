@@ -5,9 +5,6 @@ const { vendorAuth } = require('../middlewares/Auth');
 const ParseNest = require('../utils/ParseNest');
 
 
-router.post('/block_date',ParseNest,vendorAuth, FarmController.blockDate);
-
-router.post('/un_block_date',ParseNest,vendorAuth, FarmController.unblockDate);
 
 router.post('/book_farm',ParseNest, FarmController.bookFarm);
 

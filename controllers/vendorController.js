@@ -470,7 +470,6 @@ exports.changePassword = async (req, res) => {
 
 // Farms Apis
 
-
 exports.addOrUpdateFarm = async (req, res) => {
   try {
 
@@ -693,6 +692,159 @@ const toMinutes = (timeStr) => {
   }
 };
 
+exports.unblockDate = async (req, res) => {
+  const vendorId = req.user.id;
+
+  // ✅ Validate using external Joi schema
+  const { error, value } = FarmValidation.unblockDateSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: error.details.map(e => e.message),
+    });
+  }
+
+  const { farmId, dates } = value;
+
+  try {
+    const farm = await Farm.findById(farmId);
+    if (!farm) {
+      return res.status(404).json({ message: 'Farm not found. Please verify the farm ID.' });
+    }
+
+    if (farm.owner.toString() !== vendorId) {
+      return res.status(403).json({ message: 'Access denied. You do not own this farm.' });
+    }
+
+    const existingSet = new Set(
+      farm.unavailableDates.map(d => DateTime.fromJSDate(d).toISODate())
+    );
+
+    const toUnblockSet = new Set(
+      dates.map(d => DateTime.fromJSDate(new Date(d)).toISODate())
+    );
+
+    const remainingDates = farm.unavailableDates.filter(d => {
+      const iso = DateTime.fromJSDate(d).toISODate();
+      return !toUnblockSet.has(iso);
+    });
+
+    const unblocked = [...existingSet].filter(d => toUnblockSet.has(d));
+    const notBlocked = [...toUnblockSet].filter(d => !existingSet.has(d));
+
+    if (unblocked.length > 0) {
+      farm.unavailableDates = remainingDates;
+      await farm.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Farm availability updated.',
+      summary: {
+        unblockedCount: unblocked.length,
+        notBlockedCount: notBlocked.length,
+      },
+      details: {
+        unblocked,
+        notBlocked,
+        currentUnavailableDates: farm.unavailableDates.map(d => d.toISOString()),
+      },
+    });
+
+  } catch (err) {
+    console.error('Error while unblocking dates:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'An unexpected error occurred while unblocking dates.',
+    });
+  }
+};
+
+exports.blockDate = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate input
+    const { error, value } = FarmValidation.blockDateSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(err => err.message),
+      });
+    }
+
+    const vendorId = req.user.id;
+    const { farmId, dates } = value;
+
+    // ✅ Step 2: Find farm and verify existence
+    const farm = await Farm.findById(farmId);
+    if (!farm) {
+      return res.status(404).json({
+        success: false,
+        message: 'Farm not found. Please verify the farm ID.',
+      });
+    }
+
+    // ✅ Step 3: Ownership check
+    if (farm.owner.toString() !== vendorId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You do not own this farm.',
+      });
+    }
+
+    // ✅ Step 4: Normalize existing blocked dates
+    const existingDatesISO = farm.unavailableDates.map(d =>
+      DateTime.fromJSDate(d).toISODate()
+    );
+
+    // ✅ Step 5: Process new dates
+    const newlyBlocked = [];
+    const alreadyBlocked = [];
+
+    for (const rawDate of dates) {
+      const dateObj = new Date(rawDate);
+      const isoDate = DateTime.fromJSDate(dateObj).toISODate();
+
+      if (!existingDatesISO.includes(isoDate)) {
+        farm.unavailableDates.push(dateObj);
+        newlyBlocked.push(isoDate);
+        existingDatesISO.push(isoDate); // prevent re-checking
+      } else {
+        alreadyBlocked.push(isoDate);
+      }
+    }
+
+    // ✅ Step 6: Save if needed
+    if (newlyBlocked.length > 0) {
+      await farm.save();
+    }
+
+    // ✅ Step 7: Respond
+    return res.status(200).json({
+      success: true,
+      message: 'Farm availability updated.',
+      summary: {
+        newlyBlockedCount: newlyBlocked.length,
+        alreadyBlockedCount: alreadyBlocked.length,
+      },
+      details: {
+        newlyBlocked,
+        alreadyBlocked,
+        allUnavailableDates: farm.unavailableDates.map(d =>
+          DateTime.fromJSDate(d).toISODate()
+        ),
+      },
+    });
+
+  } catch (err) {
+    console.error('Error while blocking dates:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'An unexpected error occurred while blocking dates. Please try again later.',
+    });
+  }
+};
 // step wise farm add if required 
 
 // exports.handleFarmSteps = async (req, res) => {

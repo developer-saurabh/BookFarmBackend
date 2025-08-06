@@ -26,6 +26,13 @@ router.post('/change_password',vendorAuth, vendorController.changePassword);
 router.post('/add_Farm',ParseNest,vendorAuth,vendorController.addOrUpdateFarm);
 router.post('/add_Farm_images',ParseNest,vendorAuth,vendorController.updateFarmImages);
 
+// mange availbility 
+
+
+router.post('/block_date',ParseNest,vendorAuth, vendorController.blockDate);
+
+router.post('/un_block_date',ParseNest,vendorAuth, vendorController.unblockDate);
+
 // get vendor farmns
 
 router.post('/get_vendor_farm',ParseNest,vendorAuth,vendorController.getVendorFarms);
