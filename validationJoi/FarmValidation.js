@@ -27,9 +27,19 @@ exports.blockDateSchema = Joi.object({
 
   dates: Joi.array()
     .items(
-      Joi.date().required().messages({
-        'date.base': `"Each date" must be a valid date`,
-        'any.required': `"Each date" is required`,
+      Joi.object({
+        date: Joi.date().required().messages({
+          'date.base': `"date" must be a valid date`,
+          'any.required': `"date" is required`,
+        }),
+        slots: Joi.array()
+          .items(Joi.string().valid("full_day", "day_slot", "night_slot"))
+          .min(1)
+          .required()
+          .messages({
+            'array.base': `"slots" must be an array`,
+            'array.min': `"At least one slot must be specified for blocking"`,
+          })
       })
     )
     .min(1)
@@ -37,13 +47,14 @@ exports.blockDateSchema = Joi.object({
     .label('Dates')
     .messages({
       'array.base': `"Dates" must be an array`,
-      'array.min': `"Dates" must contain at least one date`,
+      'array.min': `"Dates" must contain at least one object`,
       'any.required': `"Dates" field is required`,
     }),
 }).options({
   abortEarly: false,
   allowUnknown: false,
 });
+
 
 
 exports. farmBookingValidationSchema = Joi.object({
@@ -336,9 +347,19 @@ exports.unblockDateSchema = Joi.object({
 
   dates: Joi.array()
     .items(
-      Joi.date().required().messages({
-        'date.base': `"Each date" must be a valid date`,
-        'any.required': `"Each date" is required`,
+      Joi.object({
+        date: Joi.date().required().messages({
+          'date.base': `"date" must be a valid date`,
+          'any.required': `"date" is required`,
+        }),
+        slots: Joi.array()
+          .items(Joi.string().valid("full_day", "day_slot", "night_slot"))
+          .min(1)
+          .required()
+          .messages({
+            'array.base': `"slots" must be an array`,
+            'array.min': `"At least one slot must be specified for unblocking"`,
+          })
       })
     )
     .min(1)
@@ -346,7 +367,7 @@ exports.unblockDateSchema = Joi.object({
     .label('Dates')
     .messages({
       'array.base': `"Dates" must be an array`,
-      'array.min': `"Dates" must contain at least one date`,
+      'array.min': `"Dates" must contain at least one object`,
       'any.required': `"Dates" field is required`,
     }),
 }).options({

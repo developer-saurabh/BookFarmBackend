@@ -136,7 +136,17 @@ defaultTimings: {   // ✅ Add per-slot timings
       required: true, // owner should stay required
     },
 
-    unavailableDates: { type: [Date], default: [] },
+unavailableDates: [
+  {
+    date: { type: Date, required: true },   // required ensures date must exist
+    blockedSlots: {
+      type: [String],
+      enum: ["full_day", "day_slot", "night_slot"],
+      default: ["full_day"]
+    }
+  }
+],
+
 
     // 📊 Status
     isActive: { type: Boolean, default: false },

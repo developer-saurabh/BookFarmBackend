@@ -1,49 +1,68 @@
-const Vendor = require('../models/VendorModel');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const FarmCategory=require("../models/FarmCategory")
-const Facility=require("../models/FarmFacility")
-const VendorValiidation= require('../validationJoi/VendorValidation');
+const Vendor = require("../models/VendorModel");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const FarmCategory = require("../models/FarmCategory");
+const Facility = require("../models/FarmFacility");
+const VendorValiidation = require("../validationJoi/VendorValidation");
+const FarmValidation = require("../validationJoi/FarmValidation");
 // const sendAdminEmail = require('../utils/sendAdminEmail');
-const Farm = require('../models/FarmModel');
-const { uploadFilesToCloudinary } = require('../utils/UploadFile');
-const Otp=require("../models/OtpModel")
-const { sendEmail } = require('../utils/SendEmail');
-const {messages}=require("../messageTemplates/Message");
+const Farm = require("../models/FarmModel");
+const { uploadFilesToCloudinary } = require("../utils/UploadFile");
+const Otp = require("../models/OtpModel");
+const { sendEmail } = require("../utils/SendEmail");
+const { messages } = require("../messageTemplates/Message");
 const mongoose = require("mongoose");
 const FarmBooking = require("../models/FarmBookingModel");
-
+const { DateTime } = require('luxon');
 // Register  Apis
 
 exports.registerVendor = async (req, res) => {
   try {
     // ✅ 1. Validate input
-    const { error, value } = VendorValiidation.vendorRegistrationSchema.validate(req.body);
+    const { error, value } =
+      VendorValiidation.vendorRegistrationSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({ success: false, message: error.details[0].message });
+      return res
+        .status(400)
+        .json({ success: false, message: error.details[0].message });
     }
 
     // ✅ 2. Confirm password match
     if (value.password !== value.confirmPassword) {
-      return res.status(400).json({ success: false, message: 'Password and Confirm Password do not match.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Password and Confirm Password do not match.",
+        });
     }
 
     // ✅ 3. Check if email already exists
     const existingEmail = await Vendor.findOne({ email: value.email });
     if (existingEmail) {
-      return res.status(409).json({ success: false, message: 'Vendor with this email already exists.' });
+      return res
+        .status(409)
+        .json({
+          success: false,
+          message: "Vendor with this email already exists.",
+        });
     }
 
     // ✅ 4. Check if phone already exists
     const existingPhone = await Vendor.findOne({ phone: value.phone });
     if (existingPhone) {
-      return res.status(409).json({ success: false, message: 'Vendor with this phone number already exists.' });
+      return res
+        .status(409)
+        .json({
+          success: false,
+          message: "Vendor with this phone number already exists.",
+        });
     }
 
     // ✅ 5. Generate secure OTP
-   
+
     // ✅ 5. Generate OTP (compatible with all Node versions)
-       const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // OTP valid for 10 minutes
     const hashedPassword = await bcrypt.hash(value.password, 10);
 
@@ -59,42 +78,57 @@ exports.registerVendor = async (req, res) => {
           email: value.email,
           phone: value.phone,
           aadhar_number: value.aadhar_number,
-          password: hashedPassword
-        }
+          password: hashedPassword,
+        },
       },
       { upsert: true, new: true }
     );
 
     // ✅ 7. Use email template & send OTP
-    const { subject, html } = messages.vendorRegistrationOtp({ name: value.name, otp: otpCode });
+    const { subject, html } = messages.vendorRegistrationOtp({
+      name: value.name,
+      otp: otpCode,
+    });
     await sendEmail(value.email, subject, html);
 
     // ✅ 8. Success Response
     return res.status(200).json({
       success: true,
-      message: 'OTP sent successfully to your email. Please verify to complete registration.',
+      message:
+        "OTP sent successfully to your email. Please verify to complete registration.",
       email: value.email,
-      otp:otpCode
+      otp: otpCode,
     });
-
   } catch (err) {
     console.error("🚨 Error in registerVendor:", err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
   }
 };
 exports.verifyVendorOtp = async (req, res) => {
   try {
     // ✅ Validate input
-    const { error, value } = VendorValiidation.verifyOtpSchema.validate(req.body);
+    const { error, value } = VendorValiidation.verifyOtpSchema.validate(
+      req.body
+    );
     if (error) return res.status(400).json({ error: error.details[0].message });
 
     const { email, otp } = value;
 
     const otpDoc = await Otp.findOne({ email });
-    if (!otpDoc) return res.status(400).json({ error: 'OTP not found. Please request a new one.' });
-    if (otpDoc.isVerified) return res.status(400).json({ error: 'OTP already used.' });
-    if (otpDoc.expiresAt < new Date()) return res.status(400).json({ error: 'OTP expired. Please request a new one.' });
-    if (otpDoc.otp !== otp) return res.status(400).json({ error: 'Invalid OTP.' });
+    if (!otpDoc)
+      return res
+        .status(400)
+        .json({ error: "OTP not found. Please request a new one." });
+    if (otpDoc.isVerified)
+      return res.status(400).json({ error: "OTP already used." });
+    if (otpDoc.expiresAt < new Date())
+      return res
+        .status(400)
+        .json({ error: "OTP expired. Please request a new one." });
+    if (otpDoc.otp !== otp)
+      return res.status(400).json({ error: "Invalid OTP." });
 
     // ✅ Mark OTP as verified
     otpDoc.isVerified = true;
@@ -102,7 +136,10 @@ exports.verifyVendorOtp = async (req, res) => {
 
     // ✅ Get temp vendor data
     const vendorData = otpDoc.tempVendorData;
-    if (!vendorData || !vendorData.email) return res.status(400).json({ error: 'Vendor data missing. Please re-register.' });
+    if (!vendorData || !vendorData.email)
+      return res
+        .status(400)
+        .json({ error: "Vendor data missing. Please re-register." });
 
     // ✅ Create vendor
     const newVendor = new Vendor(vendorData);
@@ -112,51 +149,68 @@ exports.verifyVendorOtp = async (req, res) => {
     await Otp.deleteOne({ email });
 
     return res.status(201).json({
-      message: '✅ Email verified & vendor registered successfully. Awaiting admin approval.',
-      vendorId: newVendor._id
+      message:
+        "✅ Email verified & vendor registered successfully. Awaiting admin approval.",
+      vendorId: newVendor._id,
     });
-
   } catch (err) {
     console.error("🚨 Error in verifyVendorOtp:", err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
 exports.resendVendorOtp = async (req, res) => {
   try {
-    const { error, value } = VendorValiidation.resendOtpSchema.validate(req.body);
-    if (error) return res.status(400).json({ success: false, message: error.details[0].message });
+    const { error, value } = VendorValiidation.resendOtpSchema.validate(
+      req.body
+    );
+    if (error)
+      return res
+        .status(400)
+        .json({ success: false, message: error.details[0].message });
 
     const { email } = value;
 
     // ✅ If vendor is already registered, prevent resending OTP
     const existingVendor = await Vendor.findOne({ email });
     if (existingVendor) {
-      return res.status(409).json({ success: false, message: 'Vendor already registered with this email.' });
+      return res
+        .status(409)
+        .json({
+          success: false,
+          message: "Vendor already registered with this email.",
+        });
     }
 
     // ✅ Fetch existing OTP document
     const otpDoc = await Otp.findOne({ email });
     if (!otpDoc) {
-      return res.status(400).json({ success: false, message: 'Registration not initiated. Please register first.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Registration not initiated. Please register first.",
+        });
     }
 
     // ✅ Check rate limit: last OTP sent within 1 minute?
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
     if (otpDoc.updatedAt > oneMinuteAgo) {
-      const waitTime = Math.ceil((otpDoc.updatedAt.getTime() + 60000 - Date.now()) / 1000);
+      const waitTime = Math.ceil(
+        (otpDoc.updatedAt.getTime() + 60000 - Date.now()) / 1000
+      );
       return res.status(429).json({
         success: false,
-        message: `You can request a new OTP after ${waitTime} seconds.`
+        message: `You can request a new OTP after ${waitTime} seconds.`,
       });
     }
 
     // ✅ Generate new OTP (secure fallback)
     let otpCode;
     try {
-      otpCode = (parseInt(crypto.randomBytes(3).toString('hex'), 16) % 1000000)
+      otpCode = (parseInt(crypto.randomBytes(3).toString("hex"), 16) % 1000000)
         .toString()
-        .padStart(6, '0');
+        .padStart(6, "0");
     } catch (err) {
       otpCode = Math.floor(100000 + Math.random() * 900000).toString(); // fallback
     }
@@ -170,17 +224,21 @@ exports.resendVendorOtp = async (req, res) => {
     await otpDoc.save();
 
     // ✅ Use template for resend
-    const { subject, html } = messages.vendorRegistrationOtp({ name: otpDoc.tempVendorData?.name || 'Vendor', otp: otpCode });
+    const { subject, html } = messages.vendorRegistrationOtp({
+      name: otpDoc.tempVendorData?.name || "Vendor",
+      otp: otpCode,
+    });
     await sendEmail(email, subject, html);
 
     return res.status(200).json({
       success: true,
-      message: 'New OTP sent successfully. Please check your email.'
+      message: "New OTP sent successfully. Please check your email.",
     });
-
   } catch (err) {
     console.error("🚨 Error in resendVendorOtp:", err);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
   }
 };
 
@@ -188,7 +246,9 @@ exports.resendVendorOtp = async (req, res) => {
 exports.loginVendor = async (req, res) => {
   try {
     // ✅ 1) Validate input
-    const { error, value } = VendorValiidation.vendorLoginSchema.validate(req.body);
+    const { error, value } = VendorValiidation.vendorLoginSchema.validate(
+      req.body
+    );
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
@@ -196,28 +256,41 @@ exports.loginVendor = async (req, res) => {
     // ✅ 2) Find vendor by email
     const vendor = await Vendor.findOne({ email: value.email });
     if (!vendor) {
-      return res.status(404).json({ error: 'Email not found. Please register first or check your email address.' });
+      return res
+        .status(404)
+        .json({
+          error:
+            "Email not found. Please register first or check your email address.",
+        });
     }
 
     // ✅ 3) Check vendor status BEFORE comparing password
     if (!vendor.isVerified) {
-      return res.status(403).json({ error: 'Vendor is not verified. Please contact admin.' });
+      return res
+        .status(403)
+        .json({ error: "Vendor is not verified. Please contact admin." });
     }
     if (!vendor.isActive) {
-      return res.status(403).json({ error: 'Vendor account is inactive. Please contact admin.' });
+      return res
+        .status(403)
+        .json({ error: "Vendor account is inactive. Please contact admin." });
     }
     if (vendor.isBlocked) {
-      return res.status(403).json({ error: 'Vendor account is blocked. Access denied.' });
+      return res
+        .status(403)
+        .json({ error: "Vendor account is blocked. Access denied." });
     }
 
     // ✅ 4) Compare password
     const isMatch = await bcrypt.compare(value.password, vendor.password);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+      return res
+        .status(401)
+        .json({ error: "Incorrect password. Please try again." });
     }
 
     // ✅ 5) Update last login
-    vendor.lastLogin = new Date(); 
+    vendor.lastLogin = new Date();
     await vendor.save();
 
     // ✅ 6) Generate JWT with lastLogin
@@ -225,31 +298,30 @@ exports.loginVendor = async (req, res) => {
       {
         id: vendor._id,
         email: vendor.email,
-        role: 'vendor',
-        lastLogin: vendor.lastLogin.getTime()
+        role: "vendor",
+        lastLogin: vendor.lastLogin.getTime(),
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: "7d" }
     );
 
     // ✅ 7) Send token in header
-    res.setHeader('Authorization', `Bearer ${token}`);
+    res.setHeader("Authorization", `Bearer ${token}`);
 
     // ✅ 8) Response
     return res.status(200).json({
-      message: '✅ Login successful.',
+      message: "✅ Login successful.",
       token,
       vendor: {
         id: vendor._id,
         name: vendor.name,
         email: vendor.email,
-        phone: vendor.phone
-      }
+        phone: vendor.phone,
+      },
     });
-
   } catch (err) {
-    console.error('🚨 Error logging in vendor:', err);
-    return res.status(500).json({ error: 'Internal server error.' });
+    console.error("🚨 Error logging in vendor:", err);
+    return res.status(500).json({ error: "Internal server error." });
   }
 };
 
@@ -257,9 +329,18 @@ exports.loginVendor = async (req, res) => {
 
 exports.forgotPasswordSendOtp = async (req, res) => {
   try {
-    const { error, value } = VendorValiidation.forgotPasswordRequestSchema.validate(req.body, { abortEarly: false });
+    const { error, value } =
+      VendorValiidation.forgotPasswordRequestSchema.validate(req.body, {
+        abortEarly: false,
+      });
     if (error) {
-      return res.status(400).json({ success: false, message: 'Validation failed', errors: error.details.map(e => e.message) });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Validation failed",
+          errors: error.details.map((e) => e.message),
+        });
     }
 
     const { email } = value;
@@ -267,17 +348,25 @@ exports.forgotPasswordSendOtp = async (req, res) => {
     // ✅ Check if admin exists
     const vendor = await Vendor.findOne({ email });
     if (!vendor) {
-      return res.status(404).json({ success: false, message: 'Vendor with this email does not exist.' });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "Vendor with this email does not exist.",
+        });
     }
 
     // ✅ Check OTP cooldown (1 minute)
     const existingOtp = await Otp.findOne({ email });
     if (existingOtp) {
-      const secondsSinceLastOtp = (Date.now() - existingOtp.updatedAt.getTime()) / 1000;
+      const secondsSinceLastOtp =
+        (Date.now() - existingOtp.updatedAt.getTime()) / 1000;
       if (secondsSinceLastOtp < 60) {
         return res.status(429).json({
           success: false,
-          message: `Please wait ${Math.ceil(60 - secondsSinceLastOtp)} seconds before requesting another OTP.`
+          message: `Please wait ${Math.ceil(
+            60 - secondsSinceLastOtp
+          )} seconds before requesting another OTP.`,
         });
       }
     }
@@ -299,69 +388,109 @@ exports.forgotPasswordSendOtp = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'OTP sent to your email successfully.',
-      data: { email, expiresIn: '2 minutes',otp:otpCode }
+      message: "OTP sent to your email successfully.",
+      data: { email, expiresIn: "2 minutes", otp: otpCode },
     });
-
   } catch (err) {
-    console.error('🚨 Forgot Password Send OTP Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error while sending OTP.', error: err.message });
+    console.error("🚨 Forgot Password Send OTP Error:", err);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: "Internal server error while sending OTP.",
+        error: err.message,
+      });
   }
 };
 exports.forgotPasswordVerifyOtp = async (req, res) => {
   try {
-    const { error, value } = VendorValiidation.verifyOtpSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = VendorValiidation.verifyOtpSchema.validate(
+      req.body,
+      { abortEarly: false }
+    );
     if (error) {
-      return res.status(400).json({ success: false, message: 'Validation failed', errors: error.details.map(e => e.message) });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Validation failed",
+          errors: error.details.map((e) => e.message),
+        });
     }
 
     const { email, otp } = value;
     const otpRecord = await Otp.findOne({ email });
 
     if (!otpRecord) {
-      return res.status(400).json({ success: false, message: 'No OTP found With This Email . Please request a new one.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "No OTP found With This Email . Please request a new one.",
+        });
     }
     if (otpRecord.otp !== otp) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP.' });
+      return res.status(400).json({ success: false, message: "Invalid OTP." });
     }
     if (otpRecord.expiresAt < new Date()) {
       await Otp.deleteOne({ email });
-      return res.status(400).json({ success: false, message: 'OTP expired. Please request a new one.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "OTP expired. Please request a new one.",
+        });
     }
 
     // ✅ Mark OTP as verified
     otpRecord.isVerified = true;
     await otpRecord.save();
 
-     // ✅ Generate temporary reset token
-  const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '10m' });
+    // ✅ Generate temporary reset token
+    const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, {
+      expiresIn: "10m",
+    });
 
-  res.status(200).json({
-    success: true,
-    message: 'OTP verified successfully. Use this token to reset your password.',
-    resetToken
-  });
+    res.status(200).json({
+      success: true,
+      message:
+        "OTP verified successfully. Use this token to reset your password.",
+      resetToken,
+    });
   } catch (err) {
-    console.error('🚨 Verify OTP Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error while verifying OTP.', error: err.message });
+    console.error("🚨 Verify OTP Error:", err);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: "Internal server error while verifying OTP.",
+        error: err.message,
+      });
   }
 };
 exports.forgotPasswordReset = async (req, res) => {
   try {
     // ✅ Extract token from Authorization header
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(400).json({ success: false, message: 'Reset token is missing in Authorization header.' });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Reset token is missing in Authorization header.",
+        });
     }
 
-    const resetToken = authHeader.split(' ')[1];
+    const resetToken = authHeader.split(" ")[1];
 
     // ✅ Verify token
     let decoded;
     try {
       decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
     } catch (err) {
-      return res.status(401).json({ success: false, message: 'Invalid or expired reset token.' });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid or expired reset token." });
     }
 
     const email = decoded.email;
@@ -369,18 +498,30 @@ exports.forgotPasswordReset = async (req, res) => {
 
     // ✅ Check passwords match
     if (newPassword !== confirmPassword) {
-      return res.status(400).json({ success: false, message: 'Confirm password does not match new password.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Confirm password does not match new password.",
+        });
     }
 
     // ✅ Find admin
     const vendor = await Vendor.findOne({ email });
     if (!vendor) {
-      return res.status(404).json({ success: false, message: 'Vendor account not found.' });
+      return res
+        .status(404)
+        .json({ success: false, message: "Vendor account not found." });
     }
 
     // ✅ Prevent reusing old password
     if (await bcrypt.compare(newPassword, vendor.password)) {
-      return res.status(400).json({ success: false, message: 'New password cannot be the same as old password.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "New password cannot be the same as old password.",
+        });
     }
 
     // ✅ Update password
@@ -390,11 +531,18 @@ exports.forgotPasswordReset = async (req, res) => {
     // ✅ Remove OTP record
     await Otp.deleteOne({ email });
 
-    return res.status(200).json({ success: true, message: 'Password reset successfully.' });
-
+    return res
+      .status(200)
+      .json({ success: true, message: "Password reset successfully." });
   } catch (err) {
-    console.error('🚨 Reset Password Error:', err);
-    return res.status(500).json({ success: false, message: 'Internal server error.', error: err.message });
+    console.error("🚨 Reset Password Error:", err);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: "Internal server error.",
+        error: err.message,
+      });
   }
 };
 
@@ -403,12 +551,15 @@ exports.forgotPasswordReset = async (req, res) => {
 exports.changePassword = async (req, res) => {
   try {
     // ✅ Validate request body with Joi
-    const { error, value } = VendorValiidation.changePasswordSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = VendorValiidation.changePasswordSchema.validate(
+      req.body,
+      { abortEarly: false }
+    );
     if (error) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
-        errors: error.details.map(e => e.message)
+        message: "Validation failed",
+        errors: error.details.map((e) => e.message),
       });
     }
 
@@ -418,7 +569,7 @@ exports.changePassword = async (req, res) => {
     if (newPassword !== confirmPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Confirm password does not match the new password.'
+        message: "Confirm password does not match the new password.",
       });
     }
 
@@ -427,16 +578,19 @@ exports.changePassword = async (req, res) => {
     if (!vendor) {
       return res.status(404).json({
         success: false,
-        message: 'vendor account not found.'
+        message: "vendor account not found.",
       });
     }
 
     // ✅ Verify old password
-    const isOldPasswordValid = await bcrypt.compare(oldPassword, vendor.password);
+    const isOldPasswordValid = await bcrypt.compare(
+      oldPassword,
+      vendor.password
+    );
     if (!isOldPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Old password is incorrect.'
+        message: "Old password is incorrect.",
       });
     }
 
@@ -445,7 +599,7 @@ exports.changePassword = async (req, res) => {
     if (isSamePassword) {
       return res.status(400).json({
         success: false,
-        message: 'New password cannot be the same as the old password.'
+        message: "New password cannot be the same as the old password.",
       });
     }
 
@@ -455,15 +609,14 @@ exports.changePassword = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Password changed successfully.'
+      message: "Password changed successfully.",
     });
-
   } catch (err) {
-    console.error('🚨 Change password error:', err);
+    console.error("🚨 Change password error:", err);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error while changing password.',
-      error: err.message
+      message: "Internal server error while changing password.",
+      error: err.message,
     });
   }
 };
@@ -472,26 +625,32 @@ exports.changePassword = async (req, res) => {
 
 exports.addOrUpdateFarm = async (req, res) => {
   try {
-
     // ✅ Parse areaImages if it's sent as a string
-if (req.body.areaImages && typeof req.body.areaImages === "string") {
-  try {
-    req.body.areaImages = JSON.parse(req.body.areaImages);
-  } catch (err) {
-    return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
-  }
-}
+    if (req.body.areaImages && typeof req.body.areaImages === "string") {
+      try {
+        req.body.areaImages = JSON.parse(req.body.areaImages);
+      } catch (err) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Invalid JSON format for areaImages",
+          });
+      }
+    }
 
-// ✅ Do the same for address, rules, propertyDetails if needed
-["rules", "address", "propertyDetails"].forEach(key => {
-  if (req.body[key] && typeof req.body[key] === "string") {
-    try { req.body[key] = JSON.parse(req.body[key]); } catch {}
-  }
-});
-const normalizeFiles = (files) => {
-  if (!files) return [];
-  return Array.isArray(files) ? files : [files];
-};
+    // ✅ Do the same for address, rules, propertyDetails if needed
+    ["rules", "address", "propertyDetails"].forEach((key) => {
+      if (req.body[key] && typeof req.body[key] === "string") {
+        try {
+          req.body[key] = JSON.parse(req.body[key]);
+        } catch {}
+      }
+    });
+    const normalizeFiles = (files) => {
+      if (!files) return [];
+      return Array.isArray(files) ? files : [files];
+    };
     // ✅ 1. Validate Request with Joi
     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
       req.body,
@@ -502,7 +661,7 @@ const normalizeFiles = (files) => {
       return res.status(400).json({
         success: false,
         message: "Validation failed",
-        errors: error.details.map(err => err.message)
+        errors: error.details.map((err) => err.message),
       });
     }
 
@@ -512,24 +671,46 @@ const normalizeFiles = (files) => {
 
     // ✅ 2. Verify Vendor
     const vendor = await Vendor.findById(ownerId);
-    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found." });
+    if (!vendor)
+      return res
+        .status(404)
+        .json({ success: false, message: "Vendor not found." });
     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
-      return res.status(403).json({ success: false, message: "Vendor is not eligible to create/update farms." });
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Vendor is not eligible to create/update farms.",
+        });
     }
 
     // ✅ 3. Validate farmCategory if provided
-if (value.farmCategory?.length) {
-  const categoryExists = await FarmCategory.find({ _id: { $in: value.farmCategory } });
-  if (categoryExists.length !== value.farmCategory.length) {
-    return res.status(400).json({ success: false, message: "One or more farmCategory IDs are invalid." });
-  }
-}
+    if (value.farmCategory?.length) {
+      const categoryExists = await FarmCategory.find({
+        _id: { $in: value.farmCategory },
+      });
+      if (categoryExists.length !== value.farmCategory.length) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "One or more farmCategory IDs are invalid.",
+          });
+      }
+    }
 
     // ✅ 4. Validate facilities if provided
     if (value.facilities?.length) {
-      const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
+      const validFacilities = await Facility.find({
+        _id: { $in: value.facilities },
+      });
       if (validFacilities.length !== value.facilities.length) {
-        return res.status(400).json({ success: false, message: "One or more facilities IDs are invalid." });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "One or more facilities IDs are invalid.",
+          });
       }
     }
 
@@ -542,106 +723,135 @@ if (value.farmCategory?.length) {
 
     // ✅ 6. Embedded Property Details → No DB Lookup
     if (value.propertyDetails && typeof value.propertyDetails !== "object") {
-      return res.status(400).json({ success: false, message: "propertyDetails must be an object." });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "propertyDetails must be an object.",
+        });
     }
 
     // ✅ 7. Embedded Address → Must Be Object
     if (value.address && typeof value.address !== "object") {
-      return res.status(400).json({ success: false, message: "Address must be an object." });
+      return res
+        .status(400)
+        .json({ success: false, message: "Address must be an object." });
     }
-// ✅ 8. Handle General Farm Images (main gallery)
-if (req.files?.images || req.files?.image) {
-  const imagesArray = normalizeFiles(req.files.images || req.files.image);
-  if (imagesArray.length > 0) {
-    const uploadedUrls = await uploadFilesToCloudinary(imagesArray, "farms");
-    value.images = uploadedUrls;
-  }
-}
+    // ✅ 8. Handle General Farm Images (main gallery)
+    if (req.files?.images || req.files?.image) {
+      const imagesArray = normalizeFiles(req.files.images || req.files.image);
+      if (imagesArray.length > 0) {
+        const uploadedUrls = await uploadFilesToCloudinary(
+          imagesArray,
+          "farms"
+        );
+        value.images = uploadedUrls;
+      }
+    }
 
-// ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
-// ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
-if (req.body.areaImages) {
-  // ✅ Ensure areaImages is parsed if sent as string
-  let areaImagesParsed;
-  try {
-    areaImagesParsed = typeof req.body.areaImages === "string" ? JSON.parse(req.body.areaImages) : req.body.areaImages;
-  } catch (err) {
-    return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" });
-  }
+    // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
+    // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
+    if (req.body.areaImages) {
+      // ✅ Ensure areaImages is parsed if sent as string
+      let areaImagesParsed;
+      try {
+        areaImagesParsed =
+          typeof req.body.areaImages === "string"
+            ? JSON.parse(req.body.areaImages)
+            : req.body.areaImages;
+      } catch (err) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Invalid JSON format for areaImages",
+          });
+      }
 
-  const areaImagesData = [];
+      const areaImagesData = [];
 
-  // ✅ Loop through each area group
-  for (let i = 0; i < areaImagesParsed.length; i++) {
-    const area = areaImagesParsed[i];
-    const fieldKey = `areaImages[${i}][images]`; // This matches Postman key names
+      // ✅ Loop through each area group
+      for (let i = 0; i < areaImagesParsed.length; i++) {
+        const area = areaImagesParsed[i];
+        const fieldKey = `areaImages[${i}][images]`; // This matches Postman key names
 
-    // ✅ Find corresponding files in req.files
-   const filesArray = normalizeFiles(req.files?.[fieldKey]);
-let uploadedUrls = [];
+        // ✅ Find corresponding files in req.files
+        const filesArray = normalizeFiles(req.files?.[fieldKey]);
+        let uploadedUrls = [];
 
-if (filesArray.length > 0) {
-  uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${area.areaType}`);
-}
+        if (filesArray.length > 0) {
+          uploadedUrls = await uploadFilesToCloudinary(
+            filesArray,
+            `farms/${area.areaType}`
+          );
+        }
 
+        // ✅ Push final structure
+        areaImagesData.push({
+          areaType: area.areaType,
+          images: uploadedUrls,
+        });
+      }
 
-    // ✅ Push final structure
-    areaImagesData.push({
-      areaType: area.areaType,
-      images: uploadedUrls
-    });
-  }
-
-  value.areaImages = areaImagesData;
-}
+      value.areaImages = areaImagesData;
+    }
     // ✅ 9. Validate Daily Pricing (if provided)
     if (value.dailyPricing?.length) {
-     const validateDailyPricing = (dailyPricing) => {
-  const seen = new Set();
- const timeRegex = /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
+      const validateDailyPricing = (dailyPricing) => {
+        const seen = new Set();
+        const timeRegex =
+          /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
 
-const toMinutes = (timeStr) => {
-  if (/AM|PM/i.test(timeStr)) {
-    // AM/PM conversion
-    const [, hh, mm, meridian] = timeStr.match(/(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i);
-    let hours = parseInt(hh, 10);
-    const minutes = parseInt(mm, 10);
-    if (meridian.toUpperCase() === "PM" && hours !== 12) hours += 12;
-    if (meridian.toUpperCase() === "AM" && hours === 12) hours = 0;
-    return hours * 60 + minutes;
-  } else {
-    // 24-hour format
-    const [h, m] = timeStr.split(":").map(Number);
-    return h * 60 + m;
-  }
-};
+        const toMinutes = (timeStr) => {
+          if (/AM|PM/i.test(timeStr)) {
+            // AM/PM conversion
+            const [, hh, mm, meridian] = timeStr.match(
+              /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
+            );
+            let hours = parseInt(hh, 10);
+            const minutes = parseInt(mm, 10);
+            if (meridian.toUpperCase() === "PM" && hours !== 12) hours += 12;
+            if (meridian.toUpperCase() === "AM" && hours === 12) hours = 0;
+            return hours * 60 + minutes;
+          } else {
+            // 24-hour format
+            const [h, m] = timeStr.split(":").map(Number);
+            return h * 60 + m;
+          }
+        };
 
-  dailyPricing.forEach((p) => {
-    const isoDate = new Date(p.date).toISOString().split("T")[0];
-    if (seen.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
-    seen.add(isoDate);
+        dailyPricing.forEach((p) => {
+          const isoDate = new Date(p.date).toISOString().split("T")[0];
+          if (seen.has(isoDate))
+            throw new Error(`Duplicate pricing for ${isoDate}`);
+          seen.add(isoDate);
 
-    if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
+          if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
 
-    ["full_day", "day_slot", "night_slot"].forEach((slot) => {
-      const t = p.timings[slot];
-      if (!t) throw new Error(`Missing timings for ${slot} on ${isoDate}`);
+          ["full_day", "day_slot", "night_slot"].forEach((slot) => {
+            const t = p.timings[slot];
+            if (!t)
+              throw new Error(`Missing timings for ${slot} on ${isoDate}`);
 
-      if (!timeRegex.test(t.checkIn) || !timeRegex.test(t.checkOut)) {
-        throw new Error(`Invalid time format for ${slot} on ${isoDate}. Use hh:mm AM/PM`);
-      }
+            if (!timeRegex.test(t.checkIn) || !timeRegex.test(t.checkOut)) {
+              throw new Error(
+                `Invalid time format for ${slot} on ${isoDate}. Use hh:mm AM/PM`
+              );
+            }
 
-      const inMin = toMinutes(t.checkIn);
-      const outMin = toMinutes(t.checkOut);
+            const inMin = toMinutes(t.checkIn);
+            const outMin = toMinutes(t.checkOut);
 
-      if (inMin >= outMin) {
-        throw new Error(`Check-In must be before Check-Out for ${slot} on ${isoDate}`);
-      }
-    });
-  });
+            if (inMin >= outMin) {
+              throw new Error(
+                `Check-In must be before Check-Out for ${slot} on ${isoDate}`
+              );
+            }
+          });
+        });
 
-  return dailyPricing;
-};
+        return dailyPricing;
+      };
       try {
         value.dailyPricing = validateDailyPricing(value.dailyPricing);
       } catch (e) {
@@ -658,13 +868,23 @@ const toMinutes = (timeStr) => {
         { new: true }
       );
       if (!farmDoc) {
-        return res.status(404).json({ success: false, message: "Farm not found or unauthorized." });
+        return res
+          .status(404)
+          .json({ success: false, message: "Farm not found or unauthorized." });
       }
     } else {
       if (value.name) {
-        const duplicate = await Farm.findOne({ name: value.name, owner: ownerId });
+        const duplicate = await Farm.findOne({
+          name: value.name,
+          owner: ownerId,
+        });
         if (duplicate) {
-          return res.status(409).json({ success: false, message: "A farm with this name already exists." });
+          return res
+            .status(409)
+            .json({
+              success: false,
+              message: "A farm with this name already exists.",
+            });
         }
       }
       farmDoc = await new Farm(value).save();
@@ -678,16 +898,17 @@ const toMinutes = (timeStr) => {
     // ✅ 12. Response
     return res.status(farmId ? 200 : 201).json({
       success: true,
-      message: farmId ? "Farm updated successfully." : "Farm created successfully.",
-      data: populatedFarm
+      message: farmId
+        ? "Farm updated successfully."
+        : "Farm created successfully.",
+      data: populatedFarm,
     });
-
   } catch (err) {
     console.error("[AddOrUpdateFarm Error]", err);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: err.message
+      error: err.message,
     });
   }
 };
@@ -695,52 +916,76 @@ const toMinutes = (timeStr) => {
 exports.unblockDate = async (req, res) => {
   const vendorId = req.user.id;
 
-  // ✅ Validate using external Joi schema
+  // ✅ Validate Request
   const { error, value } = FarmValidation.unblockDateSchema.validate(req.body);
   if (error) {
     return res.status(400).json({
       success: false,
-      message: 'Validation failed',
-      errors: error.details.map(e => e.message),
+      message: "Validation failed",
+      errors: error.details.map((e) => e.message),
     });
   }
 
   const { farmId, dates } = value;
 
   try {
+    // ✅ Find farm
     const farm = await Farm.findById(farmId);
     if (!farm) {
-      return res.status(404).json({ message: 'Farm not found. Please verify the farm ID.' });
+      return res.status(404).json({ success: false, message: "Farm not found." });
     }
 
+    // ✅ Ownership check
     if (farm.owner.toString() !== vendorId) {
-      return res.status(403).json({ message: 'Access denied. You do not own this farm.' });
+      return res.status(403).json({ success: false, message: "Access denied." });
     }
 
-    const existingSet = new Set(
-      farm.unavailableDates.map(d => DateTime.fromJSDate(d).toISODate())
-    );
+    const unblocked = [];
+    const notBlocked = [];
 
-    const toUnblockSet = new Set(
-      dates.map(d => DateTime.fromJSDate(new Date(d)).toISODate())
-    );
+    // ✅ Process each requested unblocking date & slots
+    for (const { date, slots } of dates) {
+      const isoReqDate = new Date(date).toISOString().split("T")[0];
 
-    const remainingDates = farm.unavailableDates.filter(d => {
-      const iso = DateTime.fromJSDate(d).toISODate();
-      return !toUnblockSet.has(iso);
-    });
+      // 🔹 Find existing blocked entry for this date
+      const entry = farm.unavailableDates.find(d => {
+        if (!d.date) return false;
+        return new Date(d.date).toISOString().split("T")[0] === isoReqDate;
+      });
 
-    const unblocked = [...existingSet].filter(d => toUnblockSet.has(d));
-    const notBlocked = [...toUnblockSet].filter(d => !existingSet.has(d));
+      if (!entry) {
+        // No entry found → this date wasn’t blocked at all
+        notBlocked.push({ date: isoReqDate, slots });
+        continue;
+      }
 
-    if (unblocked.length > 0) {
-      farm.unavailableDates = remainingDates;
-      await farm.save();
+      if (!entry.blockedSlots || entry.blockedSlots.length === 0) {
+        // Entry exists but no slots (edge case)
+        notBlocked.push({ date: isoReqDate, slots });
+        continue;
+      }
+
+      // 🔹 Remove requested slots from blockedSlots
+      const before = [...entry.blockedSlots];
+      entry.blockedSlots = entry.blockedSlots.filter(s => !slots.includes(s));
+
+      if (entry.blockedSlots.length === 0) {
+        // ✅ If no slots remain, remove the entire entry
+        farm.unavailableDates = farm.unavailableDates.filter(d =>
+          new Date(d.date).toISOString().split("T")[0] !== isoReqDate
+        );
+      }
+
+      unblocked.push({ date: isoReqDate, removedSlots: slots.filter(s => before.includes(s)) });
     }
 
+    // ✅ Save only if something changed
+    if (unblocked.length > 0) await farm.save();
+
+    // ✅ Response
     return res.status(200).json({
       success: true,
-      message: 'Farm availability updated.',
+      message: "Farm slot unblocking completed.",
       summary: {
         unblockedCount: unblocked.length,
         notBlockedCount: notBlocked.length,
@@ -748,18 +993,22 @@ exports.unblockDate = async (req, res) => {
       details: {
         unblocked,
         notBlocked,
-        currentUnavailableDates: farm.unavailableDates.map(d => d.toISOString()),
-      },
+        currentUnavailableDates: farm.unavailableDates.map(d => ({
+          date: new Date(d.date).toISOString().split("T")[0],
+          slots: d.blockedSlots
+        }))
+      }
     });
 
   } catch (err) {
-    console.error('Error while unblocking dates:', err);
+    console.error("❌ Error while unblocking slots:", err);
     return res.status(500).json({
       success: false,
-      message: 'An unexpected error occurred while unblocking dates.',
+      message: "An unexpected error occurred while unblocking slots.",
     });
   }
 };
+
 
 exports.blockDate = async (req, res) => {
   try {
@@ -768,7 +1017,7 @@ exports.blockDate = async (req, res) => {
     if (error) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
+        message: "Validation failed",
         errors: error.details.map(err => err.message),
       });
     }
@@ -776,54 +1025,62 @@ exports.blockDate = async (req, res) => {
     const vendorId = req.user.id;
     const { farmId, dates } = value;
 
-    // ✅ Step 2: Find farm and verify existence
+    // ✅ Step 2: Find farm
     const farm = await Farm.findById(farmId);
     if (!farm) {
-      return res.status(404).json({
-        success: false,
-        message: 'Farm not found. Please verify the farm ID.',
-      });
+      return res.status(404).json({ success: false, message: "Farm not found." });
     }
 
     // ✅ Step 3: Ownership check
     if (farm.owner.toString() !== vendorId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. You do not own this farm.',
-      });
+      return res.status(403).json({ success: false, message: "Access denied." });
     }
 
-    // ✅ Step 4: Normalize existing blocked dates
-    const existingDatesISO = farm.unavailableDates.map(d =>
-      DateTime.fromJSDate(d).toISODate()
-    );
-
-    // ✅ Step 5: Process new dates
     const newlyBlocked = [];
     const alreadyBlocked = [];
 
-    for (const rawDate of dates) {
-      const dateObj = new Date(rawDate);
-      const isoDate = DateTime.fromJSDate(dateObj).toISODate();
+    // ✅ Step 4: Iterate over each date-slot pair
+    for (const { date, slots } of dates) {
+      const dateObj = new Date(date);
 
-      if (!existingDatesISO.includes(isoDate)) {
-        farm.unavailableDates.push(dateObj);
-        newlyBlocked.push(isoDate);
-        existingDatesISO.push(isoDate); // prevent re-checking
+      // 🔹 Validate date
+      if (isNaN(dateObj.getTime())) {
+        console.warn(`⚠️ Skipping invalid date:`, date);
+        continue;
+      }
+
+      const normalizedDate = DateTime.fromJSDate(dateObj).toISODate();
+
+      // 🔹 Find if this date already exists in DB
+      const existing = farm.unavailableDates.find(d => {
+        if (!d.date) return false;
+        const storedISO = DateTime.fromJSDate(new Date(d.date)).toISODate();
+        return storedISO === normalizedDate;
+      });
+
+      if (existing) {
+        // 🔹 Merge new slots (avoid duplicates)
+        const newSlots = slots.filter(s => !existing.blockedSlots.includes(s));
+        if (newSlots.length > 0) {
+          existing.blockedSlots.push(...newSlots);
+          newlyBlocked.push({ date: normalizedDate, slots: newSlots });
+        } else {
+          alreadyBlocked.push({ date: normalizedDate, slots });
+        }
       } else {
-        alreadyBlocked.push(isoDate);
+        // 🔹 Add a new date entry
+        farm.unavailableDates.push({ date: dateObj, blockedSlots: slots });
+        newlyBlocked.push({ date: normalizedDate, slots });
       }
     }
 
-    // ✅ Step 6: Save if needed
-    if (newlyBlocked.length > 0) {
-      await farm.save();
-    }
+    // ✅ Step 5: Save if there were changes
+    if (newlyBlocked.length > 0) await farm.save();
 
-    // ✅ Step 7: Respond
+    // ✅ Step 6: Respond
     return res.status(200).json({
       success: true,
-      message: 'Farm availability updated.',
+      message: "Farm slot availability updated successfully.",
       summary: {
         newlyBlockedCount: newlyBlocked.length,
         alreadyBlockedCount: alreadyBlocked.length,
@@ -831,21 +1088,23 @@ exports.blockDate = async (req, res) => {
       details: {
         newlyBlocked,
         alreadyBlocked,
-        allUnavailableDates: farm.unavailableDates.map(d =>
-          DateTime.fromJSDate(d).toISODate()
-        ),
-      },
+        allUnavailableDates: farm.unavailableDates.map(d => ({
+          date: DateTime.fromJSDate(new Date(d.date)).toISODate(),
+          slots: d.blockedSlots
+        }))
+      }
     });
-
   } catch (err) {
-    console.error('Error while blocking dates:', err);
+    console.error("❌ Error while blocking dates:", err);
     return res.status(500).json({
       success: false,
-      message: 'An unexpected error occurred while blocking dates. Please try again later.',
+      message: "An unexpected error occurred while blocking dates. Please try again later.",
     });
   }
 };
-// step wise farm add if required 
+
+
+// step wise farm add if required
 
 // exports.handleFarmSteps = async (req, res) => {
 //   try {
@@ -1016,27 +1275,27 @@ exports.blockDate = async (req, res) => {
 //   }
 // };
 
-
-
 // get Category and facilites apis
 
 // get vendor farms
-
 
 exports.getVendorFarms = async (req, res) => {
   try {
     const ownerId = req.user.id;
 
     // ✅ Validate Body
-    const { error, value } = VendorValiidation.getVendorFarmsSchema.validate(req.body, {
-      abortEarly: false,
-      allowUnknown: true
-    });
+    const { error, value } = VendorValiidation.getVendorFarmsSchema.validate(
+      req.body,
+      {
+        abortEarly: false,
+        allowUnknown: true,
+      }
+    );
     if (error) {
       return res.status(400).json({
         success: false,
         message: "Validation failed",
-        errors: error.details.map(e => e.message)
+        errors: error.details.map((e) => e.message),
       });
     }
 
@@ -1083,31 +1342,32 @@ exports.getVendorFarms = async (req, res) => {
       total: totalFarms,
       page,
       limit,
-      data: farms
+      data: farms,
     });
-
   } catch (err) {
     console.error("[GetVendorFarms Error]", err);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: err.message
+      error: err.message,
     });
   }
 };
-
 
 exports.getVendorFarmById = async (req, res) => {
   try {
     const ownerId = req.user.id;
 
     // ✅ 1. Validate Request Body
-    const { error, value } = VendorValiidation.getFarmByVendorSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = VendorValiidation.getFarmByVendorSchema.validate(
+      req.body,
+      { abortEarly: false }
+    );
     if (error) {
       return res.status(400).json({
         success: false,
         message: "Validation failed",
-        errors: error.details.map(e => e.message)
+        errors: error.details.map((e) => e.message),
       });
     }
 
@@ -1117,7 +1377,7 @@ exports.getVendorFarmById = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(farmId)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid farmId format"
+        message: "Invalid farmId format",
       });
     }
 
@@ -1129,7 +1389,8 @@ exports.getVendorFarmById = async (req, res) => {
     if (!farmExists) {
       return res.status(404).json({
         success: false,
-        message: "Farm not found. Please check the farmId and try again.This Farm Not Belongs To YOU!!!!"
+        message:
+          "Farm not found. Please check the farmId and try again.This Farm Not Belongs To YOU!!!!",
       });
     }
 
@@ -1137,7 +1398,7 @@ exports.getVendorFarmById = async (req, res) => {
     if (farmExists.owner.toString() !== ownerId.toString()) {
       return res.status(403).json({
         success: false,
-        message: "You are not authorized to access this farm."
+        message: "You are not authorized to access this farm.",
       });
     }
 
@@ -1145,86 +1406,88 @@ exports.getVendorFarmById = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Farm details fetched successfully",
-      data: farmExists
+      data: farmExists,
     });
-
   } catch (err) {
     console.error("[GetVendorFarmById Error]", err);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: err.message
+      error: err.message,
     });
   }
 };
 
-// get all facilites and categories  without any restriction 
-
+// get all facilites and categories  without any restriction
 
 exports.getAllFacilities = async (req, res) => {
   try {
     // You can add query filters later if needed
-       const facilities = await Facility.find({}, '_id name').sort({ createdAt: -1 });
+    const facilities = await Facility.find({}, "_id name").sort({
+      createdAt: -1,
+    });
 
     if (!facilities || facilities.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'No facilities found'
+        message: "No facilities found",
       });
     }
 
     res.status(200).json({
       success: true,
       count: facilities.length,
-      data: facilities
+      data: facilities,
     });
-
   } catch (error) {
-    console.error('Error fetching facilities:', error);
+    console.error("Error fetching facilities:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
-      error: error.message
+      message: "Internal server error",
+      error: error.message,
     });
   }
 };
 exports.getAllCategories = async (req, res) => {
   try {
     // You can add query filters later if needed
-       const farmCategory = await FarmCategory.find({}, '_id name').sort({ createdAt: -1 });
+    const farmCategory = await FarmCategory.find({}, "_id name").sort({
+      createdAt: -1,
+    });
 
     if (!farmCategory || farmCategory.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'No farmCategory found'
+        message: "No farmCategory found",
       });
     }
 
     res.status(200).json({
       success: true,
       count: farmCategory.length,
-      data: farmCategory
+      data: farmCategory,
     });
-
   } catch (error) {
-    console.error('Error fetching farmCategory:', error);
+    console.error("Error fetching farmCategory:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
-      error: error.message
+      message: "Internal server error",
+      error: error.message,
     });
   }
 };
 
-
 exports.updateFarmImages = async (req, res) => {
   try {
     // ✅ Step 1: Validate body
-    const { error, value } = VendorValiidation.updateFarmImagesSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = VendorValiidation.updateFarmImagesSchema.validate(
+      req.body,
+      { abortEarly: false }
+    );
     if (error) {
       return res.status(400).json({
-        message: 'Validation failed',
-        errors: error.details.map(e => e.message)
+        message: "Validation failed",
+        errors: error.details.map((e) => e.message),
       });
     }
 
@@ -1233,20 +1496,22 @@ exports.updateFarmImages = async (req, res) => {
     // ✅ Step 2: Check if farm exists
     const farm = await Farm.findById(farm_id);
     if (!farm) {
-      return res.status(404).json({ error: 'Farm not found' });
+      return res.status(404).json({ error: "Farm not found" });
     }
 
     // ✅ Step 3: Check if files are uploaded
     const uploadedFiles = req.files?.images || req.files?.image;
     if (!uploadedFiles) {
-      return res.status(400).json({ error: 'No images uploaded.' });
+      return res.status(400).json({ error: "No images uploaded." });
     }
 
     // ✅ Step 4: Normalize files array
-    const filesArray = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
+    const filesArray = Array.isArray(uploadedFiles)
+      ? uploadedFiles
+      : [uploadedFiles];
 
     // ✅ Step 5: Upload new images to Cloudinary
-    const newImageUrls = await uploadFilesToCloudinary(filesArray, 'farms');
+    const newImageUrls = await uploadFilesToCloudinary(filesArray, "farms");
 
     // ✅ Step 6: Replace old images with new images
     farm.images = newImageUrls;
@@ -1256,35 +1521,38 @@ exports.updateFarmImages = async (req, res) => {
 
     // ✅ Step 8: Response
     return res.status(200).json({
-      message: 'Farm images replaced successfully',
-      newImages: newImageUrls
+      message: "Farm images replaced successfully",
+      newImages: newImageUrls,
     });
-
   } catch (err) {
-    console.error('[updateFarmImages Error]', err);
-    return res.status(500).json({ error: 'Server error. Please try again later.' });
+    console.error("[updateFarmImages Error]", err);
+    return res
+      .status(500)
+      .json({ error: "Server error. Please try again later." });
   }
 };
-
 
 // delete farm
 
 exports.deleteVendorFarm = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-  
+
   try {
     const ownerId = req.user.id;
 
     // ✅ 1. Validate Body
-    const { error, value } = VendorValiidation.deleteVendorFarmSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = VendorValiidation.deleteVendorFarmSchema.validate(
+      req.body,
+      { abortEarly: false }
+    );
     if (error) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
         message: "Validation failed",
-        errors: error.details.map(e => e.message)
+        errors: error.details.map((e) => e.message),
       });
     }
 
@@ -1294,7 +1562,9 @@ exports.deleteVendorFarm = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(farmId)) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ success: false, message: "Invalid farmId format" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid farmId format" });
     }
 
     // ✅ 3. Find Farm
@@ -1304,7 +1574,7 @@ exports.deleteVendorFarm = async (req, res) => {
       session.endSession();
       return res.status(404).json({
         success: false,
-        message: "Farm not found. Please check the farmId."
+        message: "Farm not found. Please check the farmId.",
       });
     }
 
@@ -1314,7 +1584,7 @@ exports.deleteVendorFarm = async (req, res) => {
       session.endSession();
       return res.status(403).json({
         success: false,
-        message: "You are not authorized to delete this farm."
+        message: "You are not authorized to delete this farm.",
       });
     }
 
@@ -1334,9 +1604,8 @@ exports.deleteVendorFarm = async (req, res) => {
     // ✅ 7. Return Response
     return res.status(200).json({
       success: true,
-      message: `Farm '${farm.name}' deleted successfully. ${cancelResult.modifiedCount} bookings were cancelled.`
+      message: `Farm '${farm.name}' deleted successfully. ${cancelResult.modifiedCount} bookings were cancelled.`,
     });
-
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
@@ -1344,43 +1613,48 @@ exports.deleteVendorFarm = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: err.message
+      error: err.message,
     });
   }
 };
 
-// vendor booking related 
+// vendor booking related
 
 exports.getVendorFarmBookings = async (req, res) => {
   try {
     const vendorId = req.user.id;
 
     // ✅ 1. Validate Request Body
-   const { error, value } =VendorValiidation. getVendorBookingsSchema.validate(req.body, { abortEarly: false, allowUnknown: true });
-if (error) {
-  return res.status(400).json({
-    success: false,
-    message: "Validation failed", 
-    errors: error.details.map(e => e.message)
-  });
-}
-
-let { status, search, startDate, endDate, page, limit } = value;
-
-// ✅ Normalize empty strings
-if (!status) status = ""; // means no status filter
-if (!search) search = "";
-
-    // ✅ 2. Get all farms owned by vendor
-    const vendorFarms = await Farm.find({ owner: vendorId }).select("_id").lean();
-    if (!vendorFarms.length) {
-      return res.status(404).json({
+    const { error, value } = VendorValiidation.getVendorBookingsSchema.validate(
+      req.body,
+      { abortEarly: false, allowUnknown: true }
+    );
+    if (error) {
+      return res.status(400).json({
         success: false,
-        message: "No farms found for this vendor. No bookings available."
+        message: "Validation failed",
+        errors: error.details.map((e) => e.message),
       });
     }
 
-    const farmIds = vendorFarms.map(f => f._id);
+    let { status, search, startDate, endDate, page, limit } = value;
+
+    // ✅ Normalize empty strings
+    if (!status) status = ""; // means no status filter
+    if (!search) search = "";
+
+    // ✅ 2. Get all farms owned by vendor
+    const vendorFarms = await Farm.find({ owner: vendorId })
+      .select("_id")
+      .lean();
+    if (!vendorFarms.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No farms found for this vendor. No bookings available.",
+      });
+    }
+
+    const farmIds = vendorFarms.map((f) => f._id);
 
     // ✅ 3. Build Booking Query
     const query = { farm: { $in: farmIds } };
@@ -1391,7 +1665,7 @@ if (!search) search = "";
     if (search && search.trim() !== "") {
       query.$or = [
         { customerName: { $regex: search.trim(), $options: "i" } },
-        { customerPhone: { $regex: search.trim(), $options: "i" } }
+        { customerPhone: { $regex: search.trim(), $options: "i" } },
       ];
     }
 
@@ -1424,28 +1698,29 @@ if (!search) search = "";
       total: totalBookings,
       page,
       limit,
-      data: bookings
+      data: bookings,
     });
-
   } catch (err) {
     console.error("[GetVendorFarmBookings Error]", err);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: err.message
+      error: err.message,
     });
   }
 };
 
-
 exports.getBookingByBookingId = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
-    const { error, value } = VendorValiidation.getBookingByIdSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = VendorValiidation.getBookingByIdSchema.validate(
+      req.body,
+      { abortEarly: false }
+    );
     if (error) {
       return res.status(400).json({
-        message: 'Validation failed',
-        errors: error.details.map(e => e.message)
+        message: "Validation failed",
+        errors: error.details.map((e) => e.message),
       });
     }
 
@@ -1453,11 +1728,11 @@ exports.getBookingByBookingId = async (req, res) => {
 
     // ✅ Step 2: Find booking with populated farm
     const booking = await FarmBooking.findOne({ Booking_id: booking_id })
-      .populate('customer')
-      .populate('farm');
+      .populate("customer")
+      .populate("farm");
 
     if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
+      return res.status(404).json({ error: "Booking not found" });
     }
 
     // ✅ Step 3: Convert to object
@@ -1475,17 +1750,17 @@ exports.getBookingByBookingId = async (req, res) => {
     // ✅ Step 4: Extract checkIn/checkOut for booking date
     let checkInOut = {};
     if (bookingObj.farm?.dailyPricing && bookingObj.date) {
-      const bookingDate = new Date(bookingObj.date).toISOString().split('T')[0];
+      const bookingDate = new Date(bookingObj.date).toISOString().split("T")[0];
 
-      const matched = bookingObj.farm.dailyPricing.find(dp => {
-        const dpDate = new Date(dp.date).toISOString().split('T')[0];
+      const matched = bookingObj.farm.dailyPricing.find((dp) => {
+        const dpDate = new Date(dp.date).toISOString().split("T")[0];
         return dpDate === bookingDate;
       });
 
       if (matched) {
-        checkInOut = { 
-          checkIn: toAmPm(matched.checkIn), 
-          checkOut: toAmPm(matched.checkOut) 
+        checkInOut = {
+          checkIn: toAmPm(matched.checkIn),
+          checkOut: toAmPm(matched.checkOut),
         };
       }
     }
@@ -1519,12 +1794,11 @@ exports.getBookingByBookingId = async (req, res) => {
 
     // ✅ Step 6: Send clean response
     res.status(200).json({
-      message: 'Booking details fetched successfully',
-      data: bookingObj
+      message: "Booking details fetched successfully",
+      data: bookingObj,
     });
-
   } catch (err) {
-    console.error('[GetBookingByBookingId Error]', err);
-    res.status(500).json({ error: 'Server error. Please try again later.' });
+    console.error("[GetBookingByBookingId Error]", err);
+    res.status(500).json({ error: "Server error. Please try again later." });
   }
 };
