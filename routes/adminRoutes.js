@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const { authenticateAdmin } = require('../middlewares/Auth');
+const ParseNest = require('../utils/ParseNest');
 
 
 // Auth Routes
@@ -30,10 +31,13 @@ router.post('/get_all_aprrove_vendors',authenticateAdmin, adminController.getAll
 router.post('/get_all_vendors',authenticateAdmin, adminController.getAllVendors);
 router.post('/get_vendor_by_id',authenticateAdmin, adminController.getVendorWithFarms);
 
-// add  categoris and facilites 
+// add ,get  categoris and facilites 
 
 router.post('/add_farm_category',authenticateAdmin, adminController.addFarmCategory);
 router.post('/add_Farm_Facilities',authenticateAdmin, adminController.addFacilities);
+
+router.get('/get_all_categories',ParseNest,authenticateAdmin,adminController.getAllCategories);
+router.get('/get_all_facilites',ParseNest,authenticateAdmin,adminController.getAllFacilities);
 
 // booking 
 

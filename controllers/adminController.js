@@ -609,7 +609,7 @@ exports.getAllApprovedVendors = async (req, res) => {
   }
 };
 
-// add categori and facilites  
+// add ,get categori and facilites  
 
 exports.addFarmCategory = async (req, res) => {
   try {
@@ -715,6 +715,62 @@ exports.addFacilities = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Internal server error. Please try again later.'
+    });
+  }
+};
+
+exports.getAllFacilities = async (req, res) => {
+  try {
+    // You can add query filters later if needed
+       const facilities = await Facility.find({}, '_id name').sort({ createdAt: -1 });
+
+    if (!facilities || facilities.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No facilities found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: facilities.length,
+      data: facilities
+    });
+
+  } catch (error) {
+    console.error('Error fetching facilities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+exports.getAllCategories = async (req, res) => {
+  try {
+    // You can add query filters later if needed
+       const farmCategory = await FarmCategory.find({}, '_id name').sort({ createdAt: -1 });
+
+    if (!farmCategory || farmCategory.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No farmCategory found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: farmCategory.length,
+      data: farmCategory
+    });
+
+  } catch (error) {
+    console.error('Error fetching farmCategory:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
     });
   }
 };
