@@ -489,6 +489,10 @@ if (req.body.areaImages && typeof req.body.areaImages === "string") {
     try { req.body[key] = JSON.parse(req.body[key]); } catch {}
   }
 });
+const normalizeFiles = (files) => {
+  if (!files) return [];
+  return Array.isArray(files) ? files : [files];
+};
     // ✅ 1. Validate Request with Joi
     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
       req.body,
@@ -548,9 +552,11 @@ if (value.farmCategory?.length) {
     }
 // ✅ 8. Handle General Farm Images (main gallery)
 if (req.files?.images || req.files?.image) {
-  const imagesArray = Array.isArray(req.files.images) ? req.files.images : [req.files.image];
-  const uploadedUrls = await uploadFilesToCloudinary(imagesArray, "farms");
-  value.images = uploadedUrls;
+  const imagesArray = normalizeFiles(req.files.images || req.files.image);
+  if (imagesArray.length > 0) {
+    const uploadedUrls = await uploadFilesToCloudinary(imagesArray, "farms");
+    value.images = uploadedUrls;
+  }
 }
 
 // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
@@ -572,13 +578,13 @@ if (req.body.areaImages) {
     const fieldKey = `areaImages[${i}][images]`; // This matches Postman key names
 
     // ✅ Find corresponding files in req.files
-    const files = req.files?.[fieldKey];
-    let uploadedUrls = [];
+   const filesArray = normalizeFiles(req.files?.[fieldKey]);
+let uploadedUrls = [];
 
-    if (files) {
-      const filesArray = Array.isArray(files) ? files : [files];
-      uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${area.areaType}`);
-    }
+if (filesArray.length > 0) {
+  uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${area.areaType}`);
+}
+
 
     // ✅ Push final structure
     areaImagesData.push({
