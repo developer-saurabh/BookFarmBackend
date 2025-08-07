@@ -1380,7 +1380,7 @@ exports.getAdminProfile = async (req, res) => {
 
 
 
-exports.getAllFarms = async (req, res) => {
+exports.getAllActiveFarms = async (req, res) => {
   try {
     // ✅ Step 1: Validate body for pagination only
     const { error, value } = AdminValidation.getAllFarmsSchema.validate(req.body, { abortEarly: false });
