@@ -870,7 +870,7 @@ exports.addOrUpdateFarm = async (req, res) => {
       if (!farmDoc) {
         return res
           .status(404)
-          .json({ success: false, message: "Farm not found or unauthorized." });
+          .json({ success: false, message: "Farm not found ." });
       }
     } else {
       if (value.name) {
@@ -1594,12 +1594,13 @@ exports.deleteVendorFarm = async (req, res) => {
       { $set: { status: "cancelled" } },
       { session }
     );
-
-    // ✅ 6. Delete Farm
-    await Farm.deleteOne({ _id: farmId }).session(session);
-
-    await session.commitTransaction();
-    session.endSession();
+// ✅ 6. Instead of hard delete, soft delete
+farm.isActive = false;
+farm.isApproved = false;
+farm.isHold = true;
+farm.isDraft = true;
+farm.deletedAt = new Date(); // 👈 Optional, to know when it was deleted
+await farm.save({ session });
 
     // ✅ 7. Return Response
     return res.status(200).json({

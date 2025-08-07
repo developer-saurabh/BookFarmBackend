@@ -155,7 +155,11 @@ unavailableDates: [
      // 🔥 NEW FIELDS
     currentStep: { type: Number, default: 1 },
     isDraft: { type: Boolean, default: true },
-    completedSteps: { type: [Number], default: [] }
+    completedSteps: { type: [Number], default: [] },
+
+    deletedAt: { type: Date, default: null }
+
+    
   },
   
   { timestamps: true }

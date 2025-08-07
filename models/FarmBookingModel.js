@@ -66,7 +66,17 @@ Guest_Count:{
 },
 Group_Category:{
   type:String
-}
+},
+farmSnapshot: {
+  name: { type: String },
+  location: {
+    address: String,
+    city: String,
+    state: String,
+    pinCode: String,
+    areaName: String
+  }
+},
 }, { timestamps: true });
 
 

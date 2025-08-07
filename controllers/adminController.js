@@ -672,8 +672,14 @@ exports.deleteVendorFarm = async (req, res) => {
     );
 
     // ✅ 6. Delete Farm
-    await Farm.deleteOne({ _id: farmId }).session(session);
+  // ✅ Soft delete instead of removing
+farm.isActive = false;
+farm.isApproved = false;
+farm.isHold = true;
+farm.isDraft = true;
+farm.deletedAt = new Date();
 
+await farm.save({ session });
     await session.commitTransaction();
     session.endSession();
 
@@ -898,21 +904,29 @@ exports.getAllBookings = async (req, res) => {
 
     // ✅ Fetch bookings with pagination
     const total = await FarmBooking.countDocuments(filter);
-    const bookings = await FarmBooking.find(filter)
-      .populate('farm', 'name location')
-      .populate('customer', 'name phone email')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
+ const bookings = await FarmBooking.find(filter)
+  .populate('farm', 'name location')
+  .populate('customer', 'name phone email')
+  .sort({ createdAt: -1 })
+  .skip((page - 1) * limit)
+  .limit(limit)
+  .lean();
+  const updatedBookings = bookings.map(b => {
+  if (!b.farm && b.farmSnapshot) {
+    b.farm = b.farmSnapshot; // fallback display
+    b.farm.isDeleted = true;
+  }
+  return b;
+});
   //  console.log("booking ddata printing",bookings)
-    return res.status(200).json({
-      success: true,
-      message: 'Bookings retrieved successfully',
-      total,
-      page,
-      limit,
-      data: bookings
-    });
+  return res.status(200).json({
+  success: true,
+  message: 'Bookings retrieved successfully',
+  total,
+  page,
+  limit,
+  data: updatedBookings
+});
 
   } catch (err) {
     console.error('[getAllBookings Error]', err);
@@ -1435,10 +1449,10 @@ exports.getAllFarms = async (req, res) => {
     // ✅ Step 2: Pagination calculation
     const skip = (page - 1) * limit;
 
-    // ✅ Step 3: Fetch all farms without filters
-    let farms = await Farm.find({})
-      .populate('farmCategory')
-      .populate('facilities')
+    // ✅ Step 3: Fetch all farms (excluding soft-deleted ones)
+    let farms = await Farm.find({ deletedAt: null })  // ⛔ Exclude soft-deleted farms
+      .populate('farmCategory', '_id name')           // Limit fields if needed
+      .populate('facilities', '_id name icon')
       .skip(skip)
       .limit(limit)
       .lean();
@@ -1451,15 +1465,15 @@ exports.getAllFarms = async (req, res) => {
       if (farm.dailyPricing && Array.isArray(farm.dailyPricing)) {
         farm.dailyPricing = farm.dailyPricing.map(dp => ({
           date: dp.date,
-          checkIn: dp.checkIn,
-          checkOut: dp.checkOut
+          checkIn: dp?.timings?.full_day?.checkIn,
+          checkOut: dp?.timings?.full_day?.checkOut
         }));
       }
       return farm;
     });
 
-    // ✅ Step 5: Count total farms
-    const totalFarms = await Farm.countDocuments({});
+    // ✅ Step 5: Count total non-deleted farms
+    const totalFarms = await Farm.countDocuments({ deletedAt: null });
 
     // ✅ Step 6: Return response
     return res.status(200).json({
@@ -1478,6 +1492,7 @@ exports.getAllFarms = async (req, res) => {
     return res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
+
 
 exports.updateFarmStatus = async (req, res) => {
   try {

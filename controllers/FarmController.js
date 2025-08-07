@@ -153,23 +153,33 @@ if (blockedEntry) {
 const generateBookingId = () => Math.floor(100000 + Math.random() * 900000);
 
     // ✅ Step 7: Save booking
-    const booking = new FarmBooking({
-        Booking_id: generateBookingId(),
-      customerName,
-      customerPhone,
-      customerEmail,
-      customer: customerId,
-      farm: farm_id,
-      farmType: farmDoc.farmType,
-      date: normalizedDate,
-      bookingModes,
-      Group_Category,
-      Guest_Count,
-      status: value.status || 'pending',
-      paymentStatus: value.paymentStatus || 'unpaid',
-      totalPrice,
-      priceBreakdown
-    });
+  const booking = new FarmBooking({
+  Booking_id: generateBookingId(),
+  customerName,
+  customerPhone,
+  customerEmail,
+  customer: customerId,
+  farm: farm_id,
+  date: normalizedDate,
+  bookingModes,
+  Group_Category,
+  Guest_Count,
+  status: value.status || 'pending',
+  paymentStatus: value.paymentStatus || 'unpaid',
+  totalPrice,
+  priceBreakdown,
+  farmSnapshot: {
+    name: farmDoc.name,
+    location: {
+      address: farmDoc.location.address,
+      city: farmDoc.location.city,
+      state: farmDoc.location.state,
+      pinCode: farmDoc.location.pinCode,
+      areaName: farmDoc.location.areaName
+    }
+  }
+});
+
 
     await booking.save();
 
