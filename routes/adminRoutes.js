@@ -53,7 +53,7 @@ router.post('/get_all_customers',authenticateAdmin, adminController.getAllCustom
 router.post('/get_vendor_farm_by_id',adminController.getVendorFarmById);
 router.post('/get_all_farms',authenticateAdmin, adminController.getAllFarms);
 router.post('/Change_farm_status',authenticateAdmin, adminController.updateFarmStatus);
-
+router.delete('/delete_vendor_farm',ParseNest,authenticateAdmin,adminController.deleteVendorFarm);
 
 // Profile_apis
 

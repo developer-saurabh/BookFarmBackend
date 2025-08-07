@@ -1579,14 +1579,14 @@ exports.deleteVendorFarm = async (req, res) => {
     }
 
     // ✅ 4. Ownership Check
-    if (farm.owner.toString() !== ownerId.toString()) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to delete this farm.",
-      });
-    }
+    // if (farm.owner.toString() !== ownerId.toString()) {
+    //   await session.abortTransaction();
+    //   session.endSession();
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "You are not authorized to delete this farm.",
+    //   });
+    // }
 
     // ✅ 5. Cancel All Related Bookings
     const cancelResult = await FarmBooking.updateMany(

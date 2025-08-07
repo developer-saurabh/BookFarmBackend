@@ -38,9 +38,9 @@ router.post('/un_block_date',ParseNest,vendorAuth, vendorController.unblockDate)
 router.post('/get_vendor_farm',ParseNest,vendorAuth,vendorController.getVendorFarms);
 router.post('/get_vendor_farm_by_id',ParseNest,vendorAuth,vendorController.getVendorFarmById);
 
-// delte farm 
+// // delte farm 
 
-router.delete('/delete_vendor_farm',ParseNest,vendorAuth,vendorController.deleteVendorFarm);
+// router.delete('/delete_vendor_farm',ParseNest,vendorAuth,vendorController.deleteVendorFarm);
 
 
 // all categoriess and facilites 
