@@ -626,10 +626,210 @@ const cleanInput = (input) => {
   return clone;
 };
 
+// exports.FilterQueeryFarms = async (req, res) => {
+//   try {
+//     const cleanedBody = cleanInput(req.body);
+//     const { error, value } =FarmValidation. FilterQueeryFarm.validate(cleanedBody);
+
+//     if (error) {
+//       return res.status(400).json({
+//         success: false,
+//         message: error.details[0].message
+//       });
+//     }
+
+//     const {
+//       startDate,
+//       endDate,
+//       farmCategory = [],
+//       capacityRange,
+//       priceRange,
+//       facilities = [],
+//       page = 1,
+//       limit = 10
+//     } = value;
+
+//     const now = new Date();
+//     const start = startDate ? new Date(startDate) : new Date(now.toISOString().split('T')[0]);
+//     const end = endDate
+//       ? new Date(endDate)
+//       : new Date(new Date(start).setDate(start.getDate() + 7));
+
+//     const allDates = [];
+//     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+//       allDates.push(new Date(d).toISOString().split('T')[0]);
+//     }
+
+//     const baseQuery = { isActive: true, isApproved: true };
+//     if (farmCategory.length > 0) {
+//       baseQuery.farmCategory = { $in: farmCategory };
+//     }
+
+//     let farms = await Farm.find(baseQuery)
+//       .populate('farmCategory', '_id name')
+//       .populate('facilities', '_id name');
+
+//     if (!farms.length) {
+//       return res.status(200).json({
+//         success: false,
+//         message: 'No farms found for the selected farm categories.'
+//       });
+//     }
+
+//     if (capacityRange) {
+//       const { min: capMin, max: capMax } = capacityRange;
+//       farms = farms.filter(f => f.capacity >= capMin && f.capacity <= capMax);
+//       if (!farms.length) {
+//         return res.status(200).json({
+//           success: false,
+//           message: `No farms found in the capacity range ${capMin}–${capMax}.`
+//         });
+//       }
+//     }
+
+//     if (facilities.length > 0) {
+//       farms = farms.filter(farm =>
+//         farm.facilities.some(f => facilities.includes(f._id.toString()))
+//       );
+//       if (!farms.length) {
+//         return res.status(200).json({
+//           success: false,
+//           message: 'No farms found with any of the selected facilities.'
+//         });
+//       }
+//     }
+
+//     if (priceRange) {
+//       const { min: priceMin, max: priceMax } = priceRange;
+
+//       farms = farms.filter(farm => {
+//         let isWithinRange = false;
+
+//         for (const dateStr of allDates) {
+//           const dailyEntry = farm.dailyPricing?.find(
+//             d => new Date(d.date).toISOString().split('T')[0] === dateStr
+//           );
+
+//           const slotPrices = dailyEntry?.slots || farm.defaultPricing || {};
+
+//           const prices = [
+//             slotPrices.full_day,
+//             slotPrices.day_slot,
+//             slotPrices.night_slot
+//           ];
+
+//           if (
+//             prices.some(
+//               p => typeof p === 'number' && p >= priceMin && p <= priceMax
+//             )
+//           ) {
+//             isWithinRange = true;
+//             break;
+//           }
+//         }
+
+//         return isWithinRange;
+//       });
+
+//       if (!farms.length) {
+//         return res.status(200).json({
+//           success: false,
+//           message: `No farms found in the price range ₹${priceMin}–₹${priceMax}.`
+//         });
+//       }
+//     }
+
+//     const bookings = await FarmBooking.find({
+//       farm: { $in: farms.map(f => f._id) },
+//       date: { $gte: start, $lte: end },
+//       status: { $in: ['pending', 'confirmed'] }
+//     });
+
+//     const bookingMap = {};
+//     bookings.forEach(b => {
+//       const fid = b.farm.toString();
+//       const dateStr = new Date(b.date).toISOString().split('T')[0];
+//       if (!bookingMap[fid]) bookingMap[fid] = {};
+//       if (!bookingMap[fid][dateStr]) bookingMap[fid][dateStr] = new Set();
+//       b.bookingModes.forEach(mode => bookingMap[fid][dateStr].add(mode));
+//     });
+
+//     const allModes = ['full_day', 'day_slot', 'night_slot'];
+
+//     const availableFarms = farms.filter(farm => {
+//       const blockedDates = (farm.unavailableDates || []).map(d =>
+//         new Date(d).toISOString().split('T')[0]
+//       );
+//       const fid = farm._id.toString();
+
+//       for (const date of allDates) {
+//         if (blockedDates.includes(date)) return false;
+//         const bookedModes = bookingMap[fid]?.[date] || new Set();
+//         if (allModes.every(mode => bookedModes.has(mode))) return false;
+//       }
+
+//       return true;
+//     });
+
+//     if (!availableFarms.length) {
+//       return res.status(200).json({
+//         success: false,
+//         message: `No farms fully available between ${start.toDateString()} and ${end.toDateString()}.`
+//       });
+//     }
+
+//     const skip = (page - 1) * limit;
+//     const paginatedFarms = availableFarms.slice(skip, skip + limit);
+// for (let i = 0; i < paginatedFarms.length; i++) {
+//   const farm = paginatedFarms[i];
+
+//   const farmObj = farm.toObject(); // <-- this is the key
+
+//   if (Array.isArray(farmObj.dailyPricing)) {
+//     farmObj.dailyPricing = farmObj.dailyPricing.map(entry => {
+//       const dateObj = new Date(entry.date);
+//       const dayName = dateObj.toLocaleDateString('en-IN', { weekday: 'long' });
+
+//       // console.log("day Name printing", dayName);
+
+//       return {
+//         ...entry,
+//         dayName
+//       };
+//     });
+//   }
+
+//   paginatedFarms[i] = farmObj; // <-- reassign the modified object
+// }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: `${availableFarms.length} farm(s) available from ${start.toDateString()} to ${end.toDateString()}.`,
+//       pagination: {
+//         total: availableFarms.length,
+//         page,
+//         limit,
+//         totalPages: Math.ceil(availableFarms.length / limit)
+//       },
+//       data: paginatedFarms
+//     });
+
+//   } catch (err) {
+//     console.error('Farm filter query error:', err);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error. Please try again later.'
+//     });
+//   }
+// };
+
+// gallary api
+
+
 exports.FilterQueeryFarms = async (req, res) => {
   try {
     const cleanedBody = cleanInput(req.body);
-    const { error, value } =FarmValidation. FilterQueeryFarm.validate(cleanedBody);
+    const { error, value } = FarmValidation.FilterQueeryFarm.validate(cleanedBody);
 
     if (error) {
       return res.status(400).json({
@@ -650,14 +850,25 @@ exports.FilterQueeryFarms = async (req, res) => {
     } = value;
 
     const now = new Date();
+
     const start = startDate ? new Date(startDate) : new Date(now.toISOString().split('T')[0]);
+    if (isNaN(start.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid startDate format.' });
+    }
+
     const end = endDate
       ? new Date(endDate)
       : new Date(new Date(start).setDate(start.getDate() + 7));
+    if (isNaN(end.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid endDate format.' });
+    }
 
     const allDates = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      allDates.push(new Date(d).toISOString().split('T')[0]);
+      const clone = new Date(d);
+      if (!isNaN(clone.getTime())) {
+        allDates.push(clone.toISOString().split('T')[0]);
+      }
     }
 
     const baseQuery = { isActive: true, isApproved: true };
@@ -706,9 +917,11 @@ exports.FilterQueeryFarms = async (req, res) => {
         let isWithinRange = false;
 
         for (const dateStr of allDates) {
-          const dailyEntry = farm.dailyPricing?.find(
-            d => new Date(d.date).toISOString().split('T')[0] === dateStr
-          );
+          const dailyEntry = farm.dailyPricing?.find(d => {
+            const dt = new Date(d.date);
+            return !isNaN(dt.getTime()) &&
+              dt.toISOString().split('T')[0] === dateStr;
+          });
 
           const slotPrices = dailyEntry?.slots || farm.defaultPricing || {};
 
@@ -757,9 +970,11 @@ exports.FilterQueeryFarms = async (req, res) => {
     const allModes = ['full_day', 'day_slot', 'night_slot'];
 
     const availableFarms = farms.filter(farm => {
-      const blockedDates = (farm.unavailableDates || []).map(d =>
-        new Date(d).toISOString().split('T')[0]
-      );
+      const blockedDates = (farm.unavailableDates || []).map(d => {
+        const dt = new Date(d);
+        return !isNaN(dt.getTime()) ? dt.toISOString().split('T')[0] : null;
+      }).filter(Boolean);
+
       const fid = farm._id.toString();
 
       for (const date of allDates) {
@@ -780,27 +995,27 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     const skip = (page - 1) * limit;
     const paginatedFarms = availableFarms.slice(skip, skip + limit);
-for (let i = 0; i < paginatedFarms.length; i++) {
-  const farm = paginatedFarms[i];
 
-  const farmObj = farm.toObject(); // <-- this is the key
+    for (let i = 0; i < paginatedFarms.length; i++) {
+      const farm = paginatedFarms[i];
+      const farmObj = farm.toObject();
 
-  if (Array.isArray(farmObj.dailyPricing)) {
-    farmObj.dailyPricing = farmObj.dailyPricing.map(entry => {
-      const dateObj = new Date(entry.date);
-      const dayName = dateObj.toLocaleDateString('en-IN', { weekday: 'long' });
+      if (Array.isArray(farmObj.dailyPricing)) {
+        farmObj.dailyPricing = farmObj.dailyPricing.map(entry => {
+          const dateObj = new Date(entry.date);
+          const isValidDate = !isNaN(dateObj.getTime());
 
-      // console.log("day Name printing", dayName);
+          return {
+            ...entry,
+            dayName: isValidDate
+              ? dateObj.toLocaleDateString('en-IN', { weekday: 'long' })
+              : null
+          };
+        });
+      }
 
-      return {
-        ...entry,
-        dayName
-      };
-    });
-  }
-
-  paginatedFarms[i] = farmObj; // <-- reassign the modified object
-}
+      paginatedFarms[i] = farmObj;
+    }
 
     return res.status(200).json({
       success: true,
@@ -822,8 +1037,6 @@ for (let i = 0; i < paginatedFarms.length; i++) {
     });
   }
 };
-
-// gallary api
 
 exports.getFarmCategories = async (req, res) => {
   try {
