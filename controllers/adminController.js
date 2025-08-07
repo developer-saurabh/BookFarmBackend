@@ -1397,7 +1397,7 @@ exports.getAllFarms = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // ✅ Step 3: Fetch all farms (excluding soft-deleted ones)
-    let farms = await Farm.find({ deletedAt: null })  // ⛔ Exclude soft-deleted farms
+    let farms = await Farm.find({ deletedAt: null ,isActive: true  })  // ⛔ Exclude soft-deleted farms
       .populate('farmCategory', '_id name')           // Limit fields if needed
       .populate('facilities', '_id name icon')
       .skip(skip)
