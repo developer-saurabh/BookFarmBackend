@@ -1292,70 +1292,15 @@ exports.getVendorWithFarms = async (req, res) => {
     if (!vendor) {
       return res.status(404).json({ error: 'Vendor not found' });
     }
-
-    // ✅ Step 3: Fetch Farms owned by vendor
-    let farms = await Farm.find({ owner: vendorId })
-      .populate('farmCategory')
-      .populate('facilities')
-      .lean(); // Convert to plain objects for modification
-
-    // ✅ Step 4: Remove unwanted fields from farms
-    farms = farms.map(farm => {
-      delete farm.defaultPricing;
-      delete farm.bookingModes;
-      // delete farm.dailyPricing;
-      
-
-      // ✅ Clean dailyPricing: remove "slots" but keep checkIn/checkOut
-      if (farm.dailyPricing && Array.isArray(farm.dailyPricing)) {
-        farm.dailyPricing = farm.dailyPricing.map(dp => ({
-          date: dp.date,
-          checkIn: dp.checkIn,
-          checkOut: dp.checkOut
-        }));
-      }
-
-      return farm;
-    });
-
-    // ✅ Step 5: Send response
-    return res.status(200).json({
-      message: 'Vendor details fetched successfully',
-      vendor,
-      farms
-    });
-
-  } catch (err) {
-    console.error('[getVendorWithFarms Error]', err);
-    return res.status(500).json({ error: 'Server error. Please try again later.' });
-  }
-};
-
-
-exports.getVendorWithFarms = async (req, res) => {
-  try {
-    // ✅ Step 1: Validate input (vendor_id in body)
-    const { error, value } =AdminValidation.getVendorByIdSchema.validate(req.body, { abortEarly: false });
-    if (error) {
-      return res.status(400).json({
-        message: 'Validation failed',
-        errors: error.details.map(e => e.message)
-      });
-    }
-
-    const vendorId = value.vendor_id;
-
-    // ✅ Step 2: Fetch Vendor (excluding password)
-    const vendor = await Vendor.findById(vendorId).select('-password');
-    if (!vendor) {
-      return res.status(404).json({ error: 'Vendor not found' });
-    }
-
-    // ✅ Step 3: Fetch Farms owned by vendor
-    let farms = await Farm.find({ owner: vendorId })
-      .populate('farmCategory')
-      .populate('facilities')
-      .lean(); // Convert to plain objects for modification
+   // ✅ Step 3: Fetch only active, non-deleted farms
+    let farms = await Farm.find({
+        owner: vendorId,
+        deletedAt: null,       // 👈 Exclude soft-deleted farms
+        isActive: true         // 👈 Optional: only return active farms
+      })
+      .populate('farmCategory', '_id name')
+      .populate('facilities', '_id name icon')
+      .lean();
 
     // ✅ Step 4: Remove unwanted fields from farms
     farms = farms.map(farm => {
@@ -1378,7 +1323,7 @@ exports.getVendorWithFarms = async (req, res) => {
 
     // ✅ Step 5: Send response
     return res.status(200).json({
-      message: 'Vendor details fetched successfully',
+      message: 'Vendor details fetched successfullyyyy',
       vendor,
       farms
     });
@@ -1388,6 +1333,8 @@ exports.getVendorWithFarms = async (req, res) => {
     return res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
+
+
 
 
 
