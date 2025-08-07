@@ -1295,8 +1295,7 @@ exports.getVendorWithFarms = async (req, res) => {
    // ✅ Step 3: Fetch only active, non-deleted farms
     let farms = await Farm.find({
         owner: vendorId,
-        deletedAt: null,       // 👈 Exclude soft-deleted farms
-        isActive: true         // 👈 Optional: only return active farms
+        deletedAt: null    // 👈 Exclude soft-deleted farm        // 👈 Optional: only return active farms
       })
       .populate('farmCategory', '_id name')
       .populate('facilities', '_id name icon')
@@ -1380,7 +1379,7 @@ exports.getAdminProfile = async (req, res) => {
 
 
 
-exports.getAllActiveFarms = async (req, res) => {
+exports.getAllFarms = async (req, res) => {
   try {
     // ✅ Step 1: Validate body for pagination only
     const { error, value } = AdminValidation.getAllFarmsSchema.validate(req.body, { abortEarly: false });
@@ -1397,7 +1396,7 @@ exports.getAllActiveFarms = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // ✅ Step 3: Fetch all farms (excluding soft-deleted ones)
-    let farms = await Farm.find({ deletedAt: null ,isActive: true  })  // ⛔ Exclude soft-deleted farms
+    let farms = await Farm.find({ deletedAt: null })  // ⛔ Exclude soft-deleted farms
       .populate('farmCategory', '_id name')           // Limit fields if needed
       .populate('facilities', '_id name icon')
       .skip(skip)
