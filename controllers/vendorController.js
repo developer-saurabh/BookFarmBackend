@@ -14,6 +14,7 @@ const { messages } = require("../messageTemplates/Message");
 const mongoose = require("mongoose");
 const FarmBooking = require("../models/FarmBookingModel");
 const { DateTime } = require('luxon');
+const { uploadFilesToLocal } = require("../utils/UploadFileToLocal");
 // Register  Apis
 
 exports.registerVendor = async (req, res) => {
@@ -737,64 +738,134 @@ exports.addOrUpdateFarm = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Address must be an object." });
     }
-    // ✅ 8. Handle General Farm Images (main gallery)
-    if (req.files?.images || req.files?.image) {
-      const imagesArray = normalizeFiles(req.files.images || req.files.image);
-      if (imagesArray.length > 0) {
-        const uploadedUrls = await uploadFilesToCloudinary(
-          imagesArray,
-          "farms"
-        );
-        value.images = uploadedUrls;
+    // ✅ 8. Handle General Farm Images (main gallery) using cloudinary
+
+    // if (req.files?.images || req.files?.image) {
+    //   const imagesArray = normalizeFiles(req.files.images || req.files.image);
+    //   if (imagesArray.length > 0) {
+    //     const uploadedUrls = await uploadFilesToCloudinary(
+    //       imagesArray,
+    //       "farms"
+    //     );
+    //     value.images = uploadedUrls;
+    //   }
+    // }
+// ✅ 8. Handle General Farm Images (main gallery) using local file upload 
+if (req.files?.images || req.files?.image) {
+  const imagesArray = normalizeFiles(req.files.images || req.files.image);
+  if (imagesArray.length > 0) {
+    let oldImages = [];
+
+    if (farmId) {
+      const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
+      if (existingFarm?.images?.length) {
+        oldImages = existingFarm.images;
       }
     }
 
-    // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
-    // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
-    if (req.body.areaImages) {
-      // ✅ Ensure areaImages is parsed if sent as string
-      let areaImagesParsed;
-      try {
-        areaImagesParsed =
-          typeof req.body.areaImages === "string"
-            ? JSON.parse(req.body.areaImages)
-            : req.body.areaImages;
-      } catch (err) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Invalid JSON format for areaImages",
-          });
+    const uploadedUrls = await uploadFilesToLocal(imagesArray, 'farms', oldImages);
+    value.images = uploadedUrls;
+  }
+}
+    // setp 9 for areawise image using cloudinary 
+
+    // // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
+    // if (req.body.areaImages) {
+    //   // ✅ Ensure areaImages is parsed if sent as string
+    //   let areaImagesParsed;
+    //   try {
+    //     areaImagesParsed =
+    //       typeof req.body.areaImages === "string"
+    //         ? JSON.parse(req.body.areaImages)
+    //         : req.body.areaImages;
+    //   } catch (err) {
+    //     return res
+    //       .status(400)
+    //       .json({
+    //         success: false,
+    //         message: "Invalid JSON format for areaImages",
+    //       });
+    //   }
+
+    //   const areaImagesData = [];
+
+    //   // ✅ Loop through each area group
+    //   for (let i = 0; i < areaImagesParsed.length; i++) {
+    //     const area = areaImagesParsed[i];
+    //     const fieldKey = `areaImages[${i}][images]`; // This matches Postman key names
+
+    //     // ✅ Find corresponding files in req.files
+    //     const filesArray = normalizeFiles(req.files?.[fieldKey]);
+    //     let uploadedUrls = [];
+
+    //     if (filesArray.length > 0) {
+    //       uploadedUrls = await uploadFilesToCloudinary(
+    //         filesArray,
+    //         `farms/${area.areaType}`
+    //       );
+    //     }
+
+    //     // ✅ Push final structure
+    //     areaImagesData.push({
+    //       areaType: area.areaType,
+    //       images: uploadedUrls,
+    //     });
+    //   }
+
+    //   value.areaImages = areaImagesData;
+    // }
+
+// ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.) using local file upload 
+if (req.body.areaImages) {
+  let areaImagesParsed;
+  try {
+    areaImagesParsed =
+      typeof req.body.areaImages === "string"
+        ? JSON.parse(req.body.areaImages)
+        : req.body.areaImages;
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid JSON format for areaImages",
+    });
+  }
+
+  const areaImagesData = [];
+
+  for (let i = 0; i < areaImagesParsed.length; i++) {
+    const area = areaImagesParsed[i];
+    const fieldKey = `areaImages[${i}][images]`;
+
+    const filesArray = normalizeFiles(req.files?.[fieldKey]);
+    let uploadedUrls = [];
+
+    let oldImagesForArea = [];
+    if (farmId) {
+      const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
+      const matchingArea = existingFarm?.areaImages?.find(
+        (ai) => ai.areaType === area.areaType
+      );
+      if (matchingArea?.images?.length) {
+        oldImagesForArea = matchingArea.images;
       }
-
-      const areaImagesData = [];
-
-      // ✅ Loop through each area group
-      for (let i = 0; i < areaImagesParsed.length; i++) {
-        const area = areaImagesParsed[i];
-        const fieldKey = `areaImages[${i}][images]`; // This matches Postman key names
-
-        // ✅ Find corresponding files in req.files
-        const filesArray = normalizeFiles(req.files?.[fieldKey]);
-        let uploadedUrls = [];
-
-        if (filesArray.length > 0) {
-          uploadedUrls = await uploadFilesToCloudinary(
-            filesArray,
-            `farms/${area.areaType}`
-          );
-        }
-
-        // ✅ Push final structure
-        areaImagesData.push({
-          areaType: area.areaType,
-          images: uploadedUrls,
-        });
-      }
-
-      value.areaImages = areaImagesData;
     }
+
+    if (filesArray.length > 0) {
+      uploadedUrls = await uploadFilesToLocal(
+        filesArray,
+        `farms/${area.areaType}`,
+        oldImagesForArea
+      );
+    }
+
+    areaImagesData.push({
+      areaType: area.areaType,
+      images: uploadedUrls,
+    });
+  }
+
+  value.areaImages = areaImagesData;
+}
     // ✅ 9. Validate Daily Pricing (if provided)
     if (value.dailyPricing?.length) {
       const validateDailyPricing = (dailyPricing) => {

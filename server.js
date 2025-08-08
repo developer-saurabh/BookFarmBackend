@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-
+const path = require('path');
 const connectDB = require('./config/db');
 
 const vendorRoutes = require('./routes/vendorRoutes');
@@ -28,10 +28,26 @@ app.use(cors({
 // ✅ Body parsers FIRST
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+// for cloudinary uploads
+
+// app.use(fileUpload({
+//   useTempFiles: true,
+//   tempFileDir: '/tmp/' // or Windows safe path
+// }));
+
+// for local uplads
+
+
 app.use(fileUpload({
-  useTempFiles: true,
-  tempFileDir: '/tmp/' // or Windows safe path
+  useTempFiles: false, // Directly upload to destination folder
+  limits: { fileSize: 5 * 1024 * 1024 }, // Optional limit
 }));
+
+
+// Serve static uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+
 // ✅ Health check
 app.get("/",(req,res)=>{
   res.json({

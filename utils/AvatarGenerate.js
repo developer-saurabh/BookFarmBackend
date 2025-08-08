@@ -1,9 +1,10 @@
-// utils/avatarGenerator.js
 const path = require('path');
 const fs = require('fs').promises;
 const { createCanvas } = require('canvas');
 const { v4: uuidv4 } = require('uuid');
-const { uploadFilesToCloudinary } = require('./UploadFile');
+const { uploadFilesToLocal } = require('./UploadFileToLocal');
+// const { uploadFilesToCloudinary } = require('./UploadFile'); // ❌ Commented Cloudinary
+
 
 async function generateAvatarAndUpload(name, folderName) {
   const initials = name.split(' ').map(n => n[0].toUpperCase()).join('');
@@ -24,20 +25,27 @@ async function generateAvatarAndUpload(name, folderName) {
   ctx.textBaseline = 'middle';
   ctx.fillText(initials, size / 2, size / 2);
 
-  // Save file
+  // 💾 Save to temp path
   const buffer = canvas.toBuffer('image/png');
   await fs.writeFile(tempFilePath, buffer);
 
-  // ✅ Upload to Cloudinary
   const fakeFile = {
     tempFilePath,
     mimetype: 'image/png',
     size: buffer.length,
-    name: fileName
+    name: fileName,
+    mv: async (destPath) => {
+      await fs.rename(tempFilePath, destPath); // 🔄 mimic express-fileupload `mv`
+    }
   };
-  const urls = await uploadFilesToCloudinary([fakeFile], folderName);
 
-  return urls[0];
+  // ✅ Upload to Local (new logic)
+  const urls = await uploadFilesToLocal([fakeFile], folderName);
+
+  // ❌ Old Cloudinary Upload (Commented)
+  // const urls = await uploadFilesToCloudinary([fakeFile], folderName);
+
+  return urls[0]; // ✅ Return the local image URL
 }
 
 module.exports = { generateAvatarAndUpload };
