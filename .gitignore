@@ -2,7 +2,7 @@
 node_modules/
 
 # Env files (NEVER push .env)
-.env
+# .env
 
 # Logs
 logs
