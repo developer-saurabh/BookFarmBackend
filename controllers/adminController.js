@@ -735,10 +735,80 @@ exports.addFarmCategory = async (req, res) => {
   }
 };
 
-exports.addFacilities = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+// exports.addFacilities = async (req, res) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
 
+//   try {
+//     // ✅ Step 1: Validate input
+//     const { error, value } = addFacilitiesSchema.validate(req.body);
+//     if (error) {
+//       return res.status(400).json({ success: false, message: error.details[0].message });
+//     }
+
+//     const facilitiesToAdd = value.facilities;
+
+//     // ✅ Step 2: Prepare normalized sets (only for provided class_name)
+//     const nameSet = new Set(facilitiesToAdd.map(f => f.name.trim().toLowerCase()));
+//     const classNameSet = new Set(
+//       facilitiesToAdd.filter(f => f.class_name).map(f => f.class_name.trim().toLowerCase())
+//     );
+
+//     // ✅ Step 3: Check for existing duplicates in DB
+//     const existingFacilities = await Facility.find({
+//       $or: [
+//         { name: { $in: Array.from(nameSet).map(n => new RegExp(`^${n}$`, 'i')) } },
+//         { class_name: { $in: Array.from(classNameSet).map(n => new RegExp(`^${n}$`, 'i')) } }
+//       ]
+//     });
+
+//     if (existingFacilities.length > 0) {
+//       const duplicates = existingFacilities.map(f => ({
+//         name: f.name,
+//         class_name: f.class_name
+//       }));
+//       return res.status(409).json({
+//         success: false,
+//         message: 'One or more facilities already exist.',
+//         duplicates
+//       });
+//     }
+
+//     // ✅ Step 4: Build insert payload without adding `class_name` when empty
+//     const newFacilities = facilitiesToAdd.map(facility => {
+//       const data = {
+//         name: facility.name.trim(),
+//         icon: facility.icon?.trim() || null
+//       };
+//       if (facility.class_name && facility.class_name.trim() !== '') {
+//         data.class_name = facility.class_name.trim();
+//       }
+//       return data;
+//     });
+
+//     // ✅ Step 5: Insert using transaction
+//     const insertedFacilities = await Facility.insertMany(newFacilities, { session });
+
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     return res.status(201).json({
+//       success: true,
+//       message: `${insertedFacilities.length} facility(ies) added successfully`,
+//       data: insertedFacilities
+//     });
+
+//   } catch (error) {
+//     await session.abortTransaction();
+//     session.endSession();
+//     console.error('❌ Error adding facilities:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error. Please try again later.'
+//     });
+//   }
+// };
+exports.addFacilities = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
     const { error, value } = addFacilitiesSchema.validate(req.body);
@@ -748,13 +818,11 @@ exports.addFacilities = async (req, res) => {
 
     const facilitiesToAdd = value.facilities;
 
-    // ✅ Step 2: Prepare normalized sets (only for provided class_name)
     const nameSet = new Set(facilitiesToAdd.map(f => f.name.trim().toLowerCase()));
     const classNameSet = new Set(
       facilitiesToAdd.filter(f => f.class_name).map(f => f.class_name.trim().toLowerCase())
     );
 
-    // ✅ Step 3: Check for existing duplicates in DB
     const existingFacilities = await Facility.find({
       $or: [
         { name: { $in: Array.from(nameSet).map(n => new RegExp(`^${n}$`, 'i')) } },
@@ -774,7 +842,6 @@ exports.addFacilities = async (req, res) => {
       });
     }
 
-    // ✅ Step 4: Build insert payload without adding `class_name` when empty
     const newFacilities = facilitiesToAdd.map(facility => {
       const data = {
         name: facility.name.trim(),
@@ -786,11 +853,7 @@ exports.addFacilities = async (req, res) => {
       return data;
     });
 
-    // ✅ Step 5: Insert using transaction
-    const insertedFacilities = await Facility.insertMany(newFacilities, { session });
-
-    await session.commitTransaction();
-    session.endSession();
+    const insertedFacilities = await Facility.insertMany(newFacilities);
 
     return res.status(201).json({
       success: true,
@@ -799,8 +862,6 @@ exports.addFacilities = async (req, res) => {
     });
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     console.error('❌ Error adding facilities:', error);
     return res.status(500).json({
       success: false,
