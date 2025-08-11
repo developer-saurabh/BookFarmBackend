@@ -868,61 +868,126 @@ if (req.body.areaImages) {
 }
     // ✅ 9. Validate Daily Pricing (if provided)
     if (value.dailyPricing?.length) {
-      const validateDailyPricing = (dailyPricing) => {
-        const seen = new Set();
-        const timeRegex =
-          /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
+     const validateDailyPricing = (dailyPricing) => {
+  const seenDates = new Set();
 
-        const toMinutes = (timeStr) => {
-          if (/AM|PM/i.test(timeStr)) {
-            // AM/PM conversion
-            const [, hh, mm, meridian] = timeStr.match(
-              /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
-            );
-            let hours = parseInt(hh, 10);
-            const minutes = parseInt(mm, 10);
-            if (meridian.toUpperCase() === "PM" && hours !== 12) hours += 12;
-            if (meridian.toUpperCase() === "AM" && hours === 12) hours = 0;
-            return hours * 60 + minutes;
-          } else {
-            // 24-hour format
-            const [h, m] = timeStr.split(":").map(Number);
-            return h * 60 + m;
-          }
-        };
+  // Accepts "hh:mm AM/PM" or 24h "HH:MM"
+  const timeRegex =
+    /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
 
-        dailyPricing.forEach((p) => {
-          const isoDate = new Date(p.date).toISOString().split("T")[0];
-          if (seen.has(isoDate))
-            throw new Error(`Duplicate pricing for ${isoDate}`);
-          seen.add(isoDate);
+  const toMinutes0to1439 = (timeStr) => {
+    if (/AM|PM/i.test(timeStr)) {
+      const [, hh, mm, meridian] = timeStr.match(
+        /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
+      );
+      let h = parseInt(hh, 10);
+      const m = parseInt(mm, 10);
+      if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
+      if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
+      return h * 60 + m; // 0..1439
+    } else {
+      const [h, m] = timeStr.split(":").map(Number);
+      return h * 60 + m; // 0..1439
+    }
+  };
 
-          if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
+  // Build an interval for a given slot on date D.
+  // For same-day slots: start < end within 0..1440
+  // For night_slot, allow crossing midnight: end may be +1440 (next day)
+  const buildInterval = (slotName, checkIn, checkOut) => {
+    if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
+      throw new Error(
+        `Invalid time format for ${slotName}. Use "hh:mm AM/PM" or "HH:MM".`
+      );
+    }
+    const inMin = toMinutes0to1439(checkIn);
+    const outMin = toMinutes0to1439(checkOut);
 
-          ["full_day", "day_slot", "night_slot"].forEach((slot) => {
-            const t = p.timings[slot];
-            if (!t)
-              throw new Error(`Missing timings for ${slot} on ${isoDate}`);
+    let start = inMin;
+    let end = outMin;
 
-            if (!timeRegex.test(t.checkIn) || !timeRegex.test(t.checkOut)) {
-              throw new Error(
-                `Invalid time format for ${slot} on ${isoDate}. Use hh:mm AM/PM`
-              );
-            }
+    // Overnight handling:
+    // - night_slot: allowed to roll into next day
+    // - day_slot/full_day: must be same day (no rollover)
+    if (slotName === "night_slot") {
+      if (end <= start) end += 1440; // push checkout to "next day"
+    } else {
+      if (end <= start) {
+        throw new Error(
+          `Check-In must be before Check-Out for ${slotName} (same day).`
+        );
+      }
+    }
 
-            const inMin = toMinutes(t.checkIn);
-            const outMin = toMinutes(t.checkOut);
+    const duration = end - start; // minutes, 1..1440
+    if (duration <= 0 || duration > 1440) {
+      throw new Error(
+        `Invalid duration for ${slotName}. Check your times; max 24 hours.`
+      );
+    }
 
-            if (inMin >= outMin) {
-              throw new Error(
-                `Check-In must be before Check-Out for ${slot} on ${isoDate}`
-              );
-            }
-          });
-        });
+    return { slot: slotName, start, end }; // measured on a 0..2880 scale
+  };
 
-        return dailyPricing;
-      };
+  // Simple interval overlap check on the same 0..2880 timeline
+  const overlaps = (a, b) => Math.max(a.start, b.start) < Math.min(a.end, b.end);
+
+  dailyPricing.forEach((p) => {
+    // normalize date label to yyyy-mm-dd (this is the **check-in date**)
+    const isoDate = new Date(p.date).toISOString().split("T")[0];
+
+    if (seenDates.has(isoDate)) {
+      throw new Error(`Duplicate pricing for ${isoDate}`);
+    }
+    seenDates.add(isoDate);
+
+    if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
+
+    const t = p.timings;
+
+    // Build intervals
+    const intervals = [
+      buildInterval("full_day", t.full_day?.checkIn, t.full_day?.checkOut),
+      buildInterval("day_slot", t.day_slot?.checkIn, t.day_slot?.checkOut),
+      buildInterval("night_slot", t.night_slot?.checkIn, t.night_slot?.checkOut),
+    ];
+
+    // Optional: sanity constraints (tweak if your business rules differ)
+    // e.g., night slot should typically start evening and end morning
+    // (not hard-failing, but you can uncomment to enforce)
+    // const ns = intervals.find(i => i.slot === 'night_slot');
+    // if (ns.start < 12 * 60) { // starts before noon
+    //   throw new Error(`night_slot should start in the evening on ${isoDate}.`);
+    // }
+
+    // Ensure no overlaps between the three slots on the same pricing date.
+    // Because night_slot may go past midnight, it's on a 0..2880 scale.
+// Ensure no overlaps between the three slots unless allowed
+for (let i = 0; i < intervals.length; i++) {
+  for (let j = i + 1; j < intervals.length; j++) {
+    const a = intervals[i];
+    const b = intervals[j];
+
+    // ✅ Allowed overlaps:
+    const allowedOverlap =
+      // full_day with others
+      (a.slot === "full_day" && ["day_slot", "night_slot"].includes(b.slot)) ||
+      (b.slot === "full_day" && ["day_slot", "night_slot"].includes(a.slot)) ||
+      // day_slot with night_slot
+      (a.slot === "day_slot" && b.slot === "night_slot") ||
+      (b.slot === "day_slot" && a.slot === "night_slot");
+
+    if (!allowedOverlap && overlaps(a, b)) {
+      throw new Error(
+        `Timing overlap between ${a.slot} and ${b.slot} on ${isoDate}`
+      );
+    }
+  }
+}
+  });
+
+  return dailyPricing;
+};
       try {
         value.dailyPricing = validateDailyPricing(value.dailyPricing);
       } catch (e) {
