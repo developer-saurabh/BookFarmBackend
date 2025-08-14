@@ -422,6 +422,129 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 
 
 
+// exports.getFarmById = async (req, res) => {
+//   try {
+//     const { error, value } = FarmValidation.getFarmByIdSchema.validate({ farmId: req.body.farmId });
+
+//     if (error) {
+//       return res.status(400).json({
+//         success: false,
+//         message: error.details[0].message
+//       });
+//     }
+
+//     // 🔍 Get the farm with populated refs
+//     const farm = await Farm.findById(value.farmId)
+//       .populate('farmCategory', '_id name')
+//       .populate('facilities', '_id name icon')
+//       .populate('owner', '_id name email phone');
+
+//     if (!farm || !farm.isActive || !farm.isApproved) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Farm not found or inactive/unapproved.'
+//       });
+//     }
+
+//     // 📅 Get next 7 days (from today)
+//     const today = moment().startOf('day');
+//     const next30Days = [];
+//   for (let i = 0; i < 30; i++) {
+//   next30Days.push(today.clone().add(i, 'days'));
+// }
+
+//     // 🛑 Remove unavailableDates
+//     const blockedDates = (farm.unavailableDates || []).map(date =>
+//       moment(date).format('YYYY-MM-DD')
+//     );
+
+//     // 📦 Fetch bookings for this farm in the next 7 days
+//  const bookings = await FarmBooking.find({
+//   farm: farm._id,
+//   date: {
+//     $gte: today.toDate(),
+//     $lte: today.clone().add(29, 'days').endOf('day').toDate() // ✅ 30 days window
+//   },
+//   status: { $in: ['pending', 'confirmed'] }
+// });
+
+//     // 📊 Create map of booked modes by date
+//     const bookingMap = {};
+//     bookings.forEach(booking => {
+//       const dateStr = moment(booking.date).format('YYYY-MM-DD');
+//       if (!bookingMap[dateStr]) bookingMap[dateStr] = new Set();
+//       booking.bookingModes.forEach(mode => bookingMap[dateStr].add(mode));
+//     });
+
+//     const allModes = ['full_day', 'day_slot', 'night_slot'];
+
+//     // ✅ Build availability array with day name
+//  // ✅ Build availability array with day name
+// const availability = next30Days.map(dayMoment => {
+//   const dateStr = dayMoment.format('YYYY-MM-DD');
+//   const dayName = dayMoment.format('dddd');
+//   const isBlocked = blockedDates.includes(dateStr);
+//   const booked = bookingMap[dateStr] || new Set();
+
+//   const slots = {};
+//   console.log('is blocked printing,',isBlocked)
+//   // 🔹 Step 1: If date is blocked → all modes false
+//   if (isBlocked) {
+//     allModes.forEach(mode => slots[mode] = false);
+//   } else {
+//     // 🔹 Step 2: If full_day booked → all false
+//     if (booked.has('full_day')) {
+//       allModes.forEach(mode => slots[mode] = false);
+//     } 
+//     // 🔹 Step 3: If day_slot/night_slot booked → those false & full_day false
+//     else {
+//       allModes.forEach(mode => {
+//         if ((booked.has('day_slot') || booked.has('night_slot')) && mode === 'full_day') {
+//           slots[mode] = false;
+//         } else {
+//           slots[mode] = !booked.has(mode);
+//         }
+//       });
+//     }
+//   }
+
+//   return {
+//     date: dateStr,
+//     dayName,
+//     availableSlots: slots
+//   };
+// });
+//     // ✅ Convert dailyPricing checkIn/checkOut to AM/PM
+//     const farmObj = farm.toObject();
+//     if (farmObj.dailyPricing && Array.isArray(farmObj.dailyPricing)) {
+//       farmObj.dailyPricing = farmObj.dailyPricing.map(dp => ({
+//         ...dp,
+//         checkIn: dp.checkIn ? moment(dp.checkIn, 'HH:mm').format('hh:mm A') : '10:00 AM',
+//         checkOut: dp.checkOut ? moment(dp.checkOut, 'HH:mm').format('hh:mm A') : '06:00 PM'
+//       }));
+//     }
+
+//     // ✅ Response
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Farm fetched successfully.',
+//       data: {
+//         ...farmObj,
+//         availability
+//       }
+//     });
+
+//   } catch (err) {
+//     console.error('[GetFarmById Error]', err);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error. Please try again later.'
+//     });
+//   }
+// };
+
+
+
 exports.getFarmById = async (req, res) => {
   try {
     const { error, value } = FarmValidation.getFarmByIdSchema.validate({ farmId: req.body.farmId });
@@ -446,27 +569,29 @@ exports.getFarmById = async (req, res) => {
       });
     }
 
-    // 📅 Get next 7 days (from today)
+    // 📅 Get next 30 days (from today)
     const today = moment().startOf('day');
     const next30Days = [];
-  for (let i = 0; i < 30; i++) {
-  next30Days.push(today.clone().add(i, 'days'));
-}
+    for (let i = 0; i < 30; i++) {
+      next30Days.push(today.clone().add(i, 'days'));
+    }
 
-    // 🛑 Remove unavailableDates
-    const blockedDates = (farm.unavailableDates || []).map(date =>
-      moment(date).format('YYYY-MM-DD')
-    );
+    // 🛑 Create blockedMap: date => blockedSlots
+    const blockedMap = {};
+    (farm.unavailableDates || []).forEach(entry => {
+      const dateStr = moment(entry.date).format('YYYY-MM-DD');
+      blockedMap[dateStr] = new Set(entry.blockedSlots || []);
+    });
 
-    // 📦 Fetch bookings for this farm in the next 7 days
- const bookings = await FarmBooking.find({
-  farm: farm._id,
-  date: {
-    $gte: today.toDate(),
-    $lte: today.clone().add(29, 'days').endOf('day').toDate() // ✅ 30 days window
-  },
-  status: { $in: ['pending', 'confirmed'] }
-});
+    // 📦 Fetch bookings for this farm in the next 30 days
+    const bookings = await FarmBooking.find({
+      farm: farm._id,
+      date: {
+        $gte: today.toDate(),
+        $lte: today.clone().add(29, 'days').endOf('day').toDate()
+      },
+      status: { $in: ['pending', 'confirmed'] }
+    });
 
     // 📊 Create map of booked modes by date
     const bookingMap = {};
@@ -478,42 +603,43 @@ exports.getFarmById = async (req, res) => {
 
     const allModes = ['full_day', 'day_slot', 'night_slot'];
 
-    // ✅ Build availability array with day name
- // ✅ Build availability array with day name
-const availability = next30Days.map(dayMoment => {
-  const dateStr = dayMoment.format('YYYY-MM-DD');
-  const dayName = dayMoment.format('dddd');
-  const isBlocked = blockedDates.includes(dateStr);
-  const booked = bookingMap[dateStr] || new Set();
+    // ✅ Build availability array with day name and partial block handling
+    const availability = next30Days.map(dayMoment => {
+      const dateStr = dayMoment.format('YYYY-MM-DD');
+      const dayName = dayMoment.format('dddd');
 
-  const slots = {};
-  
-  // 🔹 Step 1: If date is blocked → all modes false
-  if (isBlocked) {
-    allModes.forEach(mode => slots[mode] = false);
-  } else {
-    // 🔹 Step 2: If full_day booked → all false
-    if (booked.has('full_day')) {
-      allModes.forEach(mode => slots[mode] = false);
-    } 
-    // 🔹 Step 3: If day_slot/night_slot booked → those false & full_day false
-    else {
+      const booked = bookingMap[dateStr] || new Set();
+      const blockedSlots = blockedMap[dateStr] || new Set();
+
+      const slots = {};
+
       allModes.forEach(mode => {
-        if ((booked.has('day_slot') || booked.has('night_slot')) && mode === 'full_day') {
+        // If this slot is blocked or booked → false
+        if (blockedSlots.has(mode) || booked.has(mode)) {
           slots[mode] = false;
-        } else {
-          slots[mode] = !booked.has(mode);
+        }
+        // If full_day is blocked/booked → all false
+        else if (blockedSlots.has('full_day') || booked.has('full_day')) {
+          slots[mode] = false;
+        }
+        else {
+          slots[mode] = true;
         }
       });
-    }
-  }
 
-  return {
-    date: dateStr,
-    dayName,
-    availableSlots: slots
-  };
-});
+      // Extra rule: if day_slot/night_slot blocked/booked → full_day also false
+      if (blockedSlots.has('day_slot') || blockedSlots.has('night_slot') ||
+          booked.has('day_slot') || booked.has('night_slot')) {
+        slots.full_day = false;
+      }
+
+      return {
+        date: dateStr,
+        dayName,
+        availableSlots: slots
+      };
+    });
+
     // ✅ Convert dailyPricing checkIn/checkOut to AM/PM
     const farmObj = farm.toObject();
     if (farmObj.dailyPricing && Array.isArray(farmObj.dailyPricing)) {
