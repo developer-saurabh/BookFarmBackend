@@ -139,20 +139,19 @@ farmCategory: Joi.array().items(
       images: Joi.array().items(Joi.string().uri()).optional()
     })
   ).optional(),
-
-  rules: Joi.array().items(
-    Joi.object({
-      title: Joi.string().min(3).max(200).required()
-        .messages({
-          "string.empty": "Rule title is required.",
-          "string.min": "Rule title must be at least 3 characters long.",
-          "string.max": "Rule title cannot exceed 200 characters."
-        }),
-      isActive: Joi.boolean().optional()
-        .messages({ "boolean.base": "isActive must be true or false." })
-    })
-  ).optional()
-    .messages({ "array.base": "Rules must be an array of objects." }),
+rules: Joi.array().items(
+  Joi.object({
+    title: Joi.string().min(3).required()
+      .messages({
+        "string.empty": "Rule title is required.",
+        "string.min": "Rule title must be at least 3 characters long."
+      }),
+    isActive: Joi.boolean().optional()
+      .messages({ "boolean.base": "isActive must be true or false." })
+  })
+).optional()
+  .messages({ "array.base": "Rules must be an array of objects." })
+,
 
   propertyDetails: Joi.object({
     bhk: Joi.string().optional(),
