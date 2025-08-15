@@ -15,6 +15,7 @@ const mongoose = require("mongoose");
 const FarmBooking = require("../models/FarmBookingModel");
 const { DateTime } = require('luxon');
 const { uploadFilesToLocal } = require("../utils/UploadFileToLocal");
+const Types=require("../models/TypeModel")
 // Register  Apis
 
 exports.registerVendor = async (req, res) => {
@@ -1609,6 +1610,31 @@ exports.getAllCategories = async (req, res) => {
       success: false,
       message: "Internal server error",
       error: error.message,
+    });
+  }
+};
+exports.getAllTypes = async (req, res) => {
+  try {
+    const types = await Types.find().sort({ createdAt: -1 });
+
+    if (!types || types.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No types found'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Types fetched successfully',
+      data: types
+    });
+
+  } catch (err) {
+    console.error('getAllTypes error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
     });
   }
 };

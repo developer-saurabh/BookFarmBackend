@@ -47,6 +47,7 @@ router.post('/get_vendor_farm_by_id',ParseNest,vendorAuth,vendorController.getVe
 
 router.get('/get_all_categories',ParseNest,vendorAuth,vendorController.getAllCategories);
 router.get('/get_all_facilites',ParseNest,vendorAuth,vendorController.getAllFacilities);
+router.get('/get_all_types',ParseNest,vendorController.getAllTypes);
 
 // get vendor booking
 

@@ -31,8 +31,9 @@ router.post('/get_all_aprrove_vendors',authenticateAdmin, adminController.getAll
 router.post('/get_all_vendors',authenticateAdmin, adminController.getAllVendors);
 router.post('/get_vendor_by_id',authenticateAdmin, adminController.getVendorWithFarms);
 
-// add ,get  categoris and facilites 
+// add ,get  categoris and facilites ,types
 
+router.post('/add_type', adminController.addType);
 router.post('/add_farm_category',authenticateAdmin, adminController.addFarmCategory);
 router.post('/add_Farm_Facilities',authenticateAdmin, adminController.addFacilities);
 

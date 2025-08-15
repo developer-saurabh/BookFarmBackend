@@ -127,7 +127,7 @@ defaultTimings: {   // ✅ Add per-slot timings
         ref: "Farm_Facility",
       },
     ],
-
+occupancy: { type: Number, required: false },
     capacity: { type: Number, required: false }, // ✅ Now optional
 
     owner: {

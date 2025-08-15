@@ -1,6 +1,7 @@
 const Admin = require('../models/AdminModel');
 const bcrypt = require('bcryptjs');
-const AdminValidation = require('../validationJoi/AdminValidation');
+const AdminValidation = require('../validationJoi/adminValidation/AdminValidation');
+const {TypeValidation} = require('../validationJoi/adminValidation/TypeSchema')
 const Vendor = require('../models/VendorModel');
 const {addFarmCategorySchema,addFacilitiesSchema}=require("../validationJoi/FarmCategoryAndFacilities")
 const FarmCategory = require('../models/FarmCategory');
@@ -15,7 +16,7 @@ const {messages}=require("../messageTemplates/Message");
 const { sendEmail } = require('../utils/SendEmail');
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 const VendorValiidation = require("../validationJoi/VendorValidation");
-
+const Types=require("../models/TypeModel")
 // Register 
 
 exports.sendAdminOtp = async (req, res) => {
@@ -699,7 +700,69 @@ await farm.save({ session });
     });
   }
 };
-// add ,get categori and facilites  
+// add ,get categori and facilites  ,types
+
+// Create Type
+exports.addType = async (req, res) => {
+  try {
+    // Inline cleaning of request body
+    const cleanedBody = {};
+    for (const [key, val] of Object.entries(req.body)) {
+      if (typeof val === 'string') cleanedBody[key] = val.trim();
+      else if (val !== undefined) cleanedBody[key] = val;
+    }
+
+    // Validate with Joi
+    const { error, value } = TypeValidation.createSchema.validate(cleanedBody, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: error.details.map(d => d.message)
+      });
+    }
+
+    const { name } = value;
+
+    // Escape regex inline for case-insensitive duplicate check
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Check if type already exists (case-insensitive)
+    const existing = await Types.findOne({
+      name: { $regex: `^${escapedName}$`, $options: 'i' }
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: 'Type with this name already exists.'
+      });
+    }
+
+    // Create new type
+    const doc = await Types.create({ name });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Type created successfully',
+      data: doc
+    });
+  } catch (err) {
+    // Handle duplicate key error from race condition
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Type with this name already exists.'
+      });
+    }
+    console.error('createType error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
 
 exports.addFarmCategory = async (req, res) => {
   try {
