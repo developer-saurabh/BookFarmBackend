@@ -895,40 +895,40 @@ if (req.body.areaImages) {
   // Build an interval for a given slot on date D.
   // For same-day slots: start < end within 0..1440
   // For night_slot, allow crossing midnight: end may be +1440 (next day)
-  const buildInterval = (slotName, checkIn, checkOut) => {
-    if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
+// Build an interval for a given slot on date D.
+const buildInterval = (slotName, checkIn, checkOut) => {
+  if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
+    throw new Error(
+      `Invalid time format for ${slotName}. Use "hh:mm AM/PM" or "HH:MM".`
+    );
+  }
+  const inMin = toMinutes0to1439(checkIn);
+  const outMin = toMinutes0to1439(checkOut);
+
+  let start = inMin;
+  let end = outMin;
+
+  // ✅ Allow overnight rollover for night_slot *and* full_day
+  if (slotName === "night_slot" || slotName === "full_day") {
+    if (end <= start) end += 1440; // treat checkout as “next day”
+  } else {
+    // day_slot must be same-day
+    if (end <= start) {
       throw new Error(
-        `Invalid time format for ${slotName}. Use "hh:mm AM/PM" or "HH:MM".`
+        `Check-In must be before Check-Out for ${slotName} (same day).`
       );
     }
-    const inMin = toMinutes0to1439(checkIn);
-    const outMin = toMinutes0to1439(checkOut);
+  }
 
-    let start = inMin;
-    let end = outMin;
+  const duration = end - start; // minutes
+  if (duration <= 0 || duration > 1440) {
+    throw new Error(
+      `Invalid duration for ${slotName}. Check your times; max 24 hours.`
+    );
+  }
 
-    // Overnight handling:
-    // - night_slot: allowed to roll into next day
-    // - day_slot/full_day: must be same day (no rollover)
-    if (slotName === "night_slot") {
-      if (end <= start) end += 1440; // push checkout to "next day"
-    } else {
-      if (end <= start) {
-        throw new Error(
-          `Check-In must be before Check-Out for ${slotName} (same day).`
-        );
-      }
-    }
-
-    const duration = end - start; // minutes, 1..1440
-    if (duration <= 0 || duration > 1440) {
-      throw new Error(
-        `Invalid duration for ${slotName}. Check your times; max 24 hours.`
-      );
-    }
-
-    return { slot: slotName, start, end }; // measured on a 0..2880 scale
-  };
+  return { slot: slotName, start, end }; // 0..2880 scale
+};
 
   // Simple interval overlap check on the same 0..2880 timeline
   const overlaps = (a, b) => Math.max(a.start, b.start) < Math.min(a.end, b.end);
