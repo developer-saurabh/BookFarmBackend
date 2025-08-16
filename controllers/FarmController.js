@@ -12,9 +12,6 @@ const mongoose=require("mongoose")
 const moment=require("moment")
 const { Types: MongooseTypes, isValidObjectId } = require('mongoose');
 
-// tiny helper (local to this file)
-const toObjectIds = (ids = []) =>
-  ids.filter(isValidObjectId).map(id => new MongooseTypes.ObjectId(id));
 
 exports.bookFarm = async (req, res) => {
   try {
