@@ -171,6 +171,11 @@ exports.getFacilitiesSchema = Joi.object({})
   .messages({
     'object.unknown': 'Unexpected query parameter provided.'
   });
+exports.getFarmTypeSchema = Joi.object({})
+  .unknown(false)
+  .messages({
+    'object.unknown': 'Unexpected query parameter provided.'
+  });
 
 exports. getFarmByIdSchema = Joi.object({
   farmId: Joi.string().hex().length(24).required().messages({

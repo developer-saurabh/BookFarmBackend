@@ -16,6 +16,8 @@ router.get('/get_all_categories', ParseNest,FarmController.getFarmCategories);
 
 router.get('/get_all_facilities', ParseNest,FarmController.getUsedFacilities);
 
+router.get('/get_all_types', ParseNest,FarmController.getFarmTypes);
+
 // router.get('/get_all_farms', ParseNest,getAllFarms);
 
 router.post('/get_farm_id', ParseNest,FarmController.getFarmById);

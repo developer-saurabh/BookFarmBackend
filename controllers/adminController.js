@@ -933,6 +933,32 @@ exports.addFacilities = async (req, res) => {
   }
 };
 
+exports.getAllTypes = async (req, res) => {
+  try {
+    const types = await Types.find().sort({ createdAt: -1 });
+
+    if (!types || types.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No types found'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Types fetched successfully',
+      data: types
+    });
+
+  } catch (err) {
+    console.error('getAllTypes error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
 exports.getAllFacilities = async (req, res) => {
   try {
     // You can add query filters later if needed

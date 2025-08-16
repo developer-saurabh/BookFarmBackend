@@ -6,6 +6,7 @@ const FarmValidation = require('../validationJoi/FarmValidation');
 const Farm = require('../models/FarmModel');
 const Customer=require("../models/CustomerModel")
 const Vendor = require("../models/VendorModel");
+const Types=require("../models/TypeModel")
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 const mongoose=require("mongoose")
 const moment=require("moment")
@@ -1251,7 +1252,52 @@ exports.getUsedFacilities = async (req, res) => {
   }
 };
 
+exports.getFarmTypes = async (req, res) => {
+  try {
+    // Optional: validate query if you’ve got a schema for it
+    const { error } = FarmValidation.getFarmTypeSchema.validate(req.query);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
 
+    // 1️⃣ Get distinct Type IDs from farms that are active + approved
+    let typeIds = await Farm.distinct('Types', {
+      isActive: true,
+      isApproved: true
+    });
+
+    // filter out null/undefined just in case
+    typeIds = (typeIds || []).filter(Boolean);
+
+    if (!typeIds.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'No types associated with any farm.'
+      });
+    }
+
+    // 2️⃣ Fetch Types docs for those IDs (only _id, name), sorted A→Z
+    const types = await Types.find(
+      { _id: { $in: typeIds } },
+      '_id name'
+    ).sort({ name: 1 });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Farm types fetched successfully.',
+      data: types
+    });
+  } catch (err) {
+    console.error('Type fetch error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error. Please try again later.'
+    });
+  }
+};
 // exports.getFarmImagesByCategories = async (req, res) => {
 //   try {
 //     // ✅ Validate route param (categoryId)

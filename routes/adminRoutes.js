@@ -39,6 +39,7 @@ router.post('/add_Farm_Facilities',authenticateAdmin, adminController.addFacilit
 
 router.get('/get_all_categories',ParseNest,authenticateAdmin,adminController.getAllCategories);
 router.get('/get_all_facilites',ParseNest,authenticateAdmin,adminController.getAllFacilities);
+router.get('/get_all_types',ParseNest,authenticateAdmin,adminController.getAllTypes);
 
 // booking 
 
