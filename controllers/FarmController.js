@@ -10,9 +10,11 @@ const Types=require("../models/TypeModel")
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 const mongoose=require("mongoose")
 const moment=require("moment")
+const { Types: MongooseTypes, isValidObjectId } = require('mongoose');
 
-
-
+// tiny helper (local to this file)
+const toObjectIds = (ids = []) =>
+  ids.filter(isValidObjectId).map(id => new MongooseTypes.ObjectId(id));
 
 exports.bookFarm = async (req, res) => {
   try {
@@ -753,10 +755,12 @@ const cleanInput = (input) => {
   return clone;
 };
 
+// without type filter 
+
 // exports.FilterQueeryFarms = async (req, res) => {
 //   try {
 //     const cleanedBody = cleanInput(req.body);
-//     const { error, value } =FarmValidation. FilterQueeryFarm.validate(cleanedBody);
+//     const { error, value } = FarmValidation.FilterQueeryFarm.validate(cleanedBody);
 
 //     if (error) {
 //       return res.status(400).json({
@@ -777,14 +781,25 @@ const cleanInput = (input) => {
 //     } = value;
 
 //     const now = new Date();
+
 //     const start = startDate ? new Date(startDate) : new Date(now.toISOString().split('T')[0]);
+//     if (isNaN(start.getTime())) {
+//       return res.status(400).json({ success: false, message: 'Invalid startDate format.' });
+//     }
+
 //     const end = endDate
 //       ? new Date(endDate)
 //       : new Date(new Date(start).setDate(start.getDate() + 7));
+//     if (isNaN(end.getTime())) {
+//       return res.status(400).json({ success: false, message: 'Invalid endDate format.' });
+//     }
 
 //     const allDates = [];
 //     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-//       allDates.push(new Date(d).toISOString().split('T')[0]);
+//       const clone = new Date(d);
+//       if (!isNaN(clone.getTime())) {
+//         allDates.push(clone.toISOString().split('T')[0]);
+//       }
 //     }
 
 //     const baseQuery = { isActive: true, isApproved: true };
@@ -833,9 +848,11 @@ const cleanInput = (input) => {
 //         let isWithinRange = false;
 
 //         for (const dateStr of allDates) {
-//           const dailyEntry = farm.dailyPricing?.find(
-//             d => new Date(d.date).toISOString().split('T')[0] === dateStr
-//           );
+//           const dailyEntry = farm.dailyPricing?.find(d => {
+//             const dt = new Date(d.date);
+//             return !isNaN(dt.getTime()) &&
+//               dt.toISOString().split('T')[0] === dateStr;
+//           });
 
 //           const slotPrices = dailyEntry?.slots || farm.defaultPricing || {};
 
@@ -884,9 +901,11 @@ const cleanInput = (input) => {
 //     const allModes = ['full_day', 'day_slot', 'night_slot'];
 
 //     const availableFarms = farms.filter(farm => {
-//       const blockedDates = (farm.unavailableDates || []).map(d =>
-//         new Date(d).toISOString().split('T')[0]
-//       );
+//       const blockedDates = (farm.unavailableDates || []).map(d => {
+//         const dt = new Date(d);
+//         return !isNaN(dt.getTime()) ? dt.toISOString().split('T')[0] : null;
+//       }).filter(Boolean);
+
 //       const fid = farm._id.toString();
 
 //       for (const date of allDates) {
@@ -907,27 +926,27 @@ const cleanInput = (input) => {
 
 //     const skip = (page - 1) * limit;
 //     const paginatedFarms = availableFarms.slice(skip, skip + limit);
-// for (let i = 0; i < paginatedFarms.length; i++) {
-//   const farm = paginatedFarms[i];
 
-//   const farmObj = farm.toObject(); // <-- this is the key
+//     for (let i = 0; i < paginatedFarms.length; i++) {
+//       const farm = paginatedFarms[i];
+//       const farmObj = farm.toObject();
 
-//   if (Array.isArray(farmObj.dailyPricing)) {
-//     farmObj.dailyPricing = farmObj.dailyPricing.map(entry => {
-//       const dateObj = new Date(entry.date);
-//       const dayName = dateObj.toLocaleDateString('en-IN', { weekday: 'long' });
+//       if (Array.isArray(farmObj.dailyPricing)) {
+//         farmObj.dailyPricing = farmObj.dailyPricing.map(entry => {
+//           const dateObj = new Date(entry.date);
+//           const isValidDate = !isNaN(dateObj.getTime());
 
-//       // console.log("day Name printing", dayName);
+//           return {
+//             ...entry,
+//             dayName: isValidDate
+//               ? dateObj.toLocaleDateString('en-IN', { weekday: 'long' })
+//               : null
+//           };
+//         });
+//       }
 
-//       return {
-//         ...entry,
-//         dayName
-//       };
-//     });
-//   }
-
-//   paginatedFarms[i] = farmObj; // <-- reassign the modified object
-// }
+//       paginatedFarms[i] = farmObj;
+//     }
 
 //     return res.status(200).json({
 //       success: true,
@@ -950,9 +969,6 @@ const cleanInput = (input) => {
 //   }
 // };
 
-// gallary api
-
-
 exports.FilterQueeryFarms = async (req, res) => {
   try {
     const cleanedBody = cleanInput(req.body);
@@ -972,6 +988,7 @@ exports.FilterQueeryFarms = async (req, res) => {
       capacityRange,
       priceRange,
       facilities = [],
+      types = [],              // 👈 NEW
       page = 1,
       limit = 10
     } = value;
@@ -1005,7 +1022,9 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     let farms = await Farm.find(baseQuery)
       .populate('farmCategory', '_id name')
-      .populate('facilities', '_id name');
+      .populate('facilities', '_id name')
+      .populate('Types', '_id name')
+      ;
 
     if (!farms.length) {
       return res.status(200).json({
@@ -1014,6 +1033,7 @@ exports.FilterQueeryFarms = async (req, res) => {
       });
     }
 
+    // 🧮 capacity filter (unchanged)
     if (capacityRange) {
       const { min: capMin, max: capMax } = capacityRange;
       farms = farms.filter(f => f.capacity >= capMin && f.capacity <= capMax);
@@ -1025,9 +1045,12 @@ exports.FilterQueeryFarms = async (req, res) => {
       }
     }
 
-    if (facilities.length > 0) {
+    // 🧩 facilities filter (unchanged)
+    if (Array.isArray(facilities) && facilities.length > 0) {
+      const facilitySet = new Set(facilities.map(String));
       farms = farms.filter(farm =>
-        farm.facilities.some(f => facilities.includes(f._id.toString()))
+        Array.isArray(farm.facilities) &&
+        farm.facilities.some(f => facilitySet.has(String(f._id)))
       );
       if (!farms.length) {
         return res.status(200).json({
@@ -1037,6 +1060,26 @@ exports.FilterQueeryFarms = async (req, res) => {
       }
     }
 
+    // 🧩 types filter (NEW – mirrors facilities behavior)
+    if (Array.isArray(types) && types.length > 0) {
+      const typesSet = new Set(types.map(String));
+      farms = farms.filter(farm => {
+        const assigned = Array.isArray(farm.Types) ? farm.Types : [];
+        for (const t of assigned) {
+          const tid = t && t._id ? String(t._id) : String(t); // works for ObjectId or populated doc
+          if (typesSet.has(tid)) return true; // ANY match
+        }
+        return false;
+      });
+      if (!farms.length) {
+        return res.status(200).json({
+          success: false,
+          message: 'No farms found with any of the selected types.'
+        });
+      }
+    }
+
+    // 💰 price filter (unchanged)
     if (priceRange) {
       const { min: priceMin, max: priceMax } = priceRange;
 
@@ -1079,6 +1122,7 @@ exports.FilterQueeryFarms = async (req, res) => {
       }
     }
 
+    // 📚 bookings (unchanged)
     const bookings = await FarmBooking.find({
       farm: { $in: farms.map(f => f._id) },
       date: { $gte: start, $lte: end },
@@ -1120,9 +1164,11 @@ exports.FilterQueeryFarms = async (req, res) => {
       });
     }
 
+    // 📄 pagination (unchanged)
     const skip = (page - 1) * limit;
     const paginatedFarms = availableFarms.slice(skip, skip + limit);
 
+    // dayName add-on (unchanged)
     for (let i = 0; i < paginatedFarms.length; i++) {
       const farm = paginatedFarms[i];
       const farmObj = farm.toObject();
@@ -1164,6 +1210,8 @@ exports.FilterQueeryFarms = async (req, res) => {
     });
   }
 };
+
+
 
 exports.getFarmCategories = async (req, res) => {
   try {

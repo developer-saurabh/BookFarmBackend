@@ -234,7 +234,21 @@ exports.FilterQueeryFarm = Joi.object({
       'array.base': 'Farm category must be an array of valid IDs.'
     })
     .optional(),
-
+types: Joi.array()
+  .items(
+    Joi.string()
+      .hex()
+      .length(24)
+      .messages({
+        'string.base': 'Each type ID must be a string.',
+        'string.hex': 'Each type ID must be a valid MongoDB ObjectId.',
+        'string.length': 'Each type ID must be 24 characters long.'
+      })
+  )
+  .messages({
+    'array.base': 'Types must be an array of valid ObjectIds.'
+  })
+  .optional(),
   // 🔸 Optional: Capacity filter
   capacityRange: Joi.object({
     min: Joi.number()
