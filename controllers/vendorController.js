@@ -1594,7 +1594,8 @@ exports.getVendorFarmById = async (req, res) => {
     // ✅ 3. Check if farm exists (without owner check first)
     const farmExists = await Farm.findById(farmId)
       .populate("farmCategory", "_id name")
-      .populate("facilities", "_id name icon");
+      .populate("facilities", "_id name icon")
+      .populate("types", "_id name ");
 
     if (!farmExists) {
       return res.status(404).json({
