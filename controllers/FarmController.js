@@ -1010,16 +1010,18 @@ exports.FilterQueeryFarms = async (req, res) => {
       }
     }
 
-    const baseQuery = { isActive: true, isApproved: true };
-    if (farmCategory.length > 0) {
-      baseQuery.farmCategory = { $in: farmCategory };
-    }
+  const baseQuery = {};
+if (farmCategory.length > 0) {
+  baseQuery.farmCategory = { $in: farmCategory };
+}
 
     let farms = await Farm.find(baseQuery)
       .populate('farmCategory', '_id name')
       .populate('facilities', '_id name')
       .populate('Types', '_id name')
       ;
+
+      // console.log("farm printing",farms)
 
     if (!farms.length) {
       return res.status(200).json({
