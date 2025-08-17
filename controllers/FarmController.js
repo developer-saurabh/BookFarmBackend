@@ -1018,7 +1018,7 @@ exports.FilterQueeryFarms = async (req, res) => {
     let farms = await Farm.find(baseQuery)
       .populate('farmCategory', '_id name')
       .populate('facilities', '_id name')
-      .populate('Types', '_id name');
+      .populate('types', '_id name');
 
     if (!farms.length) {
       return res.status(200).json({
