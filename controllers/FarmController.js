@@ -558,6 +558,7 @@ exports.getFarmById = async (req, res) => {
     const farm = await Farm.findById(value.farmId)
       .populate('farmCategory', '_id name')
       .populate('facilities', '_id name icon')
+      .populate('types', '_id name ')
       .populate('owner', '_id name email phone');
 
     if (!farm || !farm.isActive || !farm.isApproved) {
