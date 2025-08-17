@@ -1219,10 +1219,9 @@ exports.getFarmCategories = async (req, res) => {
     }
 
     // 1️⃣ Get distinct farmCategory IDs from Farm collection
-    const categoryIds = await Farm.distinct('farmCategory', {
-      isActive: true,
-      isApproved: true
-    });;
+    const categoryIds = await Farm.distinct('farmCategory')
+
+    console.log("farm categoruies printing",categoryIds)
 
     if (!categoryIds || categoryIds.length === 0) {
       return res.status(404).json({
@@ -1261,10 +1260,7 @@ exports.getUsedFacilities = async (req, res) => {
     }
 
     // 1️⃣ Fetch used facility IDs
-    const facilityIds = await Farm.distinct('facilities', {
-      isActive: true,
-      isApproved: true
-    });
+    const facilityIds = await Farm.distinct('facilities')
 
     if (!facilityIds.length) {
       return res.status(404).json({
@@ -1306,10 +1302,7 @@ exports.getFarmTypes = async (req, res) => {
     }
 
     // 1️⃣ Get distinct Type IDs from farms that are active + approved
-    let typeIds = await Farm.distinct('Types', {
-      isActive: true,
-      isApproved: true
-    });
+    let typeIds = await Farm.distinct('Types')
 
     // filter out null/undefined just in case
     typeIds = (typeIds || []).filter(Boolean);
