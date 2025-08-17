@@ -624,7 +624,6 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// Farms Apis
 
 exports.addOrUpdateFarm = async (req, res) => {
   try {
@@ -654,6 +653,12 @@ exports.addOrUpdateFarm = async (req, res) => {
       if (!files) return [];
       return Array.isArray(files) ? files : [files];
     };
+    // ✅ Pre-process "Types" → "types" for validation and DB
+
+if (req.body.Types?.length) {
+  req.body.types = req.body.Types;
+  delete req.body.Types;
+}
     // ✅ 1. Validate Request with Joi
     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
       req.body,
@@ -717,35 +722,43 @@ exports.addOrUpdateFarm = async (req, res) => {
       }
     }
 
-    // ✅ 4.1 Validate types if provided
-    if ((value.types && value.types.length) || (value.Types && value.Types.length)) {
-      const incomingTypes = (value.types || value.Types).filter(Boolean);
+// ✅ 4.1 Validate and map "Types" from Postman to schema "types"
+if (value.Types?.length) {
+  const incomingTypes = value.Types.filter(Boolean);
 
-      const invalidIds = incomingTypes.filter(
-        (id) => !mongoose.Types.ObjectId.isValid(id)
-      );
-      if (invalidIds.length) {
-        return res.status(400).json({
-          success: false,
-          message: "One or more type IDs are not valid ObjectIds.",
-          errors: invalidIds,
-        });
-      }
+  // Validate ObjectId format
+  const invalidIds = incomingTypes.filter(
+    (id) => !mongoose.Types.ObjectId.isValid(id)
+  );
+  if (invalidIds.length) {
+    return res.status(400).json({
+      success: false,
+      message: "One or more type IDs are not valid ObjectIds.",
+      errors: invalidIds,
+    });
+  }
 
-      const found = await FarmType.find({ _id: { $in: incomingTypes } }, { _id: 1 }).lean();
-      if (found.length !== incomingTypes.length) {
-        const foundSet = new Set(found.map((t) => String(t._id)));
-        const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
-        return res.status(400).json({
-          success: false,
-          message: "One or more type IDs do not exist.",
-          errors: missing,
-        });
-      }
+  // Check if types actually exist in DB
+  const found = await FarmType.find(
+    { _id: { $in: incomingTypes } },
+    { _id: 1 }
+  ).lean();
 
-      value.types = incomingTypes;
-      delete value.Types;
-    }
+  if (found.length !== incomingTypes.length) {
+    const foundSet = new Set(found.map((t) => String(t._id)));
+    const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
+    return res.status(400).json({
+      success: false,
+      message: "One or more type IDs do not exist.",
+      errors: missing,
+    });
+  }
+
+  // ✅ Map into proper ObjectId array for schema
+  console.log("value type printing",value.types)
+  value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
+  delete value.Types; // Clean up extra field
+}
 
     // ✅ 5. Embedded Rules → Ensure Always Array
     if (value.rules) {
@@ -765,32 +778,32 @@ exports.addOrUpdateFarm = async (req, res) => {
     }
 
     // ✅ 7. Embedded Address → Must Be Object
-  if (value.address) {
-  if (typeof value.address !== "object") {
-    return res
-      .status(400)
-      .json({ success: false, message: "Address must be an object." });
-  }
+    if (value.address) {
+      if (typeof value.address !== "object") {
+        return res
+          .status(400)
+          .json({ success: false, message: "Address must be an object." });
+      }
 
-  // ✅ Validate mapLink if provided
-  if (value.address.mapLink) {
-    const urlRegex =
-      /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
-    if (!urlRegex.test(value.address.mapLink)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid URL format for mapLink" });
+      // ✅ Validate mapLink if provided
+      if (value.address.mapLink) {
+        const urlRegex =
+          /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
+        if (!urlRegex.test(value.address.mapLink)) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid URL format for mapLink" });
+        }
+      }
+
+      value.location = {
+        ...value.address,
+        mapLink: value.address.mapLink || null,
+        createdBy: req.user.id,
+      };
+
+      delete value.address;
     }
-  }
-
-  value.location = {
-    ...value.address,
-    mapLink: value.address.mapLink || null,
-    createdBy: req.user.id,
-  };
-
-  delete value.address;
-}
     // ✅ 8. Handle General Farm Images (main gallery) using cloudinary
 
     // if (req.files?.images || req.files?.image) {
@@ -803,23 +816,23 @@ exports.addOrUpdateFarm = async (req, res) => {
     //     value.images = uploadedUrls;
     //   }
     // }
-// ✅ 8. Handle General Farm Images (main gallery) using local file upload 
-if (req.files?.images || req.files?.image) {
-  const imagesArray = normalizeFiles(req.files.images || req.files.image);
-  if (imagesArray.length > 0) {
-    let oldImages = [];
+    // ✅ 8. Handle General Farm Images (main gallery) using local file upload 
+    if (req.files?.images || req.files?.image) {
+      const imagesArray = normalizeFiles(req.files.images || req.files.image);
+      if (imagesArray.length > 0) {
+        let oldImages = [];
 
-    if (farmId) {
-      const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
-      if (existingFarm?.images?.length) {
-        oldImages = existingFarm.images;
+        if (farmId) {
+          const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
+          if (existingFarm?.images?.length) {
+            oldImages = existingFarm.images;
+          }
+        }
+
+        const uploadedUrls = await uploadFilesToLocal(imagesArray, 'farms', oldImages);
+        value.images = uploadedUrls;
       }
     }
-
-    const uploadedUrls = await uploadFilesToLocal(imagesArray, 'farms', oldImages);
-    value.images = uploadedUrls;
-  }
-}
     // setp 9 for areawise image using cloudinary 
 
     // // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
@@ -868,179 +881,179 @@ if (req.files?.images || req.files?.image) {
     //   value.areaImages = areaImagesData;
     // }
 
-// ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.) using local file upload 
-if (req.body.areaImages) {
-  let areaImagesParsed;
-  try {
-    areaImagesParsed =
-      typeof req.body.areaImages === "string"
-        ? JSON.parse(req.body.areaImages)
-        : req.body.areaImages;
-  } catch (err) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid JSON format for areaImages",
-    });
-  }
-
-  const areaImagesData = [];
-
-  for (let i = 0; i < areaImagesParsed.length; i++) {
-    const area = areaImagesParsed[i];
-    const fieldKey = `areaImages[${i}][images]`;
-
-    const filesArray = normalizeFiles(req.files?.[fieldKey]);
-    let uploadedUrls = [];
-
-    let oldImagesForArea = [];
-    if (farmId) {
-      const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
-      const matchingArea = existingFarm?.areaImages?.find(
-        (ai) => ai.areaType === area.areaType
-      );
-      if (matchingArea?.images?.length) {
-        oldImagesForArea = matchingArea.images;
+    // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.) using local file upload 
+    if (req.body.areaImages) {
+      let areaImagesParsed;
+      try {
+        areaImagesParsed =
+          typeof req.body.areaImages === "string"
+            ? JSON.parse(req.body.areaImages)
+            : req.body.areaImages;
+      } catch (err) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid JSON format for areaImages",
+        });
       }
+
+      const areaImagesData = [];
+
+      for (let i = 0; i < areaImagesParsed.length; i++) {
+        const area = areaImagesParsed[i];
+        const fieldKey = `areaImages[${i}][images]`;
+
+        const filesArray = normalizeFiles(req.files?.[fieldKey]);
+        let uploadedUrls = [];
+
+        let oldImagesForArea = [];
+        if (farmId) {
+          const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
+          const matchingArea = existingFarm?.areaImages?.find(
+            (ai) => ai.areaType === area.areaType
+          );
+          if (matchingArea?.images?.length) {
+            oldImagesForArea = matchingArea.images;
+          }
+        }
+
+        if (filesArray.length > 0) {
+          uploadedUrls = await uploadFilesToLocal(
+            filesArray,
+            `farms/${area.areaType}`,
+            oldImagesForArea
+          );
+        }
+
+        areaImagesData.push({
+          areaType: area.areaType,
+          images: uploadedUrls,
+        });
+      }
+
+      value.areaImages = areaImagesData;
     }
-
-    if (filesArray.length > 0) {
-      uploadedUrls = await uploadFilesToLocal(
-        filesArray,
-        `farms/${area.areaType}`,
-        oldImagesForArea
-      );
-    }
-
-    areaImagesData.push({
-      areaType: area.areaType,
-      images: uploadedUrls,
-    });
-  }
-
-  value.areaImages = areaImagesData;
-}
     // ✅ 9. Validate Daily Pricing (if provided)
     if (value.dailyPricing?.length) {
-     const validateDailyPricing = (dailyPricing) => {
-  const seenDates = new Set();
+      const validateDailyPricing = (dailyPricing) => {
+        const seenDates = new Set();
 
-  // Accepts "hh:mm AM/PM" or 24h "HH:MM"
-  const timeRegex =
-    /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
+        // Accepts "hh:mm AM/PM" or 24h "HH:MM"
+        const timeRegex =
+          /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
 
-  const toMinutes0to1439 = (timeStr) => {
-    if (/AM|PM/i.test(timeStr)) {
-      const [, hh, mm, meridian] = timeStr.match(
-        /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
-      );
-      let h = parseInt(hh, 10);
-      const m = parseInt(mm, 10);
-      if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
-      if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
-      return h * 60 + m; // 0..1439
-    } else {
-      const [h, m] = timeStr.split(":").map(Number);
-      return h * 60 + m; // 0..1439
-    }
-  };
+        const toMinutes0to1439 = (timeStr) => {
+          if (/AM|PM/i.test(timeStr)) {
+            const [, hh, mm, meridian] = timeStr.match(
+              /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
+            );
+            let h = parseInt(hh, 10);
+            const m = parseInt(mm, 10);
+            if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
+            if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
+            return h * 60 + m; // 0..1439
+          } else {
+            const [h, m] = timeStr.split(":").map(Number);
+            return h * 60 + m; // 0..1439
+          }
+        };
 
-  // Build an interval for a given slot on date D.
-  // For same-day slots: start < end within 0..1440
-  // For night_slot, allow crossing midnight: end may be +1440 (next day)
-// Build an interval for a given slot on date D.
-const buildInterval = (slotName, checkIn, checkOut) => {
-  if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
-    throw new Error(
-      `Invalid time format for ${slotName}. Use "hh:mm AM/PM" or "HH:MM".`
-    );
-  }
-  const inMin = toMinutes0to1439(checkIn);
-  const outMin = toMinutes0to1439(checkOut);
+        // Build an interval for a given slot on date D.
+        // For same-day slots: start < end within 0..1440
+        // For night_slot, allow crossing midnight: end may be +1440 (next day)
+        // Build an interval for a given slot on date D.
+        const buildInterval = (slotName, checkIn, checkOut) => {
+          if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
+            throw new Error(
+              `Invalid time format for ${slotName}. Use "hh:mm AM/PM" or "HH:MM".`
+            );
+          }
+          const inMin = toMinutes0to1439(checkIn);
+          const outMin = toMinutes0to1439(checkOut);
 
-  let start = inMin;
-  let end = outMin;
+          let start = inMin;
+          let end = outMin;
 
-  // ✅ Allow overnight rollover for night_slot *and* full_day
-  if (slotName === "night_slot" || slotName === "full_day") {
-    if (end <= start) end += 1440; // treat checkout as “next day”
-  } else {
-    // day_slot must be same-day
-    if (end <= start) {
-      throw new Error(
-        `Check-In must be before Check-Out for ${slotName} (same day).`
-      );
-    }
-  }
+          // ✅ Allow overnight rollover for night_slot *and* full_day
+          if (slotName === "night_slot" || slotName === "full_day") {
+            if (end <= start) end += 1440; // treat checkout as “next day”
+          } else {
+            // day_slot must be same-day
+            if (end <= start) {
+              throw new Error(
+                `Check-In must be before Check-Out for ${slotName} (same day).`
+              );
+            }
+          }
 
-  const duration = end - start; // minutes
-  if (duration <= 0 || duration > 1440) {
-    throw new Error(
-      `Invalid duration for ${slotName}. Check your times; max 24 hours.`
-    );
-  }
+          const duration = end - start; // minutes
+          if (duration <= 0 || duration > 1440) {
+            throw new Error(
+              `Invalid duration for ${slotName}. Check your times; max 24 hours.`
+            );
+          }
 
-  return { slot: slotName, start, end }; // 0..2880 scale
-};
+          return { slot: slotName, start, end }; // 0..2880 scale
+        };
 
-  // Simple interval overlap check on the same 0..2880 timeline
-  const overlaps = (a, b) => Math.max(a.start, b.start) < Math.min(a.end, b.end);
+        // Simple interval overlap check on the same 0..2880 timeline
+        const overlaps = (a, b) => Math.max(a.start, b.start) < Math.min(a.end, b.end);
 
-  dailyPricing.forEach((p) => {
-    // normalize date label to yyyy-mm-dd (this is the **check-in date**)
-    const isoDate = new Date(p.date).toISOString().split("T")[0];
+        dailyPricing.forEach((p) => {
+          // normalize date label to yyyy-mm-dd (this is the **check-in date**)
+          const isoDate = new Date(p.date).toISOString().split("T")[0];
 
-    if (seenDates.has(isoDate)) {
-      throw new Error(`Duplicate pricing for ${isoDate}`);
-    }
-    seenDates.add(isoDate);
+          if (seenDates.has(isoDate)) {
+            throw new Error(`Duplicate pricing for ${isoDate}`);
+          }
+          seenDates.add(isoDate);
 
-    if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
+          if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
 
-    const t = p.timings;
+          const t = p.timings;
 
-    // Build intervals
-    const intervals = [
-      buildInterval("full_day", t.full_day?.checkIn, t.full_day?.checkOut),
-      buildInterval("day_slot", t.day_slot?.checkIn, t.day_slot?.checkOut),
-      buildInterval("night_slot", t.night_slot?.checkIn, t.night_slot?.checkOut),
-    ];
+          // Build intervals
+          const intervals = [
+            buildInterval("full_day", t.full_day?.checkIn, t.full_day?.checkOut),
+            buildInterval("day_slot", t.day_slot?.checkIn, t.day_slot?.checkOut),
+            buildInterval("night_slot", t.night_slot?.checkIn, t.night_slot?.checkOut),
+          ];
 
-    // Optional: sanity constraints (tweak if your business rules differ)
-    // e.g., night slot should typically start evening and end morning
-    // (not hard-failing, but you can uncomment to enforce)
-    // const ns = intervals.find(i => i.slot === 'night_slot');
-    // if (ns.start < 12 * 60) { // starts before noon
-    //   throw new Error(`night_slot should start in the evening on ${isoDate}.`);
-    // }
+          // Optional: sanity constraints (tweak if your business rules differ)
+          // e.g., night slot should typically start evening and end morning
+          // (not hard-failing, but you can uncomment to enforce)
+          // const ns = intervals.find(i => i.slot === 'night_slot');
+          // if (ns.start < 12 * 60) { // starts before noon
+          //   throw new Error(`night_slot should start in the evening on ${isoDate}.`);
+          // }
 
-    // Ensure no overlaps between the three slots on the same pricing date.
-    // Because night_slot may go past midnight, it's on a 0..2880 scale.
-// Ensure no overlaps between the three slots unless allowed
-for (let i = 0; i < intervals.length; i++) {
-  for (let j = i + 1; j < intervals.length; j++) {
-    const a = intervals[i];
-    const b = intervals[j];
+          // Ensure no overlaps between the three slots on the same pricing date.
+          // Because night_slot may go past midnight, it's on a 0..2880 scale.
+          // Ensure no overlaps between the three slots unless allowed
+          for (let i = 0; i < intervals.length; i++) {
+            for (let j = i + 1; j < intervals.length; j++) {
+              const a = intervals[i];
+              const b = intervals[j];
 
-    // ✅ Allowed overlaps:
-    const allowedOverlap =
-      // full_day with others
-      (a.slot === "full_day" && ["day_slot", "night_slot"].includes(b.slot)) ||
-      (b.slot === "full_day" && ["day_slot", "night_slot"].includes(a.slot)) ||
-      // day_slot with night_slot
-      (a.slot === "day_slot" && b.slot === "night_slot") ||
-      (b.slot === "day_slot" && a.slot === "night_slot");
+              // ✅ Allowed overlaps:
+              const allowedOverlap =
+                // full_day with others
+                (a.slot === "full_day" && ["day_slot", "night_slot"].includes(b.slot)) ||
+                (b.slot === "full_day" && ["day_slot", "night_slot"].includes(a.slot)) ||
+                // day_slot with night_slot
+                (a.slot === "day_slot" && b.slot === "night_slot") ||
+                (b.slot === "day_slot" && a.slot === "night_slot");
 
-    if (!allowedOverlap && overlaps(a, b)) {
-      throw new Error(
-        `Timing overlap between ${a.slot} and ${b.slot} on ${isoDate}`
-      );
-    }
-  }
-}
-  });
+              if (!allowedOverlap && overlaps(a, b)) {
+                throw new Error(
+                  `Timing overlap between ${a.slot} and ${b.slot} on ${isoDate}`
+                );
+              }
+            }
+          }
+        });
 
-  return dailyPricing;
-};
+        return dailyPricing;
+      };
       try {
         value.dailyPricing = validateDailyPricing(value.dailyPricing);
       } catch (e) {
@@ -1080,9 +1093,17 @@ for (let i = 0; i < intervals.length; i++) {
     }
 
     // ✅ 11. Populate References (rules/propertyDetails are embedded, no populate)
-    const populatedFarm = await Farm.findById(farmDoc._id)
-      .populate("farmCategory")
-      .populate("facilities");
+  const populatedFarm = await Farm.findById(farmDoc._id)
+  .populate("farmCategory")
+  .populate("facilities")
+  .populate("types", "_id name"); // ✅ populate types as well
+
+// ✅ Convert `types` → `Types` for frontend/postman compatibility
+const farmResponse = {
+  ...populatedFarm.toObject(),
+  Types: populatedFarm.types, // 👈 this maps `types` to `Types`
+};
+delete farmResponse.types; // optional: remove lowercase version
 
     // ✅ 12. Response
     return res.status(farmId ? 200 : 201).json({

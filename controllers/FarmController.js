@@ -963,7 +963,6 @@ const cleanInput = (input) => {
 //     });
 //   }
 // };
-
 exports.FilterQueeryFarms = async (req, res) => {
   try {
     const cleanedBody = cleanInput(req.body);
@@ -983,7 +982,7 @@ exports.FilterQueeryFarms = async (req, res) => {
       capacityRange,
       priceRange,
       facilities = [],
-      types = [],              // 👈 NEW
+      types = [],
       page = 1,
       limit = 10
     } = value;
@@ -1010,27 +1009,28 @@ exports.FilterQueeryFarms = async (req, res) => {
       }
     }
 
-  const baseQuery = {};
-if (farmCategory.length > 0) {
-  baseQuery.farmCategory = { $in: farmCategory };
-}
+    // ✅ Base query always requires active + approved farms
+    const baseQuery = { isActive: true, isApproved: true };
+    if (farmCategory.length > 0) {
+      baseQuery.farmCategory = { $in: farmCategory };
+    }
 
     let farms = await Farm.find(baseQuery)
       .populate('farmCategory', '_id name')
       .populate('facilities', '_id name')
-      .populate('Types', '_id name')
-      ;
-
-      // console.log("farm printing",farms)
+      .populate('Types', '_id name');
 
     if (!farms.length) {
       return res.status(200).json({
         success: false,
-        message: 'No farms found for the selected farm categories.'
+        message:
+          farmCategory.length > 0
+            ? 'No active and approved farms found for the selected categories.'
+            : 'No active and approved farms found.'
       });
     }
 
-    // 🧮 capacity filter (unchanged)
+    // 🧮 capacity filter
     if (capacityRange) {
       const { min: capMin, max: capMax } = capacityRange;
       farms = farms.filter(f => f.capacity >= capMin && f.capacity <= capMax);
@@ -1042,7 +1042,7 @@ if (farmCategory.length > 0) {
       }
     }
 
-    // 🧩 facilities filter (unchanged)
+    // 🧩 facilities filter
     if (Array.isArray(facilities) && facilities.length > 0) {
       const facilitySet = new Set(facilities.map(String));
       farms = farms.filter(farm =>
@@ -1057,14 +1057,14 @@ if (farmCategory.length > 0) {
       }
     }
 
-    // 🧩 types filter (NEW – mirrors facilities behavior)
+    // 🧩 types filter
     if (Array.isArray(types) && types.length > 0) {
       const typesSet = new Set(types.map(String));
       farms = farms.filter(farm => {
         const assigned = Array.isArray(farm.Types) ? farm.Types : [];
         for (const t of assigned) {
-          const tid = t && t._id ? String(t._id) : String(t); // works for ObjectId or populated doc
-          if (typesSet.has(tid)) return true; // ANY match
+          const tid = t && t._id ? String(t._id) : String(t);
+          if (typesSet.has(tid)) return true;
         }
         return false;
       });
@@ -1076,7 +1076,7 @@ if (farmCategory.length > 0) {
       }
     }
 
-    // 💰 price filter (unchanged)
+    // 💰 price filter
     if (priceRange) {
       const { min: priceMin, max: priceMax } = priceRange;
 
@@ -1119,7 +1119,7 @@ if (farmCategory.length > 0) {
       }
     }
 
-    // 📚 bookings (unchanged)
+    // 📚 bookings
     const bookings = await FarmBooking.find({
       farm: { $in: farms.map(f => f._id) },
       date: { $gte: start, $lte: end },
@@ -1157,15 +1157,15 @@ if (farmCategory.length > 0) {
     if (!availableFarms.length) {
       return res.status(200).json({
         success: false,
-        message: `No farms fully available between ${start.toDateString()} and ${end.toDateString()}.`
+        message: `No active and approved farms fully available between ${start.toDateString()} and ${end.toDateString()}.`
       });
     }
 
-    // 📄 pagination (unchanged)
+    // 📄 pagination
     const skip = (page - 1) * limit;
     const paginatedFarms = availableFarms.slice(skip, skip + limit);
 
-    // dayName add-on (unchanged)
+    // dayName add-on
     for (let i = 0; i < paginatedFarms.length; i++) {
       const farm = paginatedFarms[i];
       const farmObj = farm.toObject();
@@ -1189,7 +1189,7 @@ if (farmCategory.length > 0) {
 
     return res.status(200).json({
       success: true,
-      message: `${availableFarms.length} farm(s) available from ${start.toDateString()} to ${end.toDateString()}.`,
+      message: `${availableFarms.length} active & approved farm(s) available from ${start.toDateString()} to ${end.toDateString()}.`,
       pagination: {
         total: availableFarms.length,
         page,
@@ -1207,6 +1207,7 @@ if (farmCategory.length > 0) {
     });
   }
 };
+
 
 
 exports.getFarmCategories = async (req, res) => {

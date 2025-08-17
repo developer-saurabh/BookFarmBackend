@@ -61,13 +61,12 @@ const farmSchema = new mongoose.Schema(
         required: false,
       },
     ],
-    Types: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Types",
-        required: false,
-      },
-    ],
+types: [
+  {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Types"
+  }
+],
 
     // 📸 Area-wise Images
     areaImages: [

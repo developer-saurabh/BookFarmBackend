@@ -127,7 +127,11 @@ exports.farmAddValidationSchema = Joi.object({
   name: Joi.string().min(3).max(150).optional(),
 
   description: Joi.string().allow("", null).optional(),
-
+types: Joi.array().items(
+  Joi.string().pattern(objectIdPattern)
+    .messages({ "string.pattern.base": "Each type ID must be a valid ObjectId." })
+).optional()
+  .messages({ "array.base": "types must be an array of ObjectIds." }),
 farmCategory: Joi.array().items(
   Joi.string().pattern(objectIdPattern)
     .messages({ "string.pattern.base": "Each farmCategory ID must be a valid ObjectId." })
