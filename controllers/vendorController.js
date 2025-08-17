@@ -1539,6 +1539,7 @@ exports.getVendorFarms = async (req, res) => {
     const farms = await Farm.find(query)
       .populate("farmCategory", "_id name")
       .populate("facilities", "_id name")
+      .populate("types", "_id name")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

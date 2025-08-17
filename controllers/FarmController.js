@@ -1306,7 +1306,7 @@ exports.getFarmTypes = async (req, res) => {
     }
 
     // 1️⃣ Get distinct Type IDs from farms that are active + approved
-    let typeIds = await Farm.distinct('Types')
+    let typeIds = await Farm.distinct('types')
 
     // filter out null/undefined just in case
     typeIds = (typeIds || []).filter(Boolean);
