@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { Types } = require('mongoose');
 const objectIdPattern = /^[0-9a-fA-F]{24}$/; // ✅ MongoDB ObjectId
 const nameRegex = /^[A-Za-z]+(\s[A-Za-z]+)*$/;
 const phoneRegex = /^[0-9]{10}$/;
@@ -132,6 +133,12 @@ farmCategory: Joi.array().items(
     .messages({ "string.pattern.base": "Each farmCategory ID must be a valid ObjectId." })
 ).optional()
   .messages({ "array.base": "farmCategory must be an array of ObjectIds." }),
+
+Types: Joi.array().items(
+  Joi.string().pattern(objectIdPattern)
+    .messages({ "string.pattern.base": "Each Types ID must be a valid ObjectId." })
+).optional()
+  .messages({ "array.base": "Types must be an array of ObjectIds." }),
 
   areaImages: Joi.array().items(
     Joi.object({

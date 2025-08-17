@@ -6,7 +6,20 @@ const addressSchema = new mongoose.Schema(
     city: { type: String, required: false },
     state: { type: String, required: false },
     pinCode: { type: String },
-    areaName: { type: String, default: null }, // ✅ camelCase (consistent naming)
+    areaName: { type: String, default: null },
+    mapLink: {
+      type: String,
+      default: null,
+      validate: {
+        validator: function (v) {
+          if (!v) return true; // allow null/empty
+          return /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i.test(
+            v
+          );
+        },
+        message: (props) => `${props.value} is not a valid URL!`,
+      },
+    }, // ✅ camelCase (consistent naming)
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Vendor",

@@ -16,6 +16,7 @@ const FarmBooking = require("../models/FarmBookingModel");
 const { DateTime } = require('luxon');
 const { uploadFilesToLocal } = require("../utils/UploadFileToLocal");
 const Types=require("../models/TypeModel")
+const FarmType=require("../models/TypeModel")
 // Register  Apis
 
 exports.registerVendor = async (req, res) => {
@@ -716,6 +717,36 @@ exports.addOrUpdateFarm = async (req, res) => {
       }
     }
 
+    // ✅ 4.1 Validate types if provided
+    if ((value.types && value.types.length) || (value.Types && value.Types.length)) {
+      const incomingTypes = (value.types || value.Types).filter(Boolean);
+
+      const invalidIds = incomingTypes.filter(
+        (id) => !mongoose.Types.ObjectId.isValid(id)
+      );
+      if (invalidIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: "One or more type IDs are not valid ObjectIds.",
+          errors: invalidIds,
+        });
+      }
+
+      const found = await FarmType.find({ _id: { $in: incomingTypes } }, { _id: 1 }).lean();
+      if (found.length !== incomingTypes.length) {
+        const foundSet = new Set(found.map((t) => String(t._id)));
+        const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
+        return res.status(400).json({
+          success: false,
+          message: "One or more type IDs do not exist.",
+          errors: missing,
+        });
+      }
+
+      value.types = incomingTypes;
+      delete value.Types;
+    }
+
     // ✅ 5. Embedded Rules → Ensure Always Array
     if (value.rules) {
       if (!Array.isArray(value.rules)) {
@@ -734,11 +765,32 @@ exports.addOrUpdateFarm = async (req, res) => {
     }
 
     // ✅ 7. Embedded Address → Must Be Object
-    if (value.address && typeof value.address !== "object") {
+  if (value.address) {
+  if (typeof value.address !== "object") {
+    return res
+      .status(400)
+      .json({ success: false, message: "Address must be an object." });
+  }
+
+  // ✅ Validate mapLink if provided
+  if (value.address.mapLink) {
+    const urlRegex =
+      /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
+    if (!urlRegex.test(value.address.mapLink)) {
       return res
         .status(400)
-        .json({ success: false, message: "Address must be an object." });
+        .json({ success: false, message: "Invalid URL format for mapLink" });
     }
+  }
+
+  value.location = {
+    ...value.address,
+    mapLink: value.address.mapLink || null,
+    createdBy: req.user.id,
+  };
+
+  delete value.address;
+}
     // ✅ 8. Handle General Farm Images (main gallery) using cloudinary
 
     // if (req.files?.images || req.files?.image) {
