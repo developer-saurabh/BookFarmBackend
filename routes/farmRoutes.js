@@ -6,7 +6,9 @@ const ParseNest = require('../utils/ParseNest');
 
 
 
-router.post('/book_farm',ParseNest, FarmController.bookFarm);
+// router.post('/book_farm',ParseNest, FarmController.bookFarm);
+
+router.post('/book_farm',ParseNest, FarmController.sendInquiry);
 
 router.get('/get_month_booking', ParseNest, FarmController.getMonthlyFarmBookings);
 

@@ -2042,18 +2042,75 @@ exports.getBookingByBookingId = async (req, res) => {
 };
 
 // Vendor update booking status
+
+// exports.updateBookingStatusByVendor = async (req, res) => {
+//   try {
+//     const vendorId = req.user.id; // comes from auth middleware
+//     const { bookingId, status } = req.body;
+
+//     // ✅ Basic validation
+//     // if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+//     //   return res.status(400).json({
+//     //     success: false,
+//     //     message: 'Invalid booking ID'
+//     //   });
+//     // }
+
+//     const allowedStatuses = ['pending', 'confirmed', 'cancelled', 'complete'];
+//     if (!status || !allowedStatuses.includes(status)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Status must be one of: ${allowedStatuses.join(', ')}`
+//       });
+//     }
+
+//     // ✅ Find booking with farm details
+//     const booking = await FarmBooking.findOne({ Booking_id: bookingId }).populate('farm', 'owner');
+//     if (!booking) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Booking not found'
+//       });
+//     }
+
+//     // ✅ Ensure the farm belongs to this vendor
+//     if (!booking.farm || booking.farm.owner.toString() !== vendorId.toString()) {
+//       return res.status(403).json({
+//         success: false,
+//         message: 'You are not authorized to update this booking'
+//       });
+//     }
+
+//     // ✅ Update status
+//     booking.status = status;
+
+//     // If status is confirmed → mark payment as paid
+//     if (status === 'confirmed') {
+//       booking.paymentStatus = 'paid';
+//     }
+
+//     await booking.save();
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'Booking status updated successfully',
+//       data: booking
+//     });
+
+//   } catch (err) {
+//     console.error('updateBookingStatusByVendor error:', err);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Internal server error'
+//     });
+//   }
+// };
+
+
 exports.updateBookingStatusByVendor = async (req, res) => {
   try {
-    const vendorId = req.user.id; // comes from auth middleware
+    const vendorId = req.user.id;
     const { bookingId, status } = req.body;
-
-    // ✅ Basic validation
-    // if (!mongoose.Types.ObjectId.isValid(bookingId)) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'Invalid booking ID'
-    //   });
-    // }
 
     const allowedStatuses = ['pending', 'confirmed', 'cancelled', 'complete'];
     if (!status || !allowedStatuses.includes(status)) {
@@ -2063,44 +2120,42 @@ exports.updateBookingStatusByVendor = async (req, res) => {
       });
     }
 
-    // ✅ Find booking with farm details
     const booking = await FarmBooking.findOne({ Booking_id: bookingId }).populate('farm', 'owner');
     if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: 'Booking not found'
-      });
+      return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    // ✅ Ensure the farm belongs to this vendor
     if (!booking.farm || booking.farm.owner.toString() !== vendorId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'You are not authorized to update this booking'
-      });
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
-    // ✅ Update status
     booking.status = status;
 
-    // If status is confirmed → mark payment as paid
     if (status === 'confirmed') {
       booking.paymentStatus = 'paid';
+
+      await FarmBooking.updateMany(
+        {
+          _id: { $ne: booking._id },
+          farm: booking.farm._id,
+          date: booking.date,
+          status: 'pending',
+          bookingModes: { $in: booking.bookingModes }
+        },
+        { $set: { status: 'cancelled' } }
+      );
     }
 
     await booking.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Booking status updated successfully',
+      message: 'Booking status updated',
       data: booking
     });
 
   } catch (err) {
     console.error('updateBookingStatusByVendor error:', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };

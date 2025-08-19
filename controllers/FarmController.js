@@ -13,7 +13,197 @@ const moment=require("moment")
 const { Types: MongooseTypes, isValidObjectId } = require('mongoose');
 
 
-exports.bookFarm = async (req, res) => {
+// exports.bookFarm = async (req, res) => {
+//   try {
+//     const { error, value } = FarmValidation.farmBookingValidationSchema.validate(req.body, { abortEarly: false });
+//     if (error) {
+//       return res.status(400).json({
+//         message: 'Validation failed',
+//         errors: error.details.map(e => e.message)
+//       });
+//     }
+
+//     const { customerName, customerPhone, customerEmail, customer, farm_id, date, bookingModes, Guest_Count, Group_Category } = value;
+//     const normalizedDate = new Date(date);
+//     const isoDateStr = normalizedDate.toISOString().split('T')[0];
+
+//     // ✅ Step 1: Find farm
+//     const farmDoc = await Farm.findById(farm_id);
+//     if (!farmDoc) {
+//       return res.status(404).json({ error: 'Farm not found' });
+//     }
+// if (Guest_Count > farmDoc.capacity) {
+//   return res.status(400).json({
+//     error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}). Please reduce the number of guests or choose another farm.`
+//   });
+// }
+//  // ✅ Step 2: Block-date & slot check (NEW LOGIC)
+// const blockedEntry = (farmDoc.unavailableDates || []).find(d => {
+//   if (!d.date) return false;
+//   const storedISO = new Date(d.date).toISOString().split("T")[0];
+//   return storedISO === isoDateStr;
+// });
+
+// if (blockedEntry) {
+//   const blockedSlots = blockedEntry.blockedSlots || ["full_day"];
+
+//   // 🔹 If full_day is blocked → entire date is blocked
+//   if (blockedSlots.includes("full_day")) {
+//     return res.status(403).json({
+//       error: `This farm is fully blocked on ${isoDateStr}. No bookings allowed.`
+//     });
+//   }
+
+//   // 🔹 If requested slot is blocked → deny booking
+//   const blockedConflict = bookingModes.filter(mode => blockedSlots.includes(mode));
+//   if (blockedConflict.length > 0) {
+//     return res.status(403).json({
+//       error: `The following slot(s) are blocked on ${isoDateStr}: ${blockedConflict.join(", ")} By Venodor`,
+//       conflict: blockedConflict
+//     });
+//   }
+// }
+
+
+//     // ✅ Step 3: Validate slot combination (real world)
+//     if (bookingModes.includes('full_day') && bookingModes.length > 1) {
+//       return res.status(400).json({
+//         error: `Invalid booking request. 'full_day' cannot be combined with other slots.`,
+//         message: `Invalid booking request. 'full_day' cannot be combined with other slots.`
+//       });
+//     }
+
+//     // ✅ Step 4: Check for existing bookings on this date
+//     const existingBookings = await FarmBooking.find({
+//       farm: farm_id,
+//       date: normalizedDate,
+//       status: { $in: ['pending', 'confirmed'] }
+//     });
+
+//     const existingModes = existingBookings.flatMap(b => b.bookingModes);
+
+//     // ✅ Step 4A: Full-day <-> slot conflict rule
+//     if (bookingModes.includes('full_day') && existingBookings.length > 0) {
+//       return res.status(409).json({
+//         error: `Farm already has slot bookings on ${isoDateStr}, so full day booking is not allowed.`,
+//         conflict: existingModes
+//       });
+//     }
+
+//     if ((bookingModes.includes('day_slot') || bookingModes.includes('night_slot')) &&
+//         existingModes.includes('full_day')) {
+//       return res.status(409).json({
+//         error: `Farm is already booked for full day on ${isoDateStr}, so individual slot bookings are not allowed.`,
+//         conflict: ['full_day']
+//       });
+//     }
+
+//     // ✅ Step 4B: Existing mode conflicts for same modes
+//     const conflicting = existingBookings.filter(b =>
+//       b.bookingModes.some(mode => bookingModes.includes(mode))
+//     );
+//     if (conflicting.length > 0) {
+//       const conflictModes = [...new Set(conflicting.flatMap(b => b.bookingModes))];
+//       return res.status(409).json({
+//         error: `Farm already booked for the following slot(s) on ${isoDateStr}: ${conflictModes.join(', ')}`,
+//         conflict: conflictModes
+//       });
+//     }
+
+//     // ✅ Step 5: Calculate totalPrice + breakdown
+//     const priceBreakdown = {};
+//     let totalPrice = 0;
+
+//     const matchedDaily = farmDoc.dailyPricing?.find(
+//       d => new Date(d.date).toISOString().split('T')[0] === isoDateStr
+//     );
+//     const priceSource = matchedDaily?.slots || farmDoc.defaultPricing || {};
+
+//     for (let mode of bookingModes) {
+//       const modePrice = priceSource[mode];
+//       if (typeof modePrice !== 'number') {
+//         return res.status(400).json({
+//           error: `Pricing not configured for mode "${mode}" on ${isoDateStr}.`
+//         });
+//       }
+//       priceBreakdown[mode] = modePrice;
+//       totalPrice += modePrice;
+//     }
+
+//     // ✅ Step 6: Resolve customer
+//     let customerId = customer;
+//     if (!customerId) {
+//       let existingCustomer = await Customer.findOne({
+//         $or: [{ phone: customerPhone }, { email: customerEmail }]
+//       });
+
+//       if (!existingCustomer) {
+//         const newCustomer = await Customer.create({
+//           name: customerName,
+//           phone: customerPhone,
+//           email: customerEmail
+//         });
+//         customerId = newCustomer._id;
+//       } else {
+//         customerId = existingCustomer._id;
+//       }
+//     }
+
+//     // ✅ Step 7: Generate random 6-digit booking ID
+// const generateBookingId = () => Math.floor(100000 + Math.random() * 900000);
+
+//     // ✅ Step 7: Save booking
+//   const booking = new FarmBooking({
+//   Booking_id: generateBookingId(),
+//   customerName,
+//   customerPhone,
+//   customerEmail,
+//   customer: customerId,
+//   farm: farm_id,
+//   date: normalizedDate,
+//   bookingModes,
+//   Group_Category,
+//   Guest_Count,
+//   status: value.status || 'pending',
+//   paymentStatus: value.paymentStatus || 'unpaid',
+//   totalPrice,
+//   priceBreakdown,
+//   farmSnapshot: {
+//     name: farmDoc.name,
+//     location: {
+//       address: farmDoc.location.address,
+//       city: farmDoc.location.city,
+//       state: farmDoc.location.state,
+//       pinCode: farmDoc.location.pinCode,
+//       areaName: farmDoc.location.areaName
+//     }
+//   }
+// });
+
+
+//     await booking.save();
+
+//     const plainBooking = booking.toObject();
+//     plainBooking.priceBreakdown = Object.fromEntries(booking.priceBreakdown);
+
+//     return res.status(201).json({
+//       message: 'Farm booked successfully!',
+//       data: plainBooking
+//     });
+
+//   } catch (err) {
+//     if (err.code === 11000) {
+//       return res.status(409).json({
+//         error: 'Duplicate booking detected. A booking for the same farm and date already exists.'
+//       });
+//     }
+
+//     console.error('[FarmBooking Error]', err);
+//     res.status(500).json({ error: 'Server error. Try again later.' });
+//   }
+// };
+
+exports.sendInquiry = async (req, res) => {
   try {
     const { error, value } = FarmValidation.farmBookingValidationSchema.validate(req.body, { abortEarly: false });
     if (error) {
@@ -27,90 +217,70 @@ exports.bookFarm = async (req, res) => {
     const normalizedDate = new Date(date);
     const isoDateStr = normalizedDate.toISOString().split('T')[0];
 
-    // ✅ Step 1: Find farm
     const farmDoc = await Farm.findById(farm_id);
     if (!farmDoc) {
       return res.status(404).json({ error: 'Farm not found' });
     }
-if (Guest_Count > farmDoc.capacity) {
-  return res.status(400).json({
-    error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}). Please reduce the number of guests or choose another farm.`
-  });
-}
- // ✅ Step 2: Block-date & slot check (NEW LOGIC)
-const blockedEntry = (farmDoc.unavailableDates || []).find(d => {
-  if (!d.date) return false;
-  const storedISO = new Date(d.date).toISOString().split("T")[0];
-  return storedISO === isoDateStr;
-});
 
-if (blockedEntry) {
-  const blockedSlots = blockedEntry.blockedSlots || ["full_day"];
-
-  // 🔹 If full_day is blocked → entire date is blocked
-  if (blockedSlots.includes("full_day")) {
-    return res.status(403).json({
-      error: `This farm is fully blocked on ${isoDateStr}. No bookings allowed.`
-    });
-  }
-
-  // 🔹 If requested slot is blocked → deny booking
-  const blockedConflict = bookingModes.filter(mode => blockedSlots.includes(mode));
-  if (blockedConflict.length > 0) {
-    return res.status(403).json({
-      error: `The following slot(s) are blocked on ${isoDateStr}: ${blockedConflict.join(", ")} By Venodor`,
-      conflict: blockedConflict
-    });
-  }
-}
-
-
-    // ✅ Step 3: Validate slot combination (real world)
-    if (bookingModes.includes('full_day') && bookingModes.length > 1) {
+    if (Guest_Count > farmDoc.capacity) {
       return res.status(400).json({
-        error: `Invalid booking request. 'full_day' cannot be combined with other slots.`,
-        message: `Invalid booking request. 'full_day' cannot be combined with other slots.`
+        error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}).`
       });
     }
 
-    // ✅ Step 4: Check for existing bookings on this date
-    const existingBookings = await FarmBooking.find({
+    const existingInquiry = await FarmBooking.findOne({
       farm: farm_id,
       date: normalizedDate,
+      customerPhone,
+      bookingModes: { $in: bookingModes },
       status: { $in: ['pending', 'confirmed'] }
     });
 
-    const existingModes = existingBookings.flatMap(b => b.bookingModes);
-
-    // ✅ Step 4A: Full-day <-> slot conflict rule
-    if (bookingModes.includes('full_day') && existingBookings.length > 0) {
+    if (existingInquiry) {
       return res.status(409).json({
-        error: `Farm already has slot bookings on ${isoDateStr}, so full day booking is not allowed.`,
-        conflict: existingModes
+        error: `You already submitted an inquiry for this farm and slot(s).`
+      });
+    }
+
+    if (bookingModes.includes('full_day') && bookingModes.length > 1) {
+      return res.status(400).json({
+        error: `'full_day' cannot be combined with other slots.`
+      });
+    }
+
+    const existingConfirmed = await FarmBooking.find({
+      farm: farm_id,
+      date: normalizedDate,
+      status: 'confirmed'
+    });
+
+    const existingModes = existingConfirmed.flatMap(b => b.bookingModes);
+
+    if (bookingModes.includes('full_day') && existingConfirmed.length > 0) {
+      return res.status(409).json({
+        error: `Farm already has confirmed slot bookings on ${isoDateStr}.`
       });
     }
 
     if ((bookingModes.includes('day_slot') || bookingModes.includes('night_slot')) &&
         existingModes.includes('full_day')) {
       return res.status(409).json({
-        error: `Farm is already booked for full day on ${isoDateStr}, so individual slot bookings are not allowed.`,
-        conflict: ['full_day']
+        error: `Farm is confirmed for full day on ${isoDateStr}.`
       });
     }
 
-    // ✅ Step 4B: Existing mode conflicts for same modes
-    const conflicting = existingBookings.filter(b =>
+    const conflicting = existingConfirmed.filter(b =>
       b.bookingModes.some(mode => bookingModes.includes(mode))
     );
+
     if (conflicting.length > 0) {
       const conflictModes = [...new Set(conflicting.flatMap(b => b.bookingModes))];
       return res.status(409).json({
-        error: `Farm already booked for the following slot(s) on ${isoDateStr}: ${conflictModes.join(', ')}`,
+        error: `Farm already confirmed for: ${conflictModes.join(', ')}`,
         conflict: conflictModes
       });
     }
 
-    // ✅ Step 5: Calculate totalPrice + breakdown
     const priceBreakdown = {};
     let totalPrice = 0;
 
@@ -123,14 +293,13 @@ if (blockedEntry) {
       const modePrice = priceSource[mode];
       if (typeof modePrice !== 'number') {
         return res.status(400).json({
-          error: `Pricing not configured for mode "${mode}" on ${isoDateStr}.`
+          error: `Pricing not configured for "${mode}" on ${isoDateStr}.`
         });
       }
       priceBreakdown[mode] = modePrice;
       totalPrice += modePrice;
     }
 
-    // ✅ Step 6: Resolve customer
     let customerId = customer;
     if (!customerId) {
       let existingCustomer = await Customer.findOne({
@@ -149,59 +318,49 @@ if (blockedEntry) {
       }
     }
 
-    // ✅ Step 7: Generate random 6-digit booking ID
-const generateBookingId = () => Math.floor(100000 + Math.random() * 900000);
+    const generateBookingId = () => Math.floor(100000 + Math.random() * 900000);
 
-    // ✅ Step 7: Save booking
-  const booking = new FarmBooking({
-  Booking_id: generateBookingId(),
-  customerName,
-  customerPhone,
-  customerEmail,
-  customer: customerId,
-  farm: farm_id,
-  date: normalizedDate,
-  bookingModes,
-  Group_Category,
-  Guest_Count,
-  status: value.status || 'pending',
-  paymentStatus: value.paymentStatus || 'unpaid',
-  totalPrice,
-  priceBreakdown,
-  farmSnapshot: {
-    name: farmDoc.name,
-    location: {
-      address: farmDoc.location.address,
-      city: farmDoc.location.city,
-      state: farmDoc.location.state,
-      pinCode: farmDoc.location.pinCode,
-      areaName: farmDoc.location.areaName
-    }
-  }
-});
+    const inquiry = new FarmBooking({
+      Booking_id: generateBookingId(),
+      customerName,
+      customerPhone,
+      customerEmail,
+      customer: customerId,
+      farm: farm_id,
+      date: normalizedDate,
+      bookingModes,
+      Group_Category,
+      Guest_Count,
+      status: 'pending',
+      paymentStatus: 'unpaid',
+      totalPrice,
+      priceBreakdown,
+      farmSnapshot: {
+        name: farmDoc.name,
+        location: {
+          address: farmDoc.location.address,
+          city: farmDoc.location.city,
+          state: farmDoc.location.state,
+          pinCode: farmDoc.location.pinCode,
+          areaName: farmDoc.location.areaName
+        }
+      }
+    });
 
-
-    await booking.save();
-
-    const plainBooking = booking.toObject();
-    plainBooking.priceBreakdown = Object.fromEntries(booking.priceBreakdown);
+    await inquiry.save();
 
     return res.status(201).json({
-      message: 'Farm booked successfully!',
-      data: plainBooking
+      message: 'Inquiry submitted successfully!',
+      data: inquiry.toObject()
     });
 
   } catch (err) {
-    if (err.code === 11000) {
-      return res.status(409).json({
-        error: 'Duplicate booking detected. A booking for the same farm and date already exists.'
-      });
-    }
-
-    console.error('[FarmBooking Error]', err);
+    console.error('[FarmInquiry Error]', err);
     res.status(500).json({ error: 'Server error. Try again later.' });
   }
 };
+
+
 
 exports.getMonthlyFarmBookings = async (req, res) => {
   try {
@@ -668,19 +827,13 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 //   }
 // };
 
-
 exports.getFarmById = async (req, res) => {
   try {
     const { error, value } = FarmValidation.getFarmByIdSchema.validate({ farmId: req.body.farmId });
-
     if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message
-      });
+      return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
-    // 🔍 Get the farm with populated refs
     const farm = await Farm.findById(value.farmId)
       .populate('farmCategory', '_id name')
       .populate('facilities', '_id name icon')
@@ -688,64 +841,56 @@ exports.getFarmById = async (req, res) => {
       .populate('owner', '_id name email phone');
 
     if (!farm || !farm.isActive || !farm.isApproved) {
-      return res.status(404).json({
-        success: false,
-        message: 'Farm not found or inactive/unapproved.'
-      });
+      return res.status(404).json({ success: false, message: 'Farm not found or inactive/unapproved.' });
     }
 
-    // 📅 Prepare next 30 days
     const today = moment().startOf('day');
-    const next30Days = [];
-    for (let i = 0; i < 30; i++) {
-      next30Days.push(today.clone().add(i, 'days'));
-    }
-
-    // 🛑 Build blockedMap only from unavailableDates
+    const next30Days = Array.from({ length: 30 }, (_, i) => today.clone().add(i, 'days'));
     const blockedMap = {};
+
     (farm.unavailableDates || []).forEach(entry => {
       const dateStr = moment(entry.date).format('YYYY-MM-DD');
       blockedMap[dateStr] = new Set(entry.blockedSlots || []);
     });
 
-    // ❌ REMOVE: Booked slots calculation
-    // const bookings = await FarmBooking.find({ ... });
-    // const bookingMap = {};  ← REMOVE
+    const confirmedBookings = await FarmBooking.find({
+      farm: farm._id,
+      status: 'confirmed',
+      date: { $gte: today.toDate(), $lte: next30Days[next30Days.length - 1].toDate() }
+    });
+
+    confirmedBookings.forEach(b => {
+      const dateStr = moment(b.date).format('YYYY-MM-DD');
+      if (!blockedMap[dateStr]) blockedMap[dateStr] = new Set();
+
+      if (b.bookingModes.includes('full_day')) {
+        blockedMap[dateStr].add('full_day');
+      } else {
+        b.bookingModes.forEach(mode => blockedMap[dateStr].add(mode));
+      }
+    });
 
     const allModes = ['full_day', 'day_slot', 'night_slot'];
 
-    // ✅ Generate availability without considering bookings
     const availability = next30Days.map(dayMoment => {
       const dateStr = dayMoment.format('YYYY-MM-DD');
       const dayName = dayMoment.format('dddd');
-
       const blockedSlots = blockedMap[dateStr] || new Set();
 
       const slots = {};
-
       allModes.forEach(mode => {
-        if (blockedSlots.has(mode) || blockedSlots.has('full_day')) {
-          slots[mode] = false;
-        } else {
-          slots[mode] = true;
-        }
+        slots[mode] = !(blockedSlots.has(mode) || blockedSlots.has('full_day'));
       });
 
-      // 💡 Business logic: if either day_slot or night_slot blocked, then full_day also becomes unavailable
       if (blockedSlots.has('day_slot') || blockedSlots.has('night_slot')) {
         slots.full_day = false;
       }
 
-      return {
-        date: dateStr,
-        dayName,
-        availableSlots: slots
-      };
+      return { date: dateStr, dayName, availableSlots: slots };
     });
 
-    // ✅ Convert check-in/out to readable format
     const farmObj = farm.toObject();
-    if (farmObj.dailyPricing && Array.isArray(farmObj.dailyPricing)) {
+    if (Array.isArray(farmObj.dailyPricing)) {
       farmObj.dailyPricing = farmObj.dailyPricing.map(dp => ({
         ...dp,
         checkIn: dp.checkIn ? moment(dp.checkIn, 'HH:mm').format('hh:mm A') : '10:00 AM',
@@ -753,7 +898,6 @@ exports.getFarmById = async (req, res) => {
       }));
     }
 
-    // ✅ Final response
     return res.status(200).json({
       success: true,
       message: 'Farm fetched successfully.',
@@ -765,12 +909,10 @@ exports.getFarmById = async (req, res) => {
 
   } catch (err) {
     console.error('[GetFarmById Error]', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error. Please try again later.'
-    });
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
+
 
 
 exports.getFarmByImageUrl = async (req, res) => {
