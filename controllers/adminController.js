@@ -1321,7 +1321,7 @@ exports.getAllVendors = async (req, res) => {
     const cleanVendors = await Promise.all(
   matchedVendors.map(async (vendor) => {
     const farms = await Farm.find({ owner: vendor._id })
-      .select('name description location capacity farmCategory isActive isApproved')
+      .select('name description location capacity farmCategory isActive isApproved updatedAt ')
       .populate('farmCategory', 'name') // Optional: populate category names if needed
       .lean();
 
