@@ -33,11 +33,11 @@ const farmBookingSchema = new mongoose.Schema({
 
 
   // 📦 Booking Mode
-  bookingModes: {
-    type: [String],
-    enum: ['full_day', 'day_slot', 'night_slot'],
-    default: ['full_day']
-  },
+    bookingModes: {
+      type: [String],
+      enum: ["full_day", "day_slot", "night_slot", "full_night"],
+      default: ["full_day"],
+    },
 
   // 🔄 Status Tracking
   status: {

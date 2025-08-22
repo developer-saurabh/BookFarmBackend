@@ -13,18 +13,12 @@ const addressSchema = new mongoose.Schema(
       validate: {
         validator: function (v) {
           if (!v) return true; // allow null/empty
-          return /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i.test(
-            v
-          );
+          return /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i.test(v);
         },
         message: (props) => `${props.value} is not a valid URL!`,
       },
-    }, // ✅ camelCase (consistent naming)
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Vendor",
-      required: false,
     },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor", required: false },
   },
   { _id: false }
 );
@@ -32,43 +26,30 @@ const addressSchema = new mongoose.Schema(
 const ruleSchema = new mongoose.Schema(
   {
     title: { type: String, required: false, trim: true },
-
     isActive: { type: Boolean, default: true },
   },
   { _id: false }
-); // No separate ID for each rule unless needed
+);
 
 const propertyDetailSchema = new mongoose.Schema(
   {
-    bhk: { type: String, required: false }, // e.g., "3BHK"
-    squareFeet: { type: Number, required: false }, // e.g., 1500
-    additionalInfo: { type: String, default: null }, // optional notes
+    bhk: { type: String, required: false },
+    squareFeet: { type: Number, required: false },
+    additionalInfo: { type: String, default: null },
   },
   { _id: false }
 );
 
 const farmSchema = new mongoose.Schema(
   {
-    // 🔑 Basic details
-    name: { type: String, trim: true }, // optional
+    name: { type: String, trim: true },
     description: { type: String },
 
-    // 🔗 Farm Category (array but optional)
     farmCategory: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "FarmCategory",
-        required: false,
-      },
+      { type: mongoose.Schema.Types.ObjectId, ref: "FarmCategory", required: false },
     ],
-types: [
-  {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Types"
-  }
-],
+    types: [{ type: mongoose.Schema.Types.ObjectId, ref: "Types" }],
 
-    // 📸 Area-wise Images
     areaImages: [
       {
         areaType: { type: String, trim: true },
@@ -76,16 +57,14 @@ types: [
       },
     ],
 
-    // 🔗 Rules
     rules: [ruleSchema],
-
-    // 🔗 Property Details
     propertyDetails: propertyDetailSchema,
+    location: addressSchema,
 
-    location: addressSchema, // ✅ Embedded directly
+    // 🔁 MODES: added full_night everywhere
     bookingModes: {
       type: [String],
-      enum: ["full_day", "day_slot", "night_slot"],
+      enum: ["full_day", "day_slot", "night_slot", "full_night"],
       default: ["full_day"],
     },
 
@@ -96,9 +75,9 @@ types: [
           full_day: { type: Number, default: 0 },
           day_slot: { type: Number, default: 0 },
           night_slot: { type: Number, default: 0 },
+          full_night: { type: Number, default: 0 }, // NEW
         },
         timings: {
-          // ✅ Added timings object
           full_day: {
             checkIn: { type: String, default: "10:00" },
             checkOut: { type: String, default: "18:00" },
@@ -111,16 +90,22 @@ types: [
             checkIn: { type: String, default: "16:00" },
             checkOut: { type: String, default: "22:00" },
           },
+          full_night: { // NEW
+            checkIn: { type: String, default: "20:00" },
+            checkOut: { type: String, default: "08:00" },
+          },
         },
       },
     ],
+
     defaultPricing: {
       full_day: { type: Number },
       day_slot: { type: Number },
       night_slot: { type: Number },
+      full_night: { type: Number }, // NEW
     },
+
     defaultTimings: {
-      // ✅ Add per-slot timings
       full_day: {
         checkIn: { type: String, default: "10:00" },
         checkOut: { type: String, default: "18:00" },
@@ -133,51 +118,42 @@ types: [
         checkIn: { type: String, default: "16:00" },
         checkOut: { type: String, default: "22:00" },
       },
+      full_night: { // NEW
+        checkIn: { type: String, default: "20:00" },
+        checkOut: { type: String, default: "08:00" },
+      },
     },
 
     currency: { type: String, default: "INR" },
-
-    // 📸 General Images
     images: [{ type: String }],
 
-    facilities: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Farm_Facility",
-      },
-    ],
+    facilities: [{ type: mongoose.Schema.Types.ObjectId, ref: "Farm_Facility" }],
     occupancy: { type: Number, required: false },
-    capacity: { type: Number, required: false }, // ✅ Now optional
+    capacity: { type: Number, required: false },
 
-    owner: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Vendor",
-      required: true, // owner should stay required
-    },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor", required: true },
 
     unavailableDates: [
       {
-        date: { type: Date, required: true }, // required ensures date must exist
+        date: { type: Date, required: true },
         blockedSlots: {
           type: [String],
-          enum: ["full_day", "day_slot", "night_slot"],
+          enum: ["full_day", "day_slot", "night_slot", "full_night"], // NEW
           default: ["full_day"],
         },
       },
     ],
 
-    // 📊 Status
     isActive: { type: Boolean, default: false },
     isApproved: { type: Boolean, default: false },
     isHold: { type: Boolean, default: false },
-    // 🔥 NEW FIELDS
+
     currentStep: { type: Number, default: 1 },
     isDraft: { type: Boolean, default: true },
     completedSteps: { type: [Number], default: [] },
 
     deletedAt: { type: Date, default: null },
   },
-
   { timestamps: true }
 );
 

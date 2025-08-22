@@ -108,16 +108,16 @@ exports. farmBookingValidationSchema = Joi.object({
       'any.required': 'Booking date is required.'
     }),
 
-  bookingModes: Joi.array()
-    .items(Joi.string().valid('full_day', 'day_slot', 'night_slot'))
-    .min(1)
-    .required()
-    .messages({
-      'array.base': 'Booking modes must be an array.',
-      'array.min': 'At least one booking mode must be selected.',
-      'any.only': 'Booking mode must be one of full_day, day_slot, or night_slot.'
-    }),
-    
+bookingModes: Joi.array()
+  .items(Joi.string().valid('full_day', 'day_slot', 'night_slot', 'full_night'))
+  .min(1)
+  .required()
+  .messages({
+    'array.base': 'Booking modes must be an array.',
+    'array.min': 'At least one booking mode must be selected.',
+    'any.only': 'Booking mode must be one of: full_day, day_slot, night_slot, or full_night.'
+  })
+,
 Guest_Count: Joi.number()
     .integer()
     .min(1)

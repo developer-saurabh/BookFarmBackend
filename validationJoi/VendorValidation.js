@@ -124,52 +124,62 @@ const timePattern = /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]?\d|2[0-3]):
 exports.farmAddValidationSchema = Joi.object({
   farmId: Joi.string().pattern(objectIdPattern).optional(),
 
-  name: Joi.string().min(3).max(150).optional(),
+  name: Joi.string().min(3).max(150).optional()
+    .messages({
+      "string.min": "Farm name must be at least 3 characters.",
+      "string.max": "Farm name must not exceed 150 characters."
+    }),
 
   description: Joi.string().allow("", null).optional(),
-types: Joi.array().items(
-  Joi.string().pattern(objectIdPattern)
-    .messages({ "string.pattern.base": "Each type ID must be a valid ObjectId." })
-).optional()
-  .messages({ "array.base": "types must be an array of ObjectIds." }),
-farmCategory: Joi.array().items(
-  Joi.string().pattern(objectIdPattern)
-    .messages({ "string.pattern.base": "Each farmCategory ID must be a valid ObjectId." })
-).optional()
-  .messages({ "array.base": "farmCategory must be an array of ObjectIds." }),
 
-Types: Joi.array().items(
-  Joi.string().pattern(objectIdPattern)
-    .messages({ "string.pattern.base": "Each Types ID must be a valid ObjectId." })
-).optional()
-  .messages({ "array.base": "Types must be an array of ObjectIds." }),
+  types: Joi.array().items(
+    Joi.string().pattern(objectIdPattern)
+      .messages({ "string.pattern.base": "Each type ID must be a valid ObjectId." })
+  ).optional()
+    .messages({ "array.base": "types must be an array of valid ObjectIds." }),
+
+  Types: Joi.array().items(
+    Joi.string().pattern(objectIdPattern)
+      .messages({ "string.pattern.base": "Each Types ID must be a valid ObjectId." })
+  ).optional()
+    .messages({ "array.base": "Types must be an array of valid ObjectIds." }),
+
+  farmCategory: Joi.array().items(
+    Joi.string().pattern(objectIdPattern)
+      .messages({ "string.pattern.base": "Each farmCategory ID must be a valid ObjectId." })
+  ).optional()
+    .messages({ "array.base": "farmCategory must be an array of valid ObjectIds." }),
+
+  facilities: Joi.array().items(
+    Joi.string().pattern(objectIdPattern)
+  ).optional()
+    .messages({ "array.base": "Facilities must be an array of valid ObjectIds." }),
 
   areaImages: Joi.array().items(
     Joi.object({
-      areaType: Joi.string().trim().optional(),
+      areaType: Joi.string().trim().required()
+        .messages({ "string.base": "areaType must be a string." }),
       images: Joi.array().items(Joi.string().uri()).optional()
+        .messages({ "string.uri": "Each image must be a valid URL." })
     })
   ).optional(),
-rules: Joi.array().items(
-  Joi.object({
-    title: Joi.string().min(3).required()
-      .messages({
-        "string.empty": "Rule title is required.",
-        "string.min": "Rule title must be at least 3 characters long."
-      }),
-    isActive: Joi.boolean().optional()
-      .messages({ "boolean.base": "isActive must be true or false." })
-  })
-).optional()
-  .messages({ "array.base": "Rules must be an array of objects." })
-,
+
+  rules: Joi.array().items(
+    Joi.object({
+      title: Joi.string().min(3).required()
+        .messages({
+          "string.empty": "Rule title is required.",
+          "string.min": "Rule title must be at least 3 characters."
+        }),
+      isActive: Joi.boolean().optional()
+    })
+  ).optional(),
 
   propertyDetails: Joi.object({
     bhk: Joi.string().optional(),
     squareFeet: Joi.number().optional(),
     additionalInfo: Joi.string().allow("", null).optional()
-  }).optional()
-    .messages({ "object.base": "propertyDetails must be an object." }),
+  }).optional(),
 
   location: Joi.object({
     address: Joi.string().optional(),
@@ -177,18 +187,22 @@ rules: Joi.array().items(
     state: Joi.string().optional(),
     pinCode: Joi.string().optional(),
     areaName: Joi.string().optional(),
-    createdBy: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional()
+    createdBy: Joi.string().pattern(objectIdPattern).optional()
   }).optional(),
 
-  facilities: Joi.array().items(Joi.string().pattern(objectIdPattern)).optional(),
+  capacity: Joi.number().min(1).optional()
+    .messages({ "number.min": "Capacity must be at least 1." }),
 
-  capacity: Joi.number().min(1).optional(),
-occupancy : Joi.number().min(1).optional(),
+  occupancy: Joi.number().min(1).optional()
+    .messages({ "number.min": "Occupancy must be at least 1." }),
+
   bookingModes: Joi.array().items(
-    Joi.string().valid("full_day", "day_slot", "night_slot")
+    Joi.string().valid("full_day", "day_slot", "night_slot", "full_night")
+      .messages({
+        "any.only": "Invalid booking mode. Valid values: full_day, day_slot, night_slot, full_night."
+      })
   ).optional(),
 
-  // ✅ Updated dailyPricing with optional timings
   dailyPricing: Joi.array().items(
     Joi.object({
       date: Joi.date().required()
@@ -197,7 +211,8 @@ occupancy : Joi.number().min(1).optional(),
       slots: Joi.object({
         full_day: Joi.number().optional(),
         day_slot: Joi.number().optional(),
-        night_slot: Joi.number().optional()
+        night_slot: Joi.number().optional(),
+        full_night: Joi.number().optional()
       }).required()
         .messages({ "object.base": "slots must be an object with pricing numbers." }),
 
@@ -208,17 +223,26 @@ occupancy : Joi.number().min(1).optional(),
           checkOut: Joi.string().pattern(timePattern).required()
             .messages({ "string.pattern.base": "full_day.checkOut must be in HH:mm or hh:mm AM/PM format." })
         }).required(),
+
         day_slot: Joi.object({
           checkIn: Joi.string().pattern(timePattern).optional()
             .messages({ "string.pattern.base": "day_slot.checkIn must be in HH:mm or hh:mm AM/PM format." }),
           checkOut: Joi.string().pattern(timePattern).optional()
             .messages({ "string.pattern.base": "day_slot.checkOut must be in HH:mm or hh:mm AM/PM format." })
         }).optional(),
+
         night_slot: Joi.object({
           checkIn: Joi.string().pattern(timePattern).optional()
             .messages({ "string.pattern.base": "night_slot.checkIn must be in HH:mm or hh:mm AM/PM format." }),
           checkOut: Joi.string().pattern(timePattern).optional()
             .messages({ "string.pattern.base": "night_slot.checkOut must be in HH:mm or hh:mm AM/PM format." })
+        }).optional(),
+
+        full_night: Joi.object({
+          checkIn: Joi.string().pattern(timePattern).optional()
+            .messages({ "string.pattern.base": "full_night.checkIn must be in HH:mm or hh:mm AM/PM format." }),
+          checkOut: Joi.string().pattern(timePattern).optional()
+            .messages({ "string.pattern.base": "full_night.checkOut must be in HH:mm or hh:mm AM/PM format." })
         }).optional()
       }).optional()
     })
@@ -227,27 +251,44 @@ occupancy : Joi.number().min(1).optional(),
   defaultPricing: Joi.object({
     full_day: Joi.number().optional(),
     day_slot: Joi.number().optional(),
-    night_slot: Joi.number().optional()
+    night_slot: Joi.number().optional(),
+    full_night: Joi.number().optional()
   }).optional(),
 
   defaultTimings: Joi.object({
     full_day: Joi.object({
-      checkIn: Joi.string().pattern(timePattern).required(),
+      checkIn: Joi.string().pattern(timePattern).required()
+        .messages({ "string.pattern.base": "full_day checkIn must be in valid time format." }),
       checkOut: Joi.string().pattern(timePattern).required()
+        .messages({ "string.pattern.base": "full_day checkOut must be in valid time format." })
     }).required(),
+
     day_slot: Joi.object({
-      checkIn: Joi.string().pattern(timePattern).optional(),
+      checkIn: Joi.string().pattern(timePattern).optional()
+        .messages({ "string.pattern.base": "day_slot checkIn must be in valid time format." }),
       checkOut: Joi.string().pattern(timePattern).optional()
+        .messages({ "string.pattern.base": "day_slot checkOut must be in valid time format." })
     }).optional(),
+
     night_slot: Joi.object({
-      checkIn: Joi.string().pattern(timePattern).optional(),
+      checkIn: Joi.string().pattern(timePattern).optional()
+        .messages({ "string.pattern.base": "night_slot checkIn must be in valid time format." }),
       checkOut: Joi.string().pattern(timePattern).optional()
+        .messages({ "string.pattern.base": "night_slot checkOut must be in valid time format." })
+    }).optional(),
+
+    full_night: Joi.object({
+      checkIn: Joi.string().pattern(timePattern).optional()
+        .messages({ "string.pattern.base": "full_night checkIn must be in valid time format." }),
+      checkOut: Joi.string().pattern(timePattern).optional()
+        .messages({ "string.pattern.base": "full_night checkOut must be in valid time format." })
     }).optional()
   }).optional(),
 
-  currency: Joi.string().optional(),
+  currency: Joi.string().valid("INR").optional(),
 
-  images: Joi.array().items(Joi.string().uri()).optional(),
+  images: Joi.array().items(Joi.string().uri())
+    .messages({ "string.uri": "Each image must be a valid URL." }).optional(),
 
   unavailableDates: Joi.array().items(Joi.date()).optional(),
 
@@ -255,7 +296,6 @@ occupancy : Joi.number().min(1).optional(),
   isApproved: Joi.boolean().optional(),
   isHold: Joi.boolean().optional()
 }).options({ abortEarly: false, allowUnknown: true });
-
 
 // get farm 
 
