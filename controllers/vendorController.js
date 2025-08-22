@@ -608,13 +608,13 @@ exports.addOrUpdateFarm = async (req, res) => {
     }
 
     // ✅ Do the same for address, rules, propertyDetails if needed
-    ["rules", "address", "propertyDetails"].forEach((key) => {
-      if (req.body[key] && typeof req.body[key] === "string") {
-        try {
-          req.body[key] = JSON.parse(req.body[key]);
-        } catch {}
-      }
-    });
+ ["rules", "address", "propertyDetails", "mealsOffered"].forEach((key) => {
+  if (req.body[key] && typeof req.body[key] === "string") {
+    try {
+      req.body[key] = JSON.parse(req.body[key]);
+    } catch {}
+  }
+});
 
     const normalizeFiles = (files) => {
       if (!files) return [];

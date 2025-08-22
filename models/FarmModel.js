@@ -72,30 +72,102 @@ const farmSchema = new mongoose.Schema(
     location: addressSchema,
 
     // 🔁 MODES: added full_night everywhere
-bookingModes: {
-  full_day: { type: Boolean, default: false },
-  day_slot: { type: Boolean, default: false },
-  night_slot: { type: Boolean, default: false },
-  full_night: { type: Boolean, default: false }
-},
- mealsOffered: {
-  full_day: {
-    isOffered: { type: Boolean, default: false },
-    meals: { type: [String], default: [] }
-  },
-  day_slot: {
-    isOffered: { type: Boolean, default: false },
-    meals: { type: [String], default: [] }
-  },
-  night_slot: {
-    isOffered: { type: Boolean, default: false },
-    meals: { type: [String], default: [] }
-  },
-  full_night: {
-    isOffered: { type: Boolean, default: false },
-    meals: { type: [String], default: [] }
-  }
-},
+    bookingModes: {
+      full_day: { type: Boolean, default: false },
+      day_slot: { type: Boolean, default: false },
+      night_slot: { type: Boolean, default: false },
+      full_night: { type: Boolean, default: false },
+    },
+    mealsOffered: {
+      full_day: {
+        isOffered: { type: Boolean, default: false },
+        meals: {
+          breakfast: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          lunch: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          hi_tea: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          dinner: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          }
+      
+        },
+      },
+      day_slot: {
+        isOffered: { type: Boolean, default: false },
+        meals: {
+          breakfast: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          lunch: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          hi_tea: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          dinner: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+        
+        },
+      },
+      night_slot: {
+        isOffered: { type: Boolean, default: false },
+        meals: {
+          breakfast: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          lunch: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          hi_tea: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          dinner: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+         
+        },
+      },
+      full_night: {
+        isOffered: { type: Boolean, default: false },
+        meals: {
+          breakfast: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          lunch: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          hi_tea: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+          dinner: {
+            isAvailable: { type: Boolean, default: false },
+            value: { type: [String], default: [] },
+          },
+      
+        },
+      },
+    },
 
     dailyPricing: [
       {
