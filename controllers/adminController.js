@@ -1015,7 +1015,7 @@ exports.getAllCategories = async (req, res) => {
   }
 };
 
-// all bookings 
+// all bookings , update booking status 
 
 exports.getAllBookings = async (req, res) => {
   try {
