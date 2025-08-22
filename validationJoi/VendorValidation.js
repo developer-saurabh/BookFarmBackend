@@ -131,8 +131,7 @@ const mealsSlotSchema = Joi.object({
     breakfast: mealTypeSchema.required(),
     lunch: mealTypeSchema.required(),
     hi_tea: mealTypeSchema.required(),
-    dinner: mealTypeSchema.required(),
-    midnight_snacks: mealTypeSchema.required()
+    dinner: mealTypeSchema.required()
   }).required()
 });
 exports.farmAddValidationSchema = Joi.object({
