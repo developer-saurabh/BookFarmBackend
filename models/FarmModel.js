@@ -13,12 +13,18 @@ const addressSchema = new mongoose.Schema(
       validate: {
         validator: function (v) {
           if (!v) return true; // allow null/empty
-          return /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i.test(v);
+          return /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i.test(
+            v
+          );
         },
         message: (props) => `${props.value} is not a valid URL!`,
       },
     },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor", required: false },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vendor",
+      required: false,
+    },
   },
   { _id: false }
 );
@@ -46,7 +52,11 @@ const farmSchema = new mongoose.Schema(
     description: { type: String },
 
     farmCategory: [
-      { type: mongoose.Schema.Types.ObjectId, ref: "FarmCategory", required: false },
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "FarmCategory",
+        required: false,
+      },
     ],
     types: [{ type: mongoose.Schema.Types.ObjectId, ref: "Types" }],
 
@@ -62,11 +72,30 @@ const farmSchema = new mongoose.Schema(
     location: addressSchema,
 
     // 🔁 MODES: added full_night everywhere
-    bookingModes: {
-      type: [String],
-      enum: ["full_day", "day_slot", "night_slot", "full_night"],
-      default: ["full_day"],
-    },
+bookingModes: {
+  full_day: { type: Boolean, default: false },
+  day_slot: { type: Boolean, default: false },
+  night_slot: { type: Boolean, default: false },
+  full_night: { type: Boolean, default: false }
+},
+ mealsOffered: {
+  full_day: {
+    isOffered: { type: Boolean, default: false },
+    meals: { type: [String], default: [] }
+  },
+  day_slot: {
+    isOffered: { type: Boolean, default: false },
+    meals: { type: [String], default: [] }
+  },
+  night_slot: {
+    isOffered: { type: Boolean, default: false },
+    meals: { type: [String], default: [] }
+  },
+  full_night: {
+    isOffered: { type: Boolean, default: false },
+    meals: { type: [String], default: [] }
+  }
+},
 
     dailyPricing: [
       {
@@ -90,7 +119,8 @@ const farmSchema = new mongoose.Schema(
             checkIn: { type: String, default: "16:00" },
             checkOut: { type: String, default: "22:00" },
           },
-          full_night: { // NEW
+          full_night: {
+            // NEW
             checkIn: { type: String, default: "20:00" },
             checkOut: { type: String, default: "08:00" },
           },
@@ -118,7 +148,8 @@ const farmSchema = new mongoose.Schema(
         checkIn: { type: String, default: "16:00" },
         checkOut: { type: String, default: "22:00" },
       },
-      full_night: { // NEW
+      full_night: {
+        // NEW
         checkIn: { type: String, default: "20:00" },
         checkOut: { type: String, default: "08:00" },
       },
@@ -127,11 +158,17 @@ const farmSchema = new mongoose.Schema(
     currency: { type: String, default: "INR" },
     images: [{ type: String }],
 
-    facilities: [{ type: mongoose.Schema.Types.ObjectId, ref: "Farm_Facility" }],
+    facilities: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "Farm_Facility" },
+    ],
     occupancy: { type: Number, required: false },
     capacity: { type: Number, required: false },
 
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor", required: true },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Vendor",
+      required: true,
+    },
 
     unavailableDates: [
       {

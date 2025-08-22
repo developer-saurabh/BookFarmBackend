@@ -518,10 +518,6 @@ exports.getFarmById = async (req, res) => {
 
 
 
-
-
-
-
 exports.getFarmByImageUrl = async (req, res) => {
   try {
     console.log('req.body printing:', req.body);

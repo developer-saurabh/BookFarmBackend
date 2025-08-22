@@ -120,6 +120,11 @@ const timePattern = /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]?\d|2[0-3]):
 
 // Add Farm 
 
+const mealsSlotSchema = Joi.object({
+  isOffered: Joi.boolean().required(),
+  meals: Joi.array().items(Joi.string()).required()
+});
+
 
 exports.farmAddValidationSchema = Joi.object({
   farmId: Joi.string().pattern(objectIdPattern).optional(),
@@ -195,13 +200,23 @@ exports.farmAddValidationSchema = Joi.object({
 
   occupancy: Joi.number().min(1).optional()
     .messages({ "number.min": "Occupancy must be at least 1." }),
+// ✅ NEW: bookingModes with true/false structure
+bookingModes: Joi.object({
+full_day: Joi.boolean().optional(),
+day_slot: Joi.boolean().optional(),
+night_slot: Joi.boolean().optional(),
+full_night: Joi.boolean().optional()
+}).optional(),
 
-  bookingModes: Joi.array().items(
-    Joi.string().valid("full_day", "day_slot", "night_slot", "full_night")
-      .messages({
-        "any.only": "Invalid booking mode. Valid values: full_day, day_slot, night_slot, full_night."
-      })
-  ).optional(),
+
+
+// ✅ NEW: mealsOffered validation for each mode
+  mealsOffered: Joi.object({
+    full_day: mealsSlotSchema,
+    day_slot: mealsSlotSchema,
+    night_slot: mealsSlotSchema,
+    full_night: mealsSlotSchema
+  }),
 
   dailyPricing: Joi.array().items(
     Joi.object({
