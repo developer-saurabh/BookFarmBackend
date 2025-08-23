@@ -211,43 +211,101 @@ const farmSchema = new mongoose.Schema(
       },
     },
 
-    dailyPricing: [
-      {
-        date: { type: Date },
-        slots: {
-          full_day: { type: Number, default: 0 },
-          day_slot: { type: Number, default: 0 },
-          night_slot: { type: Number, default: 0 },
-          full_night: { type: Number, default: 0 }, // NEW
-        },
-        timings: {
-          full_day: {
-            checkIn: { type: String, default: "10:00" },
-            checkOut: { type: String, default: "18:00" },
-          },
-          day_slot: {
-            checkIn: { type: String, default: "10:00" },
-            checkOut: { type: String, default: "15:00" },
-          },
-          night_slot: {
-            checkIn: { type: String, default: "16:00" },
-            checkOut: { type: String, default: "22:00" },
-          },
-          full_night: {
-            // NEW
-            checkIn: { type: String, default: "20:00" },
-            checkOut: { type: String, default: "08:00" },
-          },
-        },
-      },
-    ],
+dailyPricing: [
+  {
+    date: { type: Date, required: true },
 
-    defaultPricing: {
-      full_day: { type: Number },
-      day_slot: { type: Number },
-      night_slot: { type: Number },
-      full_night: { type: Number }, // NEW
+    slots: {
+      full_day: { price: { type: Number, default: 0 }, pricePerGuest: { type: Number, default: 0 } },
+      day_slot: { price: { type: Number, default: 0 }, pricePerGuest: { type: Number, default: 0 } },
+      night_slot: { price: { type: Number, default: 0 }, pricePerGuest: { type: Number, default: 0 } },
+      full_night: { price: { type: Number, default: 0 }, pricePerGuest: { type: Number, default: 0 } },
     },
+
+    timings: {
+      full_day: { checkIn: { type: String, default: "10:00 AM" }, checkOut: { type: String, default: "06:00 PM" } },
+      day_slot: { checkIn: { type: String, default: "10:00 AM" }, checkOut: { type: String, default: "03:00 PM" } },
+      night_slot: { checkIn: { type: String, default: "04:00 PM" }, checkOut: { type: String, default: "07:00 PM" } },
+      full_night: { checkIn: { type: String, default: "07:01 PM" }, checkOut: { type: String, default: "08:00 AM" } },
+    },
+
+    kitchenOffered: {
+      full_day: { isAvailable: { type: Boolean, default: false }, price: { type: Number, default: 0 }, description: { type: String, default: "" } },
+      day_slot: { isAvailable: { type: Boolean, default: false }, price: { type: Number, default: 0 }, description: { type: String, default: "" } },
+      night_slot: { isAvailable: { type: Boolean, default: false }, price: { type: Number, default: 0 }, description: { type: String, default: "" } },
+      full_night: { isAvailable: { type: Boolean, default: false }, price: { type: Number, default: 0 }, description: { type: String, default: "" } },
+    },
+    kitchenOfferedActive: { type: Boolean, default: false },
+
+    barbequeCharcoal: {
+      full_day: { isAvailable: { type: Boolean, default: false }, price: { type: Number, default: 0 } },
+      day_slot: { isAvailable: { type: Boolean, default: false }, price: { type: Number, default: 0 } },
+      night_slot: { isAvailable: { type: Boolean, default: false }, price: { type: Number, default: 0 } },
+      full_night: { isAvailable: { type: Boolean, default: false }, price: { type: Number, default: 0 } },
+    },
+    barbequeCharcoalActive: { type: Boolean, default: false },
+
+    mealsOffered: {
+      full_day: {
+        isOffered: { type: Boolean, default: false },
+        meals: {
+          breakfast: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          lunch: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          hi_tea: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          dinner: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+        }
+      },
+      day_slot: {
+        isOffered: { type: Boolean, default: false },
+        meals: {
+          breakfast: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          lunch: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          hi_tea: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          dinner: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+        }
+      },
+      night_slot: {
+        isOffered: { type: Boolean, default: false },
+        meals: {
+          breakfast: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          lunch: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          hi_tea: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          dinner: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+        }
+      },
+      full_night: {
+        isOffered: { type: Boolean, default: false },
+        meals: {
+          breakfast: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          lunch: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          hi_tea: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+          dinner: { isAvailable: { type: Boolean, default: false }, value: { type: [String], default: [] } },
+        }
+      },
+    },
+    mealsOfferedActive: { type: Boolean, default: false },
+  }
+]
+,
+
+ defaultPricing: {
+  full_day: { 
+    price: { type: Number, default: 0 },         // existing total/default price
+    pricePerGuest: { type: Number, default: 0 }  // new field
+  },
+  day_slot: { 
+    price: { type: Number, default: 0 }, 
+    pricePerGuest: { type: Number, default: 0 } 
+  },
+  night_slot: { 
+    price: { type: Number, default: 0 }, 
+    pricePerGuest: { type: Number, default: 0 } 
+  },
+  full_night: { 
+    price: { type: Number, default: 0 }, 
+    pricePerGuest: { type: Number, default: 0 } 
+  }, 
+},
 
     defaultTimings: {
       full_day: {

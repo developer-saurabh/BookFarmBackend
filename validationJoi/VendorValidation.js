@@ -257,58 +257,108 @@ mealsOffered: Joi.object({
   night_slot: mealsSlotSchema.required(),
   full_night: mealsSlotSchema.required()
 }).optional(),
+dailyPricing: Joi.array().items(
+  Joi.object({
+    date: Joi.date().required()
+      .messages({ "date.base": "Each dailyPricing item must have a valid date." }),
 
-  dailyPricing: Joi.array().items(
-    Joi.object({
-      date: Joi.date().required()
-        .messages({ "date.base": "Each dailyPricing item must have a valid date." }),
+    slots: Joi.object({
+      full_day: Joi.object({ price: Joi.number().optional(), pricePerGuest: Joi.number().optional() }).optional(),
+      day_slot: Joi.object({ price: Joi.number().optional(), pricePerGuest: Joi.number().optional() }).optional(),
+      night_slot: Joi.object({ price: Joi.number().optional(), pricePerGuest: Joi.number().optional() }).optional(),
+      full_night: Joi.object({ price: Joi.number().optional(), pricePerGuest: Joi.number().optional() }).optional()
+    }).optional()
+      .messages({ "object.base": "slots must be an object with pricing numbers." }),
 
-      slots: Joi.object({
-        full_day: Joi.number().optional(),
-        day_slot: Joi.number().optional(),
-        night_slot: Joi.number().optional(),
-        full_night: Joi.number().optional()
-      }).required()
-        .messages({ "object.base": "slots must be an object with pricing numbers." }),
+    timings: Joi.object({
+      full_day: Joi.object({
+        checkIn: Joi.string().pattern(timePattern).required()
+          .messages({ "string.pattern.base": "full_day.checkIn must be in HH:mm or hh:mm AM/PM format." }),
+        checkOut: Joi.string().pattern(timePattern).required()
+          .messages({ "string.pattern.base": "full_day.checkOut must be in HH:mm or hh:mm AM/PM format." })
+      }).required(),
 
-      timings: Joi.object({
-        full_day: Joi.object({
-          checkIn: Joi.string().pattern(timePattern).required()
-            .messages({ "string.pattern.base": "full_day.checkIn must be in HH:mm or hh:mm AM/PM format." }),
-          checkOut: Joi.string().pattern(timePattern).required()
-            .messages({ "string.pattern.base": "full_day.checkOut must be in HH:mm or hh:mm AM/PM format." })
-        }).required(),
+      day_slot: Joi.object({ checkIn: Joi.string().pattern(timePattern).optional(), checkOut: Joi.string().pattern(timePattern).optional() }).optional(),
+      night_slot: Joi.object({ checkIn: Joi.string().pattern(timePattern).optional(), checkOut: Joi.string().pattern(timePattern).optional() }).optional(),
+      full_night: Joi.object({ checkIn: Joi.string().pattern(timePattern).optional(), checkOut: Joi.string().pattern(timePattern).optional() }).optional()
+    }).optional(),
 
-        day_slot: Joi.object({
-          checkIn: Joi.string().pattern(timePattern).optional()
-            .messages({ "string.pattern.base": "day_slot.checkIn must be in HH:mm or hh:mm AM/PM format." }),
-          checkOut: Joi.string().pattern(timePattern).optional()
-            .messages({ "string.pattern.base": "day_slot.checkOut must be in HH:mm or hh:mm AM/PM format." })
-        }).optional(),
+    kitchenOffered: Joi.object({
+      full_day: Joi.object({ isAvailable: Joi.boolean().optional(), price: Joi.number().optional(), pricePerGuest: Joi.number().optional(), description: Joi.string().optional() }),
+      day_slot: Joi.object({ isAvailable: Joi.boolean().optional(), price: Joi.number().optional(), pricePerGuest: Joi.number().optional(), description: Joi.string().optional() }),
+      night_slot: Joi.object({ isAvailable: Joi.boolean().optional(), price: Joi.number().optional(), pricePerGuest: Joi.number().optional(), description: Joi.string().optional() }),
+      full_night: Joi.object({ isAvailable: Joi.boolean().optional(), price: Joi.number().optional(), pricePerGuest: Joi.number().optional(), description: Joi.string().optional() }),
+      kitchenOfferedActive: Joi.boolean().optional()
+    }).optional(),
 
-        night_slot: Joi.object({
-          checkIn: Joi.string().pattern(timePattern).optional()
-            .messages({ "string.pattern.base": "night_slot.checkIn must be in HH:mm or hh:mm AM/PM format." }),
-          checkOut: Joi.string().pattern(timePattern).optional()
-            .messages({ "string.pattern.base": "night_slot.checkOut must be in HH:mm or hh:mm AM/PM format." })
-        }).optional(),
+    barbequeCharcoal: Joi.object({
+      full_day: Joi.object({ isAvailable: Joi.boolean().optional(), price: Joi.number().optional(), pricePerGuest: Joi.number().optional() }),
+      day_slot: Joi.object({ isAvailable: Joi.boolean().optional(), price: Joi.number().optional(), pricePerGuest: Joi.number().optional() }),
+      night_slot: Joi.object({ isAvailable: Joi.boolean().optional(), price: Joi.number().optional(), pricePerGuest: Joi.number().optional() }),
+      full_night: Joi.object({ isAvailable: Joi.boolean().optional(), price: Joi.number().optional(), pricePerGuest: Joi.number().optional() }),
+      barbequeCharcoalActive: Joi.boolean().optional()
+    }).optional(),
 
-        full_night: Joi.object({
-          checkIn: Joi.string().pattern(timePattern).optional()
-            .messages({ "string.pattern.base": "full_night.checkIn must be in HH:mm or hh:mm AM/PM format." }),
-          checkOut: Joi.string().pattern(timePattern).optional()
-            .messages({ "string.pattern.base": "full_night.checkOut must be in HH:mm or hh:mm AM/PM format." })
-        }).optional()
-      }).optional()
-    })
-  ).optional(),
+    mealsOffered: Joi.object({
+      full_day: Joi.object({
+        isOffered: Joi.boolean().optional(),
+        meals: Joi.object({
+          breakfast: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          lunch: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          hi_tea: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          dinner: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+        })
+      }),
+      day_slot: Joi.object({
+        isOffered: Joi.boolean().optional(),
+        meals: Joi.object({
+          breakfast: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          lunch: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          hi_tea: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          dinner: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+        })
+      }),
+      night_slot: Joi.object({
+        isOffered: Joi.boolean().optional(),
+        meals: Joi.object({
+          breakfast: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          lunch: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          hi_tea: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          dinner: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+        })
+      }),
+      full_night: Joi.object({
+        isOffered: Joi.boolean().optional(),
+        meals: Joi.object({
+          breakfast: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          lunch: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          hi_tea: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+          dinner: Joi.object({ isAvailable: Joi.boolean().optional(), value: Joi.array().items(Joi.string()).optional() }),
+        })
+      }),
+      mealsOfferedActive: Joi.boolean().optional()
+    }).optional(),
+  })
+).optional(),
 
-  defaultPricing: Joi.object({
-    full_day: Joi.number().optional(),
-    day_slot: Joi.number().optional(),
-    night_slot: Joi.number().optional(),
-    full_night: Joi.number().optional()
+defaultPricing: Joi.object({
+  full_day: Joi.object({
+    price: Joi.number().min(0).optional(),
+    pricePerGuest: Joi.number().min(0).optional()
   }).optional(),
+  day_slot: Joi.object({
+    price: Joi.number().min(0).optional(),
+    pricePerGuest: Joi.number().min(0).optional()
+  }).optional(),
+  night_slot: Joi.object({
+    price: Joi.number().min(0).optional(),
+    pricePerGuest: Joi.number().min(0).optional()
+  }).optional(),
+  full_night: Joi.object({
+    price: Joi.number().min(0).optional(),
+    pricePerGuest: Joi.number().min(0).optional()
+  }).optional()
+}).optional(),
 
   defaultTimings: Joi.object({
     full_day: Joi.object({
