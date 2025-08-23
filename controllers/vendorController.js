@@ -18,6 +18,8 @@ const { uploadFilesToLocal } = require("../utils/UploadFileToLocal");
 const Types = require("../models/TypeModel");
 const FarmType = require("../models/TypeModel");
 const moment = require("moment");
+const { normalizeFeature } = require("../utils/AddFarmUtil");
+
 // Register  Apis
 
 exports.registerVendor = async (req, res) => {
@@ -592,7 +594,6 @@ exports.changePassword = async (req, res) => {
 };
 
 // New Updaete Major
-
 exports.addOrUpdateFarm = async (req, res) => {
   try {
     // ✅ Parse areaImages if it's sent as a string
@@ -608,7 +609,7 @@ exports.addOrUpdateFarm = async (req, res) => {
     }
 
     // ✅ Do the same for address, rules, propertyDetails if needed
- ["rules", "address", "propertyDetails", "mealsOffered"].forEach((key) => {
+["rules", "address", "propertyDetails", "mealsOffered", "kitchenOffered", "barbequeCharcoal"].forEach((key) => {
   if (req.body[key] && typeof req.body[key] === "string") {
     try {
       req.body[key] = JSON.parse(req.body[key]);
@@ -657,7 +658,15 @@ exports.addOrUpdateFarm = async (req, res) => {
         message: "Vendor is not eligible to create/update farms.",
       });
     }
+value.kitchenOffered = normalizeFeature(value.kitchenOffered, {
+  withDesc: true,
+  bookingModes: value.bookingModes || {},
+});
 
+value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, {
+  withDesc: false,
+  bookingModes: value.bookingModes || {},
+});
     // ✅ 3. Validate farmCategory if provided
     if (value.farmCategory?.length) {
       const categoryExists = await FarmCategory.find({

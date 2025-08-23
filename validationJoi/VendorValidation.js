@@ -134,6 +134,18 @@ const mealsSlotSchema = Joi.object({
     dinner: mealTypeSchema.required()
   }).required()
 });
+const slotWithDescSchema = Joi.object({
+  isAvailable: Joi.boolean().optional(),
+  price: Joi.number().min(0).optional()
+    .messages({ "number.min": "Price cannot be negative." }),
+  description: Joi.string().allow("", null).optional()
+});
+
+const slotNoDescSchema = Joi.object({
+  isAvailable: Joi.boolean().optional(),
+  price: Joi.number().min(0).optional()
+    .messages({ "number.min": "Price cannot be negative." })
+});
 exports.farmAddValidationSchema = Joi.object({
   farmId: Joi.string().pattern(objectIdPattern).optional(),
 
@@ -216,6 +228,26 @@ night_slot: Joi.boolean().optional(),
 full_night: Joi.boolean().optional()
 }).optional(),
 
+ kitchenOffered: Joi.object({
+    isAvailable: Joi.boolean().optional(),
+    slots: Joi.object({
+      full_day: slotWithDescSchema.optional(),
+      day_slot: slotWithDescSchema.optional(),
+      night_slot: slotWithDescSchema.optional(),
+      full_night: slotWithDescSchema.optional()
+    }).optional()
+  }).optional(),
+
+  // ✅ NEW: Barbeque/Charcoal (no description; overall + per-slot)
+  barbequeCharcoal: Joi.object({
+    isAvailable: Joi.boolean().optional(),
+    slots: Joi.object({
+      full_day: slotNoDescSchema.optional(),
+      day_slot: slotNoDescSchema.optional(),
+      night_slot: slotNoDescSchema.optional(),
+      full_night: slotNoDescSchema.optional()
+    }).optional()
+  }).optional(),
 
 
 // ✅ NEW: mealsOffered validation for each mode

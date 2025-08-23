@@ -78,6 +78,52 @@ const farmSchema = new mongoose.Schema(
       night_slot: { type: Boolean, default: false },
       full_night: { type: Boolean, default: false },
     },
+    barbequeCharcoal: {
+      isAvailable: { type: Boolean, default: false }, // overall toggle
+      slots: {
+        full_day: {
+          isAvailable: { type: Boolean, default: false },
+          price: { type: Number, default: 0 },
+        },
+        day_slot: {
+          isAvailable: { type: Boolean, default: false },
+          price: { type: Number, default: 0 },
+        },
+        night_slot: {
+          isAvailable: { type: Boolean, default: false },
+          price: { type: Number, default: 0 },
+        },
+        full_night: {
+          isAvailable: { type: Boolean, default: false },
+          price: { type: Number, default: 0 },
+        },
+      },
+    },
+    kitchenOffered: {
+      isAvailable: { type: Boolean, default: false }, // overall toggle
+      slots: {
+        full_day: {
+          isAvailable: { type: Boolean, default: false }, // per slot toggle
+          price: { type: Number, default: 0 },
+          description: { type: String, default: "" },
+        },
+        day_slot: {
+          isAvailable: { type: Boolean, default: false },
+          price: { type: Number, default: 0 },
+          description: { type: String, default: "" },
+        },
+        night_slot: {
+          isAvailable: { type: Boolean, default: false },
+          price: { type: Number, default: 0 },
+          description: { type: String, default: "" },
+        },
+        full_night: {
+          isAvailable: { type: Boolean, default: false },
+          price: { type: Number, default: 0 },
+          description: { type: String, default: "" },
+        },
+      },
+    },
     mealsOffered: {
       full_day: {
         isOffered: { type: Boolean, default: false },
@@ -97,8 +143,7 @@ const farmSchema = new mongoose.Schema(
           dinner: {
             isAvailable: { type: Boolean, default: false },
             value: { type: [String], default: [] },
-          }
-      
+          },
         },
       },
       day_slot: {
@@ -120,7 +165,6 @@ const farmSchema = new mongoose.Schema(
             isAvailable: { type: Boolean, default: false },
             value: { type: [String], default: [] },
           },
-        
         },
       },
       night_slot: {
@@ -142,7 +186,6 @@ const farmSchema = new mongoose.Schema(
             isAvailable: { type: Boolean, default: false },
             value: { type: [String], default: [] },
           },
-         
         },
       },
       full_night: {
@@ -164,7 +207,6 @@ const farmSchema = new mongoose.Schema(
             isAvailable: { type: Boolean, default: false },
             value: { type: [String], default: [] },
           },
-      
         },
       },
     },
