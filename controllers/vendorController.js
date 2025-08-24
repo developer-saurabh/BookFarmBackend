@@ -919,57 +919,91 @@ exports.addOrUpdateFarm = async (req, res) => {
     }
 
     // === DAILY PRICING VALIDATION ===
-    if (value.dailyPricing?.length) {
-      const validateDailyPricing = (dailyPricing) => {
-        const seenDates = new Set();
-        const timeRegex = /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
-        const toMinutes = (timeStr) => {
-          if (/AM|PM/i.test(timeStr)) {
-            const [, hh, mm, meridian] = timeStr.match(/(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i);
-            let h = parseInt(hh, 10), m = parseInt(mm, 10);
-            if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
-            if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
-            return h * 60 + m;
-          } else {
-            const [h, m] = timeStr.split(":").map(Number);
-            return h * 60 + m;
-          }
-        };
-        const buildInterval = (slot, checkIn, checkOut) => {
-          if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) throw new Error(`Invalid time format for ${slot}.`);
-          const start = toMinutes(checkIn);
-          let end = toMinutes(checkOut);
-          if (["night_slot", "full_day", "full_night"].includes(slot) && end <= start) end += 1440;
-          else if (end <= start) throw new Error(`${slot} checkOut must be after checkIn.`);
-          return { slot, start, end };
-        };
-        dailyPricing.forEach((entry) => {
-          const isoDate = new Date(entry.date).toISOString().split("T")[0];
-          if (seenDates.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
-          seenDates.add(isoDate);
-          if (!entry.timings) throw new Error(`Timings required for ${isoDate}`);
-          const t = entry.timings;
-          const intervals = [];
-          if (t.full_day) intervals.push(buildInterval("full_day", t.full_day.checkIn, t.full_day.checkOut));
-          if (t.day_slot) intervals.push(buildInterval("day_slot", t.day_slot.checkIn, t.day_slot.checkOut));
-          if (t.night_slot) intervals.push(buildInterval("night_slot", t.night_slot.checkIn, t.night_slot.checkOut));
-          if (t.full_night) intervals.push(buildInterval("full_night", t.full_night.checkIn, t.full_night.checkOut));
+// === DAILY PRICING VALIDATION ===
+if (value.dailyPricing?.length) {
+  const validateDailyPricing = (dailyPricing) => {
+    const seenDates = new Set();
+    const timeRegex = /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
+    const isBlank = (v) => v === '' || v == null;
 
-          entry.kitchenOffered = normalizeFeature(entry.kitchenOffered || {}, { withDesc: true, bookingModes: value.bookingModes });
-          entry.barbequeCharcoal = normalizeFeature(entry.barbequeCharcoal || {}, { withDesc: false, bookingModes: value.bookingModes });
-          entry.mealsOffered = entry.mealsOffered || {};
-          Object.keys(value.bookingModes || {}).forEach((slot) => {
-            if (!entry.mealsOffered[slot]) entry.mealsOffered[slot] = {
-              isOffered: false,
-              meals: { breakfast: { isAvailable: false, value: [] }, lunch: { isAvailable: false, value: [] }, hi_tea: { isAvailable: false, value: [] }, dinner: { isAvailable: false, value: [] } }
-            };
-          });
-        });
-        return dailyPricing;
-      };
-      try { value.dailyPricing = validateDailyPricing(value.dailyPricing); } 
-      catch (e) { return res.status(400).json({ success: false, message: e.message }); }
-    }
+    const toMinutes = (timeStr) => {
+      if (/AM|PM/i.test(timeStr)) {
+        const [, hh, mm, meridian] = timeStr.match(/(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i);
+        let h = parseInt(hh, 10), m = parseInt(mm, 10);
+        if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
+        if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
+        return h * 60 + m;
+      } else {
+        const [h, m] = timeStr.split(":").map(Number);
+        return h * 60 + m;
+      }
+    };
+
+    const buildInterval = (slot, checkIn, checkOut) => {
+      // both empty/null => skip silently
+      if (isBlank(checkIn) && isBlank(checkOut)) return null;
+      // one provided but the other missing => error
+      if (isBlank(checkIn) || isBlank(checkOut)) {
+        throw new Error(`${slot} requires both checkIn and checkOut when one is provided.`);
+      }
+      // both provided => must be valid format
+      if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
+        throw new Error(`Invalid time format for ${slot}.`);
+      }
+
+      const start = toMinutes(checkIn);
+      let end = toMinutes(checkOut);
+      if (["night_slot", "full_day", "full_night"].includes(slot) && end <= start) end += 1440;
+      else if (end <= start) throw new Error(`${slot} checkOut must be after checkIn.`);
+
+      return { slot, start, end };
+    };
+
+    dailyPricing.forEach((entry) => {
+      const isoDate = new Date(entry.date).toISOString().split("T")[0];
+      if (seenDates.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
+      seenDates.add(isoDate);
+
+      // timings optional
+      if (!entry.timings) entry.timings = {};
+      const t = entry.timings;
+
+      const intervals = [];
+      if (t.full_day)  { const iv = buildInterval("full_day",  t.full_day.checkIn,  t.full_day.checkOut);   if (iv) intervals.push(iv); }
+      if (t.day_slot)  { const iv = buildInterval("day_slot",  t.day_slot.checkIn,  t.day_slot.checkOut);   if (iv) intervals.push(iv); }
+      if (t.night_slot){ const iv = buildInterval("night_slot",t.night_slot.checkIn,t.night_slot.checkOut); if (iv) intervals.push(iv); }
+      if (t.full_night){ const iv = buildInterval("full_night",t.full_night.checkIn,t.full_night.checkOut); if (iv) intervals.push(iv); }
+
+      // normalize feature flags for the day
+      entry.kitchenOffered = normalizeFeature(entry.kitchenOffered || {}, { withDesc: true,  bookingModes: value.bookingModes });
+      entry.barbequeCharcoal = normalizeFeature(entry.barbequeCharcoal || {}, { withDesc: false, bookingModes: value.bookingModes });
+
+      // ensure mealsOffered skeleton for enabled bookingModes
+      entry.mealsOffered = entry.mealsOffered || {};
+      Object.keys(value.bookingModes || {}).forEach((slot) => {
+        if (!entry.mealsOffered[slot]) {
+          entry.mealsOffered[slot] = {
+            isOffered: false,
+            meals: {
+              breakfast: { isAvailable: false, value: [] },
+              lunch:     { isAvailable: false, value: [] },
+              hi_tea:    { isAvailable: false, value: [] },
+              dinner:    { isAvailable: false, value: [] }
+            }
+          };
+        }
+      });
+    });
+
+    return dailyPricing;
+  };
+
+  try {
+    value.dailyPricing = validateDailyPricing(value.dailyPricing);
+  } catch (e) {
+    return res.status(400).json({ success: false, message: e.message });
+  }
+}
 
     // === CREATE OR UPDATE FARM ===
     let farmDoc;
