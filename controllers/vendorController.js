@@ -1747,7 +1747,6 @@ exports.unblockDate = async (req, res) => {
 
 // get vendor farms
 
-
 exports.blockDate = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -1774,34 +1773,36 @@ exports.blockDate = async (req, res) => {
       return res.status(403).json({ success: false, message: "Access denied." });
     }
 
-    const newlyBlocked = [];
-    const alreadyBlocked = [];
+    const ALL = ["full_day", "day_slot", "night_slot", "full_night"];
 
-    // track cancellations for response
-    const cancelledNow = [];
-    const skippedDueToConfirmed = [];
-
-    // conflict rules (same as vendor confirm)
-    const buildCancelSetsForSlots = (slots = []) => {
+    // derive blocked sets for a given slots[] input
+    const deriveBlockedSets = (slots = []) => {
       const current = new Set();
       const nextDay = new Set();
 
       for (const s of slots) {
-        if (s === "day_slot") {
-          ["day_slot", "full_day", "full_night"].forEach((x) => current.add(x));
+        if (s === "full_day") {
+          ALL.forEach((m) => current.add(m));
+        } else if (s === "day_slot") {
+          ["day_slot", "full_day", "full_night"].forEach((m) => current.add(m));
         } else if (s === "night_slot") {
-          ["night_slot", "full_day", "full_night"].forEach((x) => current.add(x));
-        } else if (s === "full_day") {
-          ["day_slot", "night_slot", "full_day", "full_night"].forEach((x) => current.add(x));
+          ["night_slot", "full_day", "full_night"].forEach((m) => current.add(m));
         } else if (s === "full_night") {
-          ["night_slot", "full_day", "full_night"].forEach((x) => current.add(x));
-          nextDay.add("day_slot"); // ripple rule
+          ["full_night", "full_day", "night_slot"].forEach((m) => current.add(m));
+          nextDay.add("day_slot"); // ripple: next day only day_slot blocked
         }
       }
+
       return { current: Array.from(current), nextDay: Array.from(nextDay) };
     };
 
-    // ✅ Step 4: Iterate over each date-slot pair
+    const newlyBlocked = [];
+    const alreadyBlocked = [];
+    const cancelledNow = [];
+    const skippedDueToConfirmed = [];
+    const preventedDueToConfirmed = []; // 🆕 dates we refused to block
+
+    // ✅ Step 4: Iterate dates
     for (const { date, slots } of dates) {
       const dateObj = new Date(date);
       if (isNaN(dateObj.getTime())) {
@@ -1809,51 +1810,64 @@ exports.blockDate = async (req, res) => {
         continue;
       }
 
-      const normalizedISO = DateTime.fromJSDate(dateObj).toISODate();
+      const iso = DateTime.fromJSDate(dateObj).toISODate();
 
-      // find existing entry
-      const existing = farm.unavailableDates.find((d) => {
-        if (!d.date) return false;
-        const storedISO = DateTime.fromJSDate(new Date(d.date)).toISODate();
-        return storedISO === normalizedISO;
+      // 🛑 block denied if date has any confirmed booking (regardless of slot)
+      const sameDay = new Date(dateObj);
+      sameDay.setHours(0, 0, 0, 0);
+
+      const confirmedExists = await FarmBooking.exists({
+        farm: farm._id,
+        date: sameDay,
+        status: "confirmed"
       });
 
-      if (existing) {
-        // merge new slots
-        const newSlots = (slots || []).filter((s) => !existing.blockedSlots.includes(s));
-        if (newSlots.length > 0) {
-          existing.blockedSlots.push(...newSlots);
-          newlyBlocked.push({ date: normalizedISO, slots: newSlots });
-        } else {
-          alreadyBlocked.push({ date: normalizedISO, slots });
-        }
-      } else {
-        // add fresh entry
-        farm.unavailableDates.push({ date: dateObj, blockedSlots: slots || [] });
-        newlyBlocked.push({ date: normalizedISO, slots: slots || [] });
+      if (confirmedExists) {
+        preventedDueToConfirmed.push({
+          date: iso,
+          message: "Already a confirmed booking on this date — you cannot block this date."
+        });
+        continue; // skip all blocking/cancelling for this date
       }
 
-      // 🔥 Cancel PENDING bookings that conflict with the blocked slots (same rules as vendor confirm)
-      const { current, nextDay } = buildCancelSetsForSlots(slots || []);
+      // compute the exact blocked patterns for this date (and next if ripple)
+      const { current: currentBlocked, nextDay: nextBlocked } = deriveBlockedSets(slots || []);
 
-      // current day cancellations
-      if (current.length > 0) {
-        const sameDay = new Date(dateObj);
-        sameDay.setHours(0, 0, 0, 0);
+      // --- Persist block for CURRENT day: overwrite to EXACT pattern ---
+      const existingIdx = farm.unavailableDates.findIndex((d) => {
+        if (!d.date) return false;
+        return DateTime.fromJSDate(new Date(d.date)).toISODate() === iso;
+      });
 
-        // 1) do not touch confirmed; but report if any confirmed exist that clash (so vendor knows why some keep showing)
-        const confirmedOnDay = await FarmBooking.find({
+      if (existingIdx >= 0) {
+        const prev = farm.unavailableDates[existingIdx].blockedSlots || [];
+        const prevKey = prev.slice().sort().join("|");
+        const newKey = currentBlocked.slice().sort().join("|");
+        farm.unavailableDates[existingIdx].blockedSlots = currentBlocked;
+        if (prevKey === newKey) {
+          alreadyBlocked.push({ date: iso, slots: currentBlocked });
+        } else {
+          newlyBlocked.push({ date: iso, slots: currentBlocked });
+        }
+      } else {
+        farm.unavailableDates.push({ date: dateObj, blockedSlots: currentBlocked });
+        newlyBlocked.push({ date: iso, slots: currentBlocked });
+      }
+
+      // --- Cancel PENDING bookings that now conflict on CURRENT day ---
+      if (currentBlocked.length > 0) {
+        const confirmedHits = await FarmBooking.find({
           farm: farm._id,
           date: sameDay,
           status: "confirmed",
-          bookingModes: { $in: current },
+          bookingModes: { $in: currentBlocked },
         }).select("Booking_id bookingModes status");
 
-        if (confirmedOnDay.length > 0) {
+        if (confirmedHits.length > 0) {
           skippedDueToConfirmed.push({
-            date: normalizedISO,
-            reason: "Already confirmed booking exists for conflicting slot(s)",
-            bookings: confirmedOnDay.map((b) => ({
+            date: iso,
+            reason: "Confirmed booking present for these slots",
+            bookings: confirmedHits.map((b) => ({
               Booking_id: b.Booking_id,
               modes: b.bookingModes,
               status: b.status,
@@ -1861,14 +1875,8 @@ exports.blockDate = async (req, res) => {
           });
         }
 
-        // 2) cancel pendings that clash
-        const pendingToCancel = await FarmBooking.updateMany(
-          {
-            farm: farm._id,
-            date: sameDay,
-            status: "pending",
-            bookingModes: { $in: current },
-          },
+        const pendingCancelled = await FarmBooking.updateMany(
+          { farm: farm._id, date: sameDay, status: "pending", bookingModes: { $in: currentBlocked } },
           {
             $set: {
               status: "cancelled",
@@ -1883,34 +1891,42 @@ exports.blockDate = async (req, res) => {
           }
         );
 
-        if (pendingToCancel.modifiedCount > 0) {
-          cancelledNow.push({
-            date: normalizedISO,
-            count: pendingToCancel.modifiedCount,
-            slots: current,
-          });
+        if (pendingCancelled.modifiedCount > 0) {
+          cancelledNow.push({ date: iso, count: pendingCancelled.modifiedCount, slots: currentBlocked });
         }
       }
 
-      // next-day ripple for full_night → cancel next day's day_slot (pending only)
-      if (nextDay.length > 0) {
+      // --- Ripple to NEXT day only if full_night was involved ---
+      if (nextBlocked.length > 0) {
         const next = new Date(dateObj);
         next.setDate(next.getDate() + 1);
         next.setHours(0, 0, 0, 0);
         const nextISO = DateTime.fromJSDate(next).toISODate();
 
-        // report confirmed if any (not changing them)
+        // Overwrite next day's pattern to EXACT nextBlocked (i.e., day_slot only)
+        const nextIdx = farm.unavailableDates.findIndex((d) => {
+          if (!d.date) return false;
+          return DateTime.fromJSDate(new Date(d.date)).toISODate() === nextISO;
+        });
+
+        if (nextIdx >= 0) {
+          farm.unavailableDates[nextIdx].blockedSlots = nextBlocked; // exact overwrite
+        } else {
+          farm.unavailableDates.push({ date: next, blockedSlots: nextBlocked });
+        }
+
+        // cancel PENDING clashing on next day (usually just day_slot)
         const confirmedNext = await FarmBooking.find({
           farm: farm._id,
           date: next,
           status: "confirmed",
-          bookingModes: { $in: nextDay },
+          bookingModes: { $in: nextBlocked },
         }).select("Booking_id bookingModes status");
 
         if (confirmedNext.length > 0) {
           skippedDueToConfirmed.push({
             date: nextISO,
-            reason: "Already confirmed booking exists for conflicting slot(s) (ripple day)",
+            reason: "Confirmed booking present for ripple slots",
             bookings: confirmedNext.map((b) => ({
               Booking_id: b.Booking_id,
               modes: b.bookingModes,
@@ -1920,12 +1936,7 @@ exports.blockDate = async (req, res) => {
         }
 
         const pendingNextCancelled = await FarmBooking.updateMany(
-          {
-            farm: farm._id,
-            date: next,
-            status: "pending",
-            bookingModes: { $in: nextDay },
-          },
+          { farm: farm._id, date: next, status: "pending", bookingModes: { $in: nextBlocked } },
           {
             $set: {
               status: "cancelled",
@@ -1944,14 +1955,14 @@ exports.blockDate = async (req, res) => {
           cancelledNow.push({
             date: nextISO,
             count: pendingNextCancelled.modifiedCount,
-            slots: nextDay,
-            rippleFrom: normalizedISO,
+            slots: nextBlocked,
+            rippleFrom: iso,
           });
         }
       }
     }
 
-    // ✅ Step 5: Save if there were changes to farm.unavailableDates
+    // ✅ Step 5: Save changes to farm.unavailableDates
     if (newlyBlocked.length > 0) await farm.save();
 
     // ✅ Step 6: Respond
@@ -1963,8 +1974,10 @@ exports.blockDate = async (req, res) => {
         alreadyBlockedCount: alreadyBlocked.length,
         cancelledPendingCount: cancelledNow.reduce((n, x) => n + (x.count || 0), 0),
         confirmedConflictsCount: skippedDueToConfirmed.reduce((n, x) => n + (x.bookings?.length || 0), 0),
+        preventedDatesCount: preventedDueToConfirmed.length // 🆕
       },
       details: {
+        preventedDueToConfirmed, // 🆕 dates we skipped entirely
         newlyBlocked,
         alreadyBlocked,
         cancelledNow,
@@ -1979,11 +1992,11 @@ exports.blockDate = async (req, res) => {
     console.error("❌ Error while blocking dates:", err);
     return res.status(500).json({
       success: false,
-      message:
-        "An unexpected error occurred while blocking dates. Please try again later.",
+      message: "An unexpected error occurred while blocking dates. Please try again later.",
     });
   }
 };
+
 
 
 exports.getVendorFarms = async (req, res) => {

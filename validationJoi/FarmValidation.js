@@ -33,7 +33,7 @@ exports.blockDateSchema = Joi.object({
           'any.required': `"date" is required`,
         }),
         slots: Joi.array()
-          .items(Joi.string().valid("full_day", "day_slot", "night_slot"))
+          .items(Joi.string().valid("full_day", "day_slot", "full_night","night_slot",))
           .min(1)
           .required()
           .messages({
