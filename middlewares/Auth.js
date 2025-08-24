@@ -42,12 +42,13 @@ const vendorAuth = async (req, res, next) => {
         error: 'Token is invalid or outdated. Please login again.'
       });
     }
-
+     console.log("decode printing in vendor middleware",decoded)
     // ✅ Attach vendor info to request
     req.user = {
       id: decoded.id,
       email: decoded.email,
-      role: decoded.role
+      role: decoded.role,
+      name:decoded.name
     };
 
     next();

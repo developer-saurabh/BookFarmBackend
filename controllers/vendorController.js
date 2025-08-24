@@ -286,13 +286,16 @@ exports.loginVendor = async (req, res) => {
     // ✅ 5) Update last login
     vendor.lastLogin = new Date();
     await vendor.save();
-
+ console.log(
+"vendor printing ",vendor
+ )
     // ✅ 6) Generate JWT with lastLogin
     const token = jwt.sign(
       {
         id: vendor._id,
         email: vendor.email,
         role: "vendor",
+        name:vendor.name,
         lastLogin: vendor.lastLogin.getTime(),
       },
       process.env.JWT_SECRET,
@@ -1040,13 +1043,6 @@ if (value.dailyPricing?.length) {
 
 
 
-
-
-
-
-
-
-
 // exports.addOrUpdateFarm = async (req, res) => {
 //   try {
 //     // ✅ Parse areaImages if it's sent as a string
@@ -1647,6 +1643,111 @@ exports.unblockDate = async (req, res) => {
   }
 };
 
+// exports.blockDate = async (req, res) => {
+//   try {
+//     // ✅ Step 1: Validate input
+//     const { error, value } = FarmValidation.blockDateSchema.validate(req.body);
+//     if (error) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Validation failed",
+//         errors: error.details.map((err) => err.message),
+//       });
+//     }
+
+//     const vendorId = req.user.id;
+//     const { farmId, dates } = value;
+
+//     // ✅ Step 2: Find farm
+//     const farm = await Farm.findById(farmId);
+//     if (!farm) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Farm not found." });
+//     }
+
+//     // ✅ Step 3: Ownership check
+//     if (farm.owner.toString() !== vendorId) {
+//       return res
+//         .status(403)
+//         .json({ success: false, message: "Access denied." });
+//     }
+
+//     const newlyBlocked = [];
+//     const alreadyBlocked = [];
+
+//     // ✅ Step 4: Iterate over each date-slot pair
+//     for (const { date, slots } of dates) {
+//       const dateObj = new Date(date);
+
+//       // 🔹 Validate date
+//       if (isNaN(dateObj.getTime())) {
+//         console.warn(`⚠️ Skipping invalid date:`, date);
+//         continue;
+//       }
+
+//       const normalizedDate = DateTime.fromJSDate(dateObj).toISODate();
+
+//       // 🔹 Find if this date already exists in DB
+//       const existing = farm.unavailableDates.find((d) => {
+//         if (!d.date) return false;
+//         const storedISO = DateTime.fromJSDate(new Date(d.date)).toISODate();
+//         return storedISO === normalizedDate;
+//       });
+
+//       if (existing) {
+//         // 🔹 Merge new slots (avoid duplicates)
+//         const newSlots = slots.filter(
+//           (s) => !existing.blockedSlots.includes(s)
+//         );
+//         if (newSlots.length > 0) {
+//           existing.blockedSlots.push(...newSlots);
+//           newlyBlocked.push({ date: normalizedDate, slots: newSlots });
+//         } else {
+//           alreadyBlocked.push({ date: normalizedDate, slots });
+//         }
+//       } else {
+//         // 🔹 Add a new date entry
+//         farm.unavailableDates.push({ date: dateObj, blockedSlots: slots });
+//         newlyBlocked.push({ date: normalizedDate, slots });
+//       }
+//     }
+
+//     // ✅ Step 5: Save if there were changes
+//     if (newlyBlocked.length > 0) await farm.save();
+
+//     // ✅ Step 6: Respond
+//     return res.status(200).json({
+//       success: true,
+//       message: "Farm slot availability updated successfully.",
+//       summary: {
+//         newlyBlockedCount: newlyBlocked.length,
+//         alreadyBlockedCount: alreadyBlocked.length,
+//       },
+//       details: {
+//         newlyBlocked,
+//         alreadyBlocked,
+//         allUnavailableDates: farm.unavailableDates.map((d) => ({
+//           date: DateTime.fromJSDate(new Date(d.date)).toISODate(),
+//           slots: d.blockedSlots,
+//         })),
+//       },
+//     });
+//   } catch (err) {
+//     console.error("❌ Error while blocking dates:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message:
+//         "An unexpected error occurred while blocking dates. Please try again later.",
+//     });
+//   }
+// };
+
+// get Category and facilites apis
+
+// get vendor farms
+
+
 exports.blockDate = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -1665,59 +1766,192 @@ exports.blockDate = async (req, res) => {
     // ✅ Step 2: Find farm
     const farm = await Farm.findById(farmId);
     if (!farm) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Farm not found." });
+      return res.status(404).json({ success: false, message: "Farm not found." });
     }
 
     // ✅ Step 3: Ownership check
     if (farm.owner.toString() !== vendorId) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Access denied." });
+      return res.status(403).json({ success: false, message: "Access denied." });
     }
 
     const newlyBlocked = [];
     const alreadyBlocked = [];
 
+    // track cancellations for response
+    const cancelledNow = [];
+    const skippedDueToConfirmed = [];
+
+    // conflict rules (same as vendor confirm)
+    const buildCancelSetsForSlots = (slots = []) => {
+      const current = new Set();
+      const nextDay = new Set();
+
+      for (const s of slots) {
+        if (s === "day_slot") {
+          ["day_slot", "full_day", "full_night"].forEach((x) => current.add(x));
+        } else if (s === "night_slot") {
+          ["night_slot", "full_day", "full_night"].forEach((x) => current.add(x));
+        } else if (s === "full_day") {
+          ["day_slot", "night_slot", "full_day", "full_night"].forEach((x) => current.add(x));
+        } else if (s === "full_night") {
+          ["night_slot", "full_day", "full_night"].forEach((x) => current.add(x));
+          nextDay.add("day_slot"); // ripple rule
+        }
+      }
+      return { current: Array.from(current), nextDay: Array.from(nextDay) };
+    };
+
     // ✅ Step 4: Iterate over each date-slot pair
     for (const { date, slots } of dates) {
       const dateObj = new Date(date);
-
-      // 🔹 Validate date
       if (isNaN(dateObj.getTime())) {
         console.warn(`⚠️ Skipping invalid date:`, date);
         continue;
       }
 
-      const normalizedDate = DateTime.fromJSDate(dateObj).toISODate();
+      const normalizedISO = DateTime.fromJSDate(dateObj).toISODate();
 
-      // 🔹 Find if this date already exists in DB
+      // find existing entry
       const existing = farm.unavailableDates.find((d) => {
         if (!d.date) return false;
         const storedISO = DateTime.fromJSDate(new Date(d.date)).toISODate();
-        return storedISO === normalizedDate;
+        return storedISO === normalizedISO;
       });
 
       if (existing) {
-        // 🔹 Merge new slots (avoid duplicates)
-        const newSlots = slots.filter(
-          (s) => !existing.blockedSlots.includes(s)
-        );
+        // merge new slots
+        const newSlots = (slots || []).filter((s) => !existing.blockedSlots.includes(s));
         if (newSlots.length > 0) {
           existing.blockedSlots.push(...newSlots);
-          newlyBlocked.push({ date: normalizedDate, slots: newSlots });
+          newlyBlocked.push({ date: normalizedISO, slots: newSlots });
         } else {
-          alreadyBlocked.push({ date: normalizedDate, slots });
+          alreadyBlocked.push({ date: normalizedISO, slots });
         }
       } else {
-        // 🔹 Add a new date entry
-        farm.unavailableDates.push({ date: dateObj, blockedSlots: slots });
-        newlyBlocked.push({ date: normalizedDate, slots });
+        // add fresh entry
+        farm.unavailableDates.push({ date: dateObj, blockedSlots: slots || [] });
+        newlyBlocked.push({ date: normalizedISO, slots: slots || [] });
+      }
+
+      // 🔥 Cancel PENDING bookings that conflict with the blocked slots (same rules as vendor confirm)
+      const { current, nextDay } = buildCancelSetsForSlots(slots || []);
+
+      // current day cancellations
+      if (current.length > 0) {
+        const sameDay = new Date(dateObj);
+        sameDay.setHours(0, 0, 0, 0);
+
+        // 1) do not touch confirmed; but report if any confirmed exist that clash (so vendor knows why some keep showing)
+        const confirmedOnDay = await FarmBooking.find({
+          farm: farm._id,
+          date: sameDay,
+          status: "confirmed",
+          bookingModes: { $in: current },
+        }).select("Booking_id bookingModes status");
+
+        if (confirmedOnDay.length > 0) {
+          skippedDueToConfirmed.push({
+            date: normalizedISO,
+            reason: "Already confirmed booking exists for conflicting slot(s)",
+            bookings: confirmedOnDay.map((b) => ({
+              Booking_id: b.Booking_id,
+              modes: b.bookingModes,
+              status: b.status,
+            })),
+          });
+        }
+
+        // 2) cancel pendings that clash
+        const pendingToCancel = await FarmBooking.updateMany(
+          {
+            farm: farm._id,
+            date: sameDay,
+            status: "pending",
+            bookingModes: { $in: current },
+          },
+          {
+            $set: {
+              status: "cancelled",
+              updatedBy: {
+                id: req.user.id,
+                role: req.user.role || "vendor",
+                name: req.user.name || null,
+                email: req.user.email || null,
+                at: new Date(),
+              },
+            },
+          }
+        );
+
+        if (pendingToCancel.modifiedCount > 0) {
+          cancelledNow.push({
+            date: normalizedISO,
+            count: pendingToCancel.modifiedCount,
+            slots: current,
+          });
+        }
+      }
+
+      // next-day ripple for full_night → cancel next day's day_slot (pending only)
+      if (nextDay.length > 0) {
+        const next = new Date(dateObj);
+        next.setDate(next.getDate() + 1);
+        next.setHours(0, 0, 0, 0);
+        const nextISO = DateTime.fromJSDate(next).toISODate();
+
+        // report confirmed if any (not changing them)
+        const confirmedNext = await FarmBooking.find({
+          farm: farm._id,
+          date: next,
+          status: "confirmed",
+          bookingModes: { $in: nextDay },
+        }).select("Booking_id bookingModes status");
+
+        if (confirmedNext.length > 0) {
+          skippedDueToConfirmed.push({
+            date: nextISO,
+            reason: "Already confirmed booking exists for conflicting slot(s) (ripple day)",
+            bookings: confirmedNext.map((b) => ({
+              Booking_id: b.Booking_id,
+              modes: b.bookingModes,
+              status: b.status,
+            })),
+          });
+        }
+
+        const pendingNextCancelled = await FarmBooking.updateMany(
+          {
+            farm: farm._id,
+            date: next,
+            status: "pending",
+            bookingModes: { $in: nextDay },
+          },
+          {
+            $set: {
+              status: "cancelled",
+              updatedBy: {
+                id: req.user.id,
+                role: req.user.role || "vendor",
+                name: req.user.name || null,
+                email: req.user.email || null,
+                at: new Date(),
+              },
+            },
+          }
+        );
+
+        if (pendingNextCancelled.modifiedCount > 0) {
+          cancelledNow.push({
+            date: nextISO,
+            count: pendingNextCancelled.modifiedCount,
+            slots: nextDay,
+            rippleFrom: normalizedISO,
+          });
+        }
       }
     }
 
-    // ✅ Step 5: Save if there were changes
+    // ✅ Step 5: Save if there were changes to farm.unavailableDates
     if (newlyBlocked.length > 0) await farm.save();
 
     // ✅ Step 6: Respond
@@ -1727,10 +1961,14 @@ exports.blockDate = async (req, res) => {
       summary: {
         newlyBlockedCount: newlyBlocked.length,
         alreadyBlockedCount: alreadyBlocked.length,
+        cancelledPendingCount: cancelledNow.reduce((n, x) => n + (x.count || 0), 0),
+        confirmedConflictsCount: skippedDueToConfirmed.reduce((n, x) => n + (x.bookings?.length || 0), 0),
       },
       details: {
         newlyBlocked,
         alreadyBlocked,
+        cancelledNow,
+        confirmedConflicts: skippedDueToConfirmed,
         allUnavailableDates: farm.unavailableDates.map((d) => ({
           date: DateTime.fromJSDate(new Date(d.date)).toISODate(),
           slots: d.blockedSlots,
@@ -1747,180 +1985,6 @@ exports.blockDate = async (req, res) => {
   }
 };
 
- // step wise farm add if required
-
-// exports.handleFarmSteps = async (req, res) => {
-//   try {
-//     const { step, farmId } = req.body;
-//     const ownerId = req.user.id;
-
-//     if (!step) return res.status(400).json({ success: false, message: "Step is required" });
-
-//     // ✅ Vendor verification
-//     const vendor = await Vendor.findById(ownerId);
-//     if (!vendor || !vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
-//       return res.status(403).json({ success: false, message: "Vendor not authorized to create/update farms" });
-//     }
-
-//     let updateData = {};
-//     let farmDoc;
-
-//     // ✅ Step-wise logic
-//     switch (parseInt(step)) {
-//       /**
-//        * STEP 1: Create Farm with Basic Info & Address
-//        */
-//    case 1: {
-//   const { name, description, address } = req.body;
-
-//   if (!name || !address) {
-//     return res.status(400).json({ success: false, message: "Name & Address are required for Step 1" });
-//   }
-
-//   if (farmId) {
-//     // ✅ If farmId exists, update existing farm instead of creating new
-//     farmDoc = await Farm.findOneAndUpdate(
-//       { _id: farmId, owner: ownerId },
-//       { $set: { name, description, address, currentStep: 1 } },
-//       { new: true }
-//     );
-//     if (!farmDoc) return res.status(404).json({ success: false, message: "Farm not found" });
-//   } else {
-//     // ✅ If no farmId, create a new farm
-//     farmDoc = new Farm({ name, description, address, owner: ownerId, isDraft: true, currentStep: 1 });
-//     await farmDoc.save();
-//   }
-//   break;
-// }
-
-//       /**
-//        * STEP 2: Update Capacity, Category, Default Pricing & Timings
-//        */
-//       case 2: {
-//         if (!farmId) return res.status(400).json({ success: false, message: "farmId is required" });
-
-//         const { capacity, farmCategory, defaultPricing, defaultTimings } = req.body;
-
-//         if (farmCategory) {
-//           const categoryExists = await FarmCategory.findById(farmCategory);
-//           if (!categoryExists) return res.status(400).json({ success: false, message: "Invalid farm category ID" });
-//         }
-
-//         updateData = { capacity, farmCategory, defaultPricing, defaultTimings, currentStep: 2 };
-//         farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: updateData }, { new: true });
-//         if (!farmDoc) return res.status(404).json({ success: false, message: "Farm not found" });
-//         break;
-//       }
-
-//       /**
-//        * STEP 3: Update Daily Pricing & Timings
-//        */
-//       case 3: {
-//         if (!farmId) return res.status(400).json({ success: false, message: "farmId is required" });
-
-//         const { dailyPricing } = req.body;
-//         if (!Array.isArray(dailyPricing) || !dailyPricing.length) {
-//           return res.status(400).json({ success: false, message: "dailyPricing must be a non-empty array" });
-//         }
-
-//         updateData = { dailyPricing, currentStep: 3 };
-//         farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: updateData }, { new: true });
-//         break;
-//       }
-
-//       /**
-//        * STEP 4: Update Facilities & Rules
-//        */
-//       case 4: {
-//         if (!farmId) return res.status(400).json({ success: false, message: "farmId is required" });
-
-//         const { facilities, rules } = req.body;
-//         if (facilities?.length) {
-//           const validFacilities = await Facility.find({ _id: { $in: facilities } });
-//           if (validFacilities.length !== facilities.length) {
-//             return res.status(400).json({ success: false, message: "Invalid facility ID(s)" });
-//           }
-//         }
-
-//         updateData = { facilities, rules, currentStep: 4 };
-//         farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: updateData }, { new: true });
-//         break;
-//       }
-
-//       /**
-//        * STEP 5: Update Property Details
-//        */
-//       case 5: {
-//         if (!farmId) return res.status(400).json({ success: false, message: "farmId is required" });
-
-//         const { propertyDetails } = req.body;
-//         if (!propertyDetails) return res.status(400).json({ success: false, message: "propertyDetails is required" });
-
-//         updateData = { propertyDetails, currentStep: 5 };
-//         farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: updateData }, { new: true });
-//         break;
-//       }
-
-//       /**
-//        * STEP 6: Upload Area Images (multipart/form-data)
-//        */
-//       case 6: {
-//         const farmIdForm = req.body.farmId || req.query.farmId;
-//         if (!farmIdForm) return res.status(400).json({ success: false, message: "farmId is required" });
-
-//         let areaImagesData = [];
-
-//         // ✅ Loop through areaTypes
-//         Object.keys(req.body).forEach((key) => {
-//           if (key.startsWith("areaImages")) {
-//             // areaImages[0][areaType]: Pool
-//             const match = key.match(/areaImages\[(\d+)\]\[areaType\]/);
-//             if (match) {
-//               const index = parseInt(match[1]);
-//               areaImagesData[index] = areaImagesData[index] || {};
-//               areaImagesData[index].areaType = req.body[key];
-//               areaImagesData[index].images = [];
-//             }
-//           }
-//         });
-
-//         // ✅ Handle image uploads per areaType
-//         for (let i = 0; i < areaImagesData.length; i++) {
-//           const fieldKey = `areaImages[${i}][images]`;
-//           if (req.files?.[fieldKey]) {
-//             const filesArray = Array.isArray(req.files[fieldKey]) ? req.files[fieldKey] : [req.files[fieldKey]];
-//             const uploadedUrls = await uploadFilesToCloudinary(filesArray, `farms/${areaImagesData[i].areaType}`);
-//             areaImagesData[i].images = uploadedUrls;
-//           }
-//         }
-
-//         updateData = { areaImages: areaImagesData, currentStep: 6, isDraft: false, isApproved: true };
-//         farmDoc = await Farm.findOneAndUpdate({ _id: farmIdForm, owner: ownerId }, { $set: updateData }, { new: true });
-//         break;
-//       }
-
-//       default:
-//         return res.status(400).json({ success: false, message: "Invalid step" });
-//     }
-
-//     // ✅ Populate refs & send response
-//     const populatedFarm = await Farm.findById(farmDoc._id).populate("farmCategory").populate("facilities");
-
-//     return res.status(200).json({
-//       success: true,
-//       message: `Step ${step} processed successfully`,
-//       data: populatedFarm
-//     });
-
-//   } catch (err) {
-//     console.error("[FarmStepController Error]", err);
-//     return res.status(500).json({ success: false, message: "Internal Server Error", error: err.message });
-//   }
-// };
-
-// get Category and facilites apis
-
-// get vendor farms
 
 exports.getVendorFarms = async (req, res) => {
   try {
@@ -2475,6 +2539,91 @@ exports.getBookingByBookingId = async (req, res) => {
 
 // Vendor update booking status
 
+// exports.updateBookingStatusByVendor = async (req, res) => {
+//   try {
+//     const vendorId = req.user.id;
+//     const { bookingId, status } = req.body;
+
+//     const allowedStatuses = ["pending", "confirmed", "cancelled", "complete"];
+//     if (!status || !allowedStatuses.includes(status)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Status must be one of: ${allowedStatuses.join(", ")}`,
+//       });
+//     }
+
+//     const booking = await FarmBooking.findOne({ Booking_id: bookingId }).populate("farm", "owner");
+//     if (!booking) {
+//       return res.status(404).json({ success: false, message: "Booking not found" });
+//     }
+
+//     if (!booking.farm || booking.farm.owner.toString() !== vendorId.toString()) {
+//       return res.status(403).json({ success: false, message: "Unauthorized" });
+//     }
+
+//     booking.status = status;
+
+//     if (status === "confirmed") {
+//       booking.paymentStatus = "paid";
+
+//       const currentDate = moment(booking.date);
+//       const nextDate = currentDate.clone().add(1, 'days').toDate();
+
+//       const currentSlotQuery = { _id: { $ne: booking._id }, farm: booking.farm._id, status: "pending", date: booking.date };
+//       const nextDaySlotQuery = { _id: { $ne: booking._id }, farm: booking.farm._id, status: "pending", date: nextDate };
+
+//       let currentDaySlotsToCancel = [];
+//       let nextDaySlotsToCancel = [];
+
+//       const modes = booking.bookingModes;
+//       if (modes.includes("day_slot")) {
+//         currentDaySlotsToCancel = ["day_slot", "full_day", "full_night"];
+//       } else if (modes.includes("night_slot")) {
+//         currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
+//       } else if (modes.includes("full_day")) {
+//         currentDaySlotsToCancel = ["day_slot", "night_slot", "full_day", "full_night"];
+//       } else if (modes.includes("full_night")) {
+//         currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
+//         nextDaySlotsToCancel = ["day_slot"];
+//       }
+
+//       // Cancel current day conflicting bookings
+//       if (currentDaySlotsToCancel.length) {
+//         await FarmBooking.updateMany(
+//           {
+//             ...currentSlotQuery,
+//             bookingModes: { $in: currentDaySlotsToCancel },
+//           },
+//           { $set: { status: "cancelled" } }
+//         );
+//       }
+
+//       // Cancel next day conflicting bookings
+//       if (nextDaySlotsToCancel.length) {
+//         await FarmBooking.updateMany(
+//           {
+//             ...nextDaySlotQuery,
+//             bookingModes: { $in: nextDaySlotsToCancel },
+//           },
+//           { $set: { status: "cancelled" } }
+//         );
+//       }
+//     }
+
+//     await booking.save();
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Booking status updated",
+//       data: booking,
+//     });
+//   } catch (err) {
+//     console.error("updateBookingStatusByVendor error:", err);
+//     return res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// };
+
+
 exports.updateBookingStatusByVendor = async (req, res) => {
   try {
     const vendorId = req.user.id;
@@ -2497,7 +2646,28 @@ exports.updateBookingStatusByVendor = async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
+        if (
+      booking.status === "confirmed" &&
+      booking.updatedBy &&
+      booking.updatedBy.role === "admin"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "This booking is already confirmed by the admin. Vendor cannot override.",
+      });
+    }
+
+
     booking.status = status;
+
+    // 🆕 stamp who updated it
+    booking.updatedBy = {
+      id: req.user.id,
+      role: req.user.role || "vendor",   // default "vendor" if not in token
+      name: req.user.name || null,
+      email: req.user.email || null,
+      at: new Date()
+    };
 
     if (status === "confirmed") {
       booking.paymentStatus = "paid";

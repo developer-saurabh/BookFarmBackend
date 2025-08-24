@@ -141,7 +141,16 @@ Guest_Count: Joi.number()
       'string.empty': 'Group category is required.',
       'string.min': 'Group category must be at least 3 characters.',
       'string.max': 'Group category must be at most 50 characters.'
-    })
+    }),
+      // 🥘 Meals & Addons (all optional strings)
+  meal1: Joi.string().optional().allow(''),
+  meal2: Joi.string().optional().allow(''),
+  meal3: Joi.string().optional().allow(''),
+  meal4: Joi.string().optional().allow(''),
+  barbequeCharcoal: Joi.string().optional().allow(''),
+  kitchen: Joi.string().optional().allow(''),
+  additionalInfo1: Joi.string().optional().allow(''),
+  additionalInfo2: Joi.string().optional().allow('')
 });
 
 

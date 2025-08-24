@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
 const Farm = require('./FarmModel'); // make sure this path is correct
 
+const UpdatedBySchema = new mongoose.Schema({
+  id: { type: mongoose.Schema.Types.ObjectId, required: true }, // req.user.id
+  role: { type: String, enum: ['admin', 'vendor'], required: true },
+  name: { type: String },
+  email: { type: String },
+  at: { type: Date, default: Date.now }
+}, { _id: false });
 
 const farmBookingSchema = new mongoose.Schema({
   // 👤 Customer Info
@@ -77,6 +84,18 @@ farmSnapshot: {
     areaName: String
   }
 },
+
+  // 🥘 Meals & Addons
+  meal1: { type: String },
+  meal2: { type: String },
+  meal3: { type: String },
+  meal4: { type: String },
+  barbequeCharcoal: { type: String },
+  kitchen: { type: String },
+  additionalInfo1: { type: String },
+  additionalInfo2: { type: String },
+ 
+   updatedBy: { type: UpdatedBySchema, default: null },  
 }, { timestamps: true });
 
 

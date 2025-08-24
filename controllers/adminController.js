@@ -17,6 +17,7 @@ const { sendEmail } = require('../utils/SendEmail');
 const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 const VendorValiidation = require("../validationJoi/VendorValidation");
 const Types=require("../models/TypeModel")
+const moment = require("moment");
 // Register 
 
 exports.sendAdminOtp = async (req, res) => {
@@ -239,11 +240,12 @@ exports.loginAdmin = async (req, res) => {
     // ✅ Update last login timestamp
     admin.lastLogin = new Date();
     await admin.save();
-
+     console.log("addmin printing",admin)
     // ✅ Generate JWT Token including lastLogin timestamp
     const token = jwt.sign(
       {
         id: admin._id,
+        name:admin.name,
         email: admin.email,
         isSuperAdmin: admin.isSuperAdmin,
         permissions: admin.permissions,
@@ -1084,6 +1086,117 @@ exports.getAllBookings = async (req, res) => {
       success: false,
       message: 'Something went wrong while fetching bookings. Please try again later.'
     });
+  }
+};
+exports.updateBookingStatusByAdmin = async (req, res) => {
+  try {
+    const adminId = req.user.id; // from token
+    const { bookingId, status } = req.body;
+
+    const allowedStatuses = ["pending", "confirmed", "cancelled", "complete"];
+    if (!status || !allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Status must be one of: ${allowedStatuses.join(", ")}`,
+      });
+    }
+
+    const booking = await FarmBooking.findOne({ Booking_id: bookingId }).populate("farm", "owner");
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    // 🛑 extra check: if vendor already confirmed, block admin override
+    if (
+      booking.status === "confirmed" &&
+      booking.updatedBy &&
+      booking.updatedBy.role === "vendor"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "This booking is already confirmed by the vendor. Admin cannot override.",
+      });
+    }
+
+    // ✅ no farm.owner check here (admins override vendors otherwise)
+    booking.status = status;
+console.log("rq user printing",req.user)
+    // 🆕 stamp who updated it
+    booking.updatedBy = {
+      id: req.user.id,
+      role: req.user.role || "admin", // default "admin" if not in token
+      name: req.user.name || null,
+      email: req.user.email || null,
+      at: new Date(),
+    };
+
+    if (status === "confirmed") {
+      booking.paymentStatus = "paid";
+
+      const currentDate = moment(booking.date);
+      const nextDate = currentDate.clone().add(1, "days").toDate();
+
+      const currentSlotQuery = {
+        _id: { $ne: booking._id },
+        farm: booking.farm._id,
+        status: "pending",
+        date: booking.date,
+      };
+      const nextDaySlotQuery = {
+        _id: { $ne: booking._id },
+        farm: booking.farm._id,
+        status: "pending",
+        date: nextDate,
+      };
+
+      let currentDaySlotsToCancel = [];
+      let nextDaySlotsToCancel = [];
+
+      const modes = booking.bookingModes;
+      if (modes.includes("day_slot")) {
+        currentDaySlotsToCancel = ["day_slot", "full_day", "full_night"];
+      } else if (modes.includes("night_slot")) {
+        currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
+      } else if (modes.includes("full_day")) {
+        currentDaySlotsToCancel = ["day_slot", "night_slot", "full_day", "full_night"];
+      } else if (modes.includes("full_night")) {
+        currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
+        nextDaySlotsToCancel = ["day_slot"];
+      }
+
+      // Cancel current day conflicting bookings
+      if (currentDaySlotsToCancel.length) {
+        await FarmBooking.updateMany(
+          {
+            ...currentSlotQuery,
+            bookingModes: { $in: currentDaySlotsToCancel },
+          },
+          { $set: { status: "cancelled" } }
+        );
+      }
+
+      // Cancel next day conflicting bookings
+      if (nextDaySlotsToCancel.length) {
+        await FarmBooking.updateMany(
+          {
+            ...nextDaySlotQuery,
+            bookingModes: { $in: nextDaySlotsToCancel },
+          },
+          { $set: { status: "cancelled" } }
+        );
+      }
+    }
+
+    await booking.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking status updated by admin",
+      data: booking,
+    });
+  } catch (err) {
+    console.error("updateBookingStatusByAdmin error:", err);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 

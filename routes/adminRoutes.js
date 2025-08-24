@@ -45,6 +45,7 @@ router.get('/get_all_types',ParseNest,authenticateAdmin,adminController.getAllTy
 
 router.post('/get_all_bookings', authenticateAdmin,adminController.getAllBookings);
 router.post('/get_booking_details',authenticateAdmin, adminController.getBookingByBookingId);
+router.post('/update_booking_status',authenticateAdmin, adminController.updateBookingStatusByAdmin);
 
 // customers
 
