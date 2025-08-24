@@ -215,11 +215,8 @@ exports.farmAddValidationSchema = Joi.object({
     createdBy: Joi.string().pattern(objectIdPattern).optional()
   }).optional(),
 
-  capacity: Joi.number().min(1).optional()
-    .messages({ "number.min": "Capacity must be at least 1." }),
-
-  occupancy: Joi.number().min(1).optional()
-    .messages({ "number.min": "Occupancy must be at least 1." }),
+ capacity: Joi.number().allow(null, '').optional(),
+occupancy: Joi.number().allow(null, '').optional(),
 // ✅ NEW: bookingModes with true/false structure
 bookingModes: Joi.object({
 full_day: Joi.boolean().optional(),
@@ -269,19 +266,29 @@ dailyPricing: Joi.array().items(
       full_night: Joi.object({ price: Joi.number().optional(), pricePerGuest: Joi.number().optional() }).optional()
     }).optional()
       .messages({ "object.base": "slots must be an object with pricing numbers." }),
+timings: Joi.object({
+  full_day: Joi.object({
+    // no pattern, no required — allow empty or null
+    checkIn: Joi.string().allow('', null).optional(),
+    checkOut: Joi.string().allow('', null).optional()
+  }).optional(),
 
-    timings: Joi.object({
-      full_day: Joi.object({
-        checkIn: Joi.string().pattern(timePattern).required()
-          .messages({ "string.pattern.base": "full_day.checkIn must be in HH:mm or hh:mm AM/PM format." }),
-        checkOut: Joi.string().pattern(timePattern).required()
-          .messages({ "string.pattern.base": "full_day.checkOut must be in HH:mm or hh:mm AM/PM format." })
-      }).required(),
+  day_slot: Joi.object({
+    checkIn: Joi.string().allow('', null).optional(),
+    checkOut: Joi.string().allow('', null).optional()
+  }).optional(),
 
-      day_slot: Joi.object({ checkIn: Joi.string().pattern(timePattern).optional(), checkOut: Joi.string().pattern(timePattern).optional() }).optional(),
-      night_slot: Joi.object({ checkIn: Joi.string().pattern(timePattern).optional(), checkOut: Joi.string().pattern(timePattern).optional() }).optional(),
-      full_night: Joi.object({ checkIn: Joi.string().pattern(timePattern).optional(), checkOut: Joi.string().pattern(timePattern).optional() }).optional()
-    }).optional(),
+  night_slot: Joi.object({
+    checkIn: Joi.string().allow('', null).optional(),
+    checkOut: Joi.string().allow('', null).optional()
+  }).optional(),
+
+  full_night: Joi.object({
+    checkIn: Joi.string().allow('', null).optional(),
+    checkOut: Joi.string().allow('', null).optional()
+  }).optional()
+}).optional(),
+
 
     kitchenOffered: Joi.object({
       full_day: Joi.object({ isAvailable: Joi.boolean().optional(), price: Joi.number().optional(), pricePerGuest: Joi.number().optional(), description: Joi.string().optional() }),
@@ -359,36 +366,36 @@ defaultPricing: Joi.object({
     pricePerGuest: Joi.number().min(0).optional()
   }).optional()
 }).optional(),
+defaultTimings: Joi.object({
+  full_day: Joi.object({
+    checkIn: Joi.string().pattern(timePattern).allow('', null).optional()
+      .messages({ "string.pattern.base": "full_day checkIn must be in valid time format." }),
+    checkOut: Joi.string().pattern(timePattern).allow('', null).optional()
+      .messages({ "string.pattern.base": "full_day checkOut must be in valid time format." })
+  }).required(),
 
-  defaultTimings: Joi.object({
-    full_day: Joi.object({
-      checkIn: Joi.string().pattern(timePattern).required()
-        .messages({ "string.pattern.base": "full_day checkIn must be in valid time format." }),
-      checkOut: Joi.string().pattern(timePattern).required()
-        .messages({ "string.pattern.base": "full_day checkOut must be in valid time format." })
-    }).required(),
-
-    day_slot: Joi.object({
-      checkIn: Joi.string().pattern(timePattern).optional()
-        .messages({ "string.pattern.base": "day_slot checkIn must be in valid time format." }),
-      checkOut: Joi.string().pattern(timePattern).optional()
-        .messages({ "string.pattern.base": "day_slot checkOut must be in valid time format." })
-    }).optional(),
-
-    night_slot: Joi.object({
-      checkIn: Joi.string().pattern(timePattern).optional()
-        .messages({ "string.pattern.base": "night_slot checkIn must be in valid time format." }),
-      checkOut: Joi.string().pattern(timePattern).optional()
-        .messages({ "string.pattern.base": "night_slot checkOut must be in valid time format." })
-    }).optional(),
-
-    full_night: Joi.object({
-      checkIn: Joi.string().pattern(timePattern).optional()
-        .messages({ "string.pattern.base": "full_night checkIn must be in valid time format." }),
-      checkOut: Joi.string().pattern(timePattern).optional()
-        .messages({ "string.pattern.base": "full_night checkOut must be in valid time format." })
-    }).optional()
+  day_slot: Joi.object({
+    checkIn: Joi.string().pattern(timePattern).allow('', null).optional()
+      .messages({ "string.pattern.base": "day_slot checkIn must be in valid time format." }),
+    checkOut: Joi.string().pattern(timePattern).allow('', null).optional()
+      .messages({ "string.pattern.base": "day_slot checkOut must be in valid time format." })
   }).optional(),
+
+  night_slot: Joi.object({
+    checkIn: Joi.string().pattern(timePattern).allow('', null).optional()
+      .messages({ "string.pattern.base": "night_slot checkIn must be in valid time format." }),
+    checkOut: Joi.string().pattern(timePattern).allow('', null).optional()
+      .messages({ "string.pattern.base": "night_slot checkOut must be in valid time format." })
+  }).optional(),
+
+  full_night: Joi.object({
+    checkIn: Joi.string().pattern(timePattern).allow('', null).optional()
+      .messages({ "string.pattern.base": "full_night checkIn must be in valid time format." }),
+    checkOut: Joi.string().pattern(timePattern).allow('', null).optional()
+      .messages({ "string.pattern.base": "full_night checkOut must be in valid time format." })
+  }).optional()
+}).optional(),
+
 
   currency: Joi.string().valid("INR").optional(),
 
