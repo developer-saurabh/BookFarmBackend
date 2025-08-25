@@ -64,7 +64,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 
-const BASE_IMAGE_URL = process.env.BASE_IMAGE_URL || 'http://localhost:5000/uploads';
+const BASE_IMAGE_URL = process.env.BASE_IMAGE_URL;
 const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
 const maxSizeBytes = 5 * 1024 * 1024; // 5MB
 
