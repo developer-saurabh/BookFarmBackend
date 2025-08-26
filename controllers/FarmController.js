@@ -683,6 +683,7 @@ const cleanInput = (input) => {
 
 // without type filter 
 
+
 // exports.FilterQueeryFarms = async (req, res) => {
 //   try {
 //     const cleanedBody = cleanInput(req.body);
@@ -702,6 +703,7 @@ const cleanInput = (input) => {
 //       capacityRange,
 //       priceRange,
 //       facilities = [],
+//       types = [],
 //       page = 1,
 //       limit = 10
 //     } = value;
@@ -728,6 +730,7 @@ const cleanInput = (input) => {
 //       }
 //     }
 
+//     // ✅ Base query always requires active + approved farms
 //     const baseQuery = { isActive: true, isApproved: true };
 //     if (farmCategory.length > 0) {
 //       baseQuery.farmCategory = { $in: farmCategory };
@@ -735,15 +738,20 @@ const cleanInput = (input) => {
 
 //     let farms = await Farm.find(baseQuery)
 //       .populate('farmCategory', '_id name')
-//       .populate('facilities', '_id name');
+//       .populate('facilities', '_id name')
+//       .populate('types', '_id name');
 
 //     if (!farms.length) {
 //       return res.status(200).json({
 //         success: false,
-//         message: 'No farms found for the selected farm categories.'
+//         message:
+//           farmCategory.length > 0
+//             ? 'No active and approved farms found for the selected categories.'
+//             : 'No active and approved farms found.'
 //       });
 //     }
 
+//     // 🧮 capacity filter
 //     if (capacityRange) {
 //       const { min: capMin, max: capMax } = capacityRange;
 //       farms = farms.filter(f => f.capacity >= capMin && f.capacity <= capMax);
@@ -755,9 +763,12 @@ const cleanInput = (input) => {
 //       }
 //     }
 
-//     if (facilities.length > 0) {
+//     // 🧩 facilities filter
+//     if (Array.isArray(facilities) && facilities.length > 0) {
+//       const facilitySet = new Set(facilities.map(String));
 //       farms = farms.filter(farm =>
-//         farm.facilities.some(f => facilities.includes(f._id.toString()))
+//         Array.isArray(farm.facilities) &&
+//         farm.facilities.some(f => facilitySet.has(String(f._id)))
 //       );
 //       if (!farms.length) {
 //         return res.status(200).json({
@@ -767,6 +778,26 @@ const cleanInput = (input) => {
 //       }
 //     }
 
+//     // 🧩 types filter
+//     if (Array.isArray(types) && types.length > 0) {
+//       const typesSet = new Set(types.map(String));
+//       farms = farms.filter(farm => {
+//         const assigned = Array.isArray(farm.Types) ? farm.Types : [];
+//         for (const t of assigned) {
+//           const tid = t && t._id ? String(t._id) : String(t);
+//           if (typesSet.has(tid)) return true;
+//         }
+//         return false;
+//       });
+//       if (!farms.length) {
+//         return res.status(200).json({
+//           success: false,
+//           message: 'No farms found with any of the selected types.'
+//         });
+//       }
+//     }
+
+//     // 💰 price filter
 //     if (priceRange) {
 //       const { min: priceMin, max: priceMax } = priceRange;
 
@@ -780,8 +811,9 @@ const cleanInput = (input) => {
 //               dt.toISOString().split('T')[0] === dateStr;
 //           });
 
+//           console.log("farm Default price printing",farm.defaultPricing)
 //           const slotPrices = dailyEntry?.slots || farm.defaultPricing || {};
-
+//           console.log("slot prices printing",slotPrices)
 //           const prices = [
 //             slotPrices.full_day,
 //             slotPrices.day_slot,
@@ -809,6 +841,7 @@ const cleanInput = (input) => {
 //       }
 //     }
 
+//     // 📚 bookings
 //     const bookings = await FarmBooking.find({
 //       farm: { $in: farms.map(f => f._id) },
 //       date: { $gte: start, $lte: end },
@@ -846,13 +879,15 @@ const cleanInput = (input) => {
 //     if (!availableFarms.length) {
 //       return res.status(200).json({
 //         success: false,
-//         message: `No farms fully available between ${start.toDateString()} and ${end.toDateString()}.`
+//         message: `No active and approved farms fully available between ${start.toDateString()} and ${end.toDateString()}.`
 //       });
 //     }
 
+//     // 📄 pagination
 //     const skip = (page - 1) * limit;
 //     const paginatedFarms = availableFarms.slice(skip, skip + limit);
 
+//     // dayName add-on
 //     for (let i = 0; i < paginatedFarms.length; i++) {
 //       const farm = paginatedFarms[i];
 //       const farmObj = farm.toObject();
@@ -876,7 +911,7 @@ const cleanInput = (input) => {
 
 //     return res.status(200).json({
 //       success: true,
-//       message: `${availableFarms.length} farm(s) available from ${start.toDateString()} to ${end.toDateString()}.`,
+//       message: `${availableFarms.length} active & approved farm(s) available from ${start.toDateString()} to ${end.toDateString()}.`,
 //       pagination: {
 //         total: availableFarms.length,
 //         page,
@@ -894,8 +929,6 @@ const cleanInput = (input) => {
 //     });
 //   }
 // };
-
-
 
 exports.FilterQueeryFarms = async (req, res) => {
   try {
@@ -995,12 +1028,8 @@ exports.FilterQueeryFarms = async (req, res) => {
     if (Array.isArray(types) && types.length > 0) {
       const typesSet = new Set(types.map(String));
       farms = farms.filter(farm => {
-        const assigned = Array.isArray(farm.Types) ? farm.Types : [];
-        for (const t of assigned) {
-          const tid = t && t._id ? String(t._id) : String(t);
-          if (typesSet.has(tid)) return true;
-        }
-        return false;
+        const assigned = Array.isArray(farm.types) ? farm.types : []; // ✅ fixed key (was farm.Types)
+        return assigned.some(t => typesSet.has(String(t?._id || t)));
       });
       if (!farms.length) {
         return res.status(200).json({
@@ -1011,48 +1040,54 @@ exports.FilterQueeryFarms = async (req, res) => {
     }
 
     // 💰 price filter
-    if (priceRange) {
-      const { min: priceMin, max: priceMax } = priceRange;
+// 💰 price filter
+if (priceRange) {
+  const { min: priceMin, max: priceMax } = priceRange;
 
-      farms = farms.filter(farm => {
-        let isWithinRange = false;
+  farms = farms.filter(farm => {
+    let isWithinRange = false;
 
-        for (const dateStr of allDates) {
-          const dailyEntry = farm.dailyPricing?.find(d => {
-            const dt = new Date(d.date);
-            return !isNaN(dt.getTime()) &&
-              dt.toISOString().split('T')[0] === dateStr;
-          });
-
-          console.log("farm Default price printing",farm.defaultPricing)
-          const slotPrices = dailyEntry?.slots || farm.defaultPricing || {};
-          console.log("slot prices printing",slotPrices)
-          const prices = [
-            slotPrices.full_day,
-            slotPrices.day_slot,
-            slotPrices.night_slot
-          ];
-
-          if (
-            prices.some(
-              p => typeof p === 'number' && p >= priceMin && p <= priceMax
-            )
-          ) {
-            isWithinRange = true;
-            break;
-          }
-        }
-
-        return isWithinRange;
+    for (const dateStr of allDates) {
+      const dailyEntry = farm.dailyPricing?.find(d => {
+        const dt = new Date(d.date);
+        return !isNaN(dt.getTime()) &&
+          dt.toISOString().split('T')[0] === dateStr;
       });
 
-      if (!farms.length) {
-        return res.status(200).json({
-          success: false,
-          message: `No farms found in the price range ₹${priceMin}–₹${priceMax}.`
-        });
+      // ✅ Pick daily prices OR fallback to default if 0
+    // ✅ Pick daily prices OR fallback to default if 0
+let slotPrices = dailyEntry?.slots || {};
+let prices = Object.values(slotPrices).map(s => s?.pricePerGuest || 0);
+
+// if all daily perGuest are 0 → fallback
+if (prices.every(p => p === 0)) {
+  slotPrices = farm.defaultPricing || {};
+  prices = Object.values(slotPrices).map(s => s?.pricePerGuest || 0);
+}
+
+
+      console.log("🔎 Checking prices:", prices);
+
+      if (
+        prices.some(
+          p => typeof p === 'number' && p >= priceMin && p <= priceMax
+        )
+      ) {
+        isWithinRange = true;
+        break;
       }
     }
+
+    return isWithinRange;
+  });
+
+  if (!farms.length) {
+    return res.status(200).json({
+      success: false,
+      message: `No farms found in the price range ₹${priceMin}–₹${priceMax}.`
+    });
+  }
+}
 
     // 📚 bookings
     const bookings = await FarmBooking.find({
@@ -1070,20 +1105,28 @@ exports.FilterQueeryFarms = async (req, res) => {
       b.bookingModes.forEach(mode => bookingMap[fid][dateStr].add(mode));
     });
 
-    const allModes = ['full_day', 'day_slot', 'night_slot'];
+    // ✅ added full_night
+    const allModes = ['full_day', 'day_slot', 'night_slot', 'full_night'];
 
     const availableFarms = farms.filter(farm => {
-      const blockedDates = (farm.unavailableDates || []).map(d => {
-        const dt = new Date(d);
-        return !isNaN(dt.getTime()) ? dt.toISOString().split('T')[0] : null;
-      }).filter(Boolean);
-
       const fid = farm._id.toString();
 
       for (const date of allDates) {
-        if (blockedDates.includes(date)) return false;
+        // 🔧 check unavailableDates per slot
+        const blockedEntry = (farm.unavailableDates || []).find(
+          d => new Date(d.date).toISOString().split('T')[0] === date
+        );
+        if (blockedEntry && blockedEntry.blockedSlots.length === allModes.length) {
+          return false; // all slots blocked
+        }
+
         const bookedModes = bookingMap[fid]?.[date] || new Set();
-        if (allModes.every(mode => bookedModes.has(mode))) return false;
+        if (allModes.every(mode =>
+          bookedModes.has(mode) ||
+          (blockedEntry?.blockedSlots || []).includes(mode)
+        )) {
+          return false; // all slots unavailable
+        }
       }
 
       return true;
@@ -1142,7 +1185,6 @@ exports.FilterQueeryFarms = async (req, res) => {
     });
   }
 };
-
 
 
 exports.getFarmCategories = async (req, res) => {
