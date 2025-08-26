@@ -894,6 +894,9 @@ const cleanInput = (input) => {
 //     });
 //   }
 // };
+
+
+
 exports.FilterQueeryFarms = async (req, res) => {
   try {
     const cleanedBody = cleanInput(req.body);
@@ -1021,8 +1024,9 @@ exports.FilterQueeryFarms = async (req, res) => {
               dt.toISOString().split('T')[0] === dateStr;
           });
 
+          console.log("farm Default price printing",farm.defaultPricing)
           const slotPrices = dailyEntry?.slots || farm.defaultPricing || {};
-
+          console.log("slot prices printing",slotPrices)
           const prices = [
             slotPrices.full_day,
             slotPrices.day_slot,

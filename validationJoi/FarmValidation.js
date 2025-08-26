@@ -379,9 +379,9 @@ exports.unblockDateSchema = Joi.object({
         date: Joi.date().required().messages({
           'date.base': `"date" must be a valid date`,
           'any.required': `"date" is required`,
-        }),
+        }), 
         slots: Joi.array()
-          .items(Joi.string().valid("full_day", "day_slot", "night_slot"))
+          .items(Joi.string().valid("full_day", "day_slot", "night_slot","full_night"))
           .min(1)
           .required()
           .messages({
