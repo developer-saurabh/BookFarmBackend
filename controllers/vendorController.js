@@ -2446,6 +2446,113 @@ exports.getBookingByBookingId = async (req, res) => {
 // };
 
 
+// exports.updateBookingStatusByVendor = async (req, res) => {
+//   try {
+//     const vendorId = req.user.id;
+//     const { bookingId, status } = req.body;
+
+//     const allowedStatuses = ["pending", "confirmed", "cancelled", "complete"];
+//     if (!status || !allowedStatuses.includes(status)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Status must be one of: ${allowedStatuses.join(", ")}`,
+//       });
+//     }
+
+//     const booking = await FarmBooking.findOne({ Booking_id: bookingId }).populate("farm", "owner");
+//     if (!booking) {
+//       return res.status(404).json({ success: false, message: "Booking not found" });
+//     }
+
+//     if (!booking.farm || booking.farm.owner.toString() !== vendorId.toString()) {
+//       return res.status(403).json({ success: false, message: "Unauthorized" });
+//     }
+
+//         if (
+//       booking.status === "confirmed" &&
+//       booking.updatedBy &&
+//       booking.updatedBy.role === "admin"
+//     ) {
+//       return res.status(403).json({
+//         success: false,
+//         message: "This booking is already confirmed by the admin. Vendor cannot override.",
+//       });
+//     }
+
+
+//     booking.status = status;
+
+//     // 🆕 stamp who updated it
+//     booking.updatedBy = {
+//       id: req.user.id,
+//       role: req.user.role || "vendor",   // default "vendor" if not in token
+//       name: req.user.name || null,
+//       email: req.user.email || null,
+//       at: new Date()
+//     };
+
+//     if (status === "confirmed") {
+//       booking.paymentStatus = "paid";
+
+//       const currentDate = moment(booking.date);
+//       const nextDate = currentDate.clone().add(1, 'days').toDate();
+
+//       const currentSlotQuery = { _id: { $ne: booking._id }, farm: booking.farm._id, status: "pending", date: booking.date };
+//       const nextDaySlotQuery = { _id: { $ne: booking._id }, farm: booking.farm._id, status: "pending", date: nextDate };
+
+//       let currentDaySlotsToCancel = [];
+//       let nextDaySlotsToCancel = [];
+
+//       const modes = booking.bookingModes;
+//       if (modes.includes("day_slot")) {
+//         currentDaySlotsToCancel = ["day_slot", "full_day", "full_night"];
+//       } else if (modes.includes("night_slot")) {
+//         currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
+//       } else if (modes.includes("full_day")) {
+//         currentDaySlotsToCancel = ["day_slot", "night_slot", "full_day", "full_night"];
+//       } else if (modes.includes("full_night")) {
+//         currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
+//        nextDaySlotsToCancel = ["day_slot", "full_day"];
+//       }
+
+//       // Cancel current day conflicting bookings
+//       if (currentDaySlotsToCancel.length) {
+//         await FarmBooking.updateMany(
+//           {
+//             ...currentSlotQuery,
+//             bookingModes: { $in: currentDaySlotsToCancel },
+//           },
+//           { $set: { status: "cancelled" } }
+//         );
+//       }
+
+//       // Cancel next day conflicting bookings
+//       if (nextDaySlotsToCancel.length) {
+//         await FarmBooking.updateMany(
+//           {
+//             ...nextDaySlotQuery,
+//             bookingModes: { $in: nextDaySlotsToCancel },
+//           },
+//           { $set: { status: "cancelled" } }
+//         );
+//       }
+//     }
+
+//     await booking.save();
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Booking status updated",
+//       data: booking,
+//     });
+//   } catch (err) {
+//     console.error("updateBookingStatusByVendor error:", err);
+//     return res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// };
+
+
+
 exports.updateBookingStatusByVendor = async (req, res) => {
   try {
     const vendorId = req.user.id;
@@ -2468,7 +2575,7 @@ exports.updateBookingStatusByVendor = async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
-        if (
+    if (
       booking.status === "confirmed" &&
       booking.updatedBy &&
       booking.updatedBy.role === "admin"
@@ -2479,23 +2586,22 @@ exports.updateBookingStatusByVendor = async (req, res) => {
       });
     }
 
-
-    booking.status = status;
-
-    // 🆕 stamp who updated it
+    // 🆕 Store who updated
     booking.updatedBy = {
       id: req.user.id,
-      role: req.user.role || "vendor",   // default "vendor" if not in token
+      role: req.user.role || "vendor",
       name: req.user.name || null,
       email: req.user.email || null,
       at: new Date()
     };
 
+    // ========== CONFIRM LOGIC ==========
     if (status === "confirmed") {
+      booking.status = "confirmed";
       booking.paymentStatus = "paid";
 
       const currentDate = moment(booking.date);
-      const nextDate = currentDate.clone().add(1, 'days').toDate();
+      const nextDate = currentDate.clone().add(1, "days").toDate();
 
       const currentSlotQuery = { _id: { $ne: booking._id }, farm: booking.farm._id, status: "pending", date: booking.date };
       const nextDaySlotQuery = { _id: { $ne: booking._id }, farm: booking.farm._id, status: "pending", date: nextDate };
@@ -2512,30 +2618,37 @@ exports.updateBookingStatusByVendor = async (req, res) => {
         currentDaySlotsToCancel = ["day_slot", "night_slot", "full_day", "full_night"];
       } else if (modes.includes("full_night")) {
         currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
-       nextDaySlotsToCancel = ["day_slot", "full_day"];
+        nextDaySlotsToCancel = ["day_slot", "full_day"];
       }
 
       // Cancel current day conflicting bookings
       if (currentDaySlotsToCancel.length) {
         await FarmBooking.updateMany(
-          {
-            ...currentSlotQuery,
-            bookingModes: { $in: currentDaySlotsToCancel },
-          },
-          { $set: { status: "cancelled" } }
+          { ...currentSlotQuery, bookingModes: { $in: currentDaySlotsToCancel } },
+          { $set: { status: "cancelled", cancelledDueTo: booking._id } } // 🆕 track why cancelled
         );
       }
 
       // Cancel next day conflicting bookings
       if (nextDaySlotsToCancel.length) {
         await FarmBooking.updateMany(
-          {
-            ...nextDaySlotQuery,
-            bookingModes: { $in: nextDaySlotsToCancel },
-          },
-          { $set: { status: "cancelled" } }
+          { ...nextDaySlotQuery, bookingModes: { $in: nextDaySlotsToCancel } },
+          { $set: { status: "cancelled", cancelledDueTo: booking._id } } // 🆕 track why cancelled
         );
       }
+    }
+
+    // ========== CANCEL LOGIC ==========
+    else if (status === "cancelled") {
+      // only undo if this booking was previously confirmed
+      if (booking.status === "confirmed") {
+        // Reopen previously cancelled bookings linked to this one
+        await FarmBooking.updateMany(
+          { farm: booking.farm._id, cancelledDueTo: booking._id },
+          { $set: { status: "pending" }, $unset: { cancelledDueTo: "" } }
+        );
+      }
+      booking.status = "cancelled";
     }
 
     await booking.save();
@@ -2550,6 +2663,3 @@ exports.updateBookingStatusByVendor = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
-
-
-
