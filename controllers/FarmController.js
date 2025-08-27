@@ -1,29 +1,37 @@
 // controllers/booking.controller.js
-const FarmBooking = require('../models/FarmBookingModel');
-const FarmCategory=require("../models/FarmCategory")
-const Facility=require("../models/FarmFacility")
-const FarmValidation = require('../validationJoi/FarmValidation');
-const Farm = require('../models/FarmModel');
-const Customer=require("../models/CustomerModel")
+const FarmBooking = require("../models/FarmBookingModel");
+const FarmCategory = require("../models/FarmCategory");
+const Facility = require("../models/FarmFacility");
+const FarmValidation = require("../validationJoi/FarmValidation");
+const Farm = require("../models/FarmModel");
+const Customer = require("../models/CustomerModel");
 const Vendor = require("../models/VendorModel");
-const Types=require("../models/TypeModel")
-const { uploadFilesToCloudinary } = require('../utils/UploadFile');
-const mongoose=require("mongoose")
-const moment=require("moment")
-const { Types: MongooseTypes, isValidObjectId } = require('mongoose');
+const Types = require("../models/TypeModel");
+const { uploadFilesToCloudinary } = require("../utils/UploadFile");
+const mongoose = require("mongoose");
+const moment = require("moment");
+const { Types: MongooseTypes, isValidObjectId } = require("mongoose");
 
 // sendInquiry — Map<Number> safe + daily-zeros fallback to default
 
 exports.sendInquiry = async (req, res) => {
   try {
     // ✅ Validate
-    const { error, value } = FarmValidation.farmBookingValidationSchema.validate(req.body, { abortEarly: false });
+    const { error, value } =
+      FarmValidation.farmBookingValidationSchema.validate(req.body, {
+        abortEarly: false,
+      });
     if (error) {
-      return res.status(400).json({ message: 'Validation failed', errors: error.details.map(e => e.message) });
+      return res
+        .status(400)
+        .json({
+          message: "Validation failed",
+          errors: error.details.map((e) => e.message),
+        });
     }
 
     // 🧹 tiny helper to normalize optional strings
-    const s = (v) => (typeof v === 'string' ? v.trim() : undefined);
+    const s = (v) => (typeof v === "string" ? v.trim() : undefined);
 
     const {
       customerName,
@@ -37,7 +45,10 @@ exports.sendInquiry = async (req, res) => {
       Group_Category,
 
       // 🆕 Optional extras
-      meal1, meal2, meal3, meal4,
+      meal1,
+      meal2,
+      meal3,
+      meal4,
       barbequeCharcoal,
       kitchen,
       additionalInfo1,
@@ -46,19 +57,26 @@ exports.sendInquiry = async (req, res) => {
 
     // ✅ Date normalize (midnight) + yyyy-mm-dd (local)
     const normalizedDate = new Date(date);
-    if (isNaN(normalizedDate)) return res.status(400).json({ error: 'Invalid date.' });
+    if (isNaN(normalizedDate))
+      return res.status(400).json({ error: "Invalid date." });
     normalizedDate.setHours(0, 0, 0, 0);
-    const isoDateStr = new Date(normalizedDate.getTime() - normalizedDate.getTimezoneOffset() * 60000)
+    const isoDateStr = new Date(
+      normalizedDate.getTime() - normalizedDate.getTimezoneOffset() * 60000
+    )
       .toISOString()
-      .split('T')[0];
+      .split("T")[0];
 
     // ✅ Farm
     const farmDoc = await Farm.findById(farm_id);
-    if (!farmDoc) return res.status(404).json({ error: 'Farm not found' });
+    if (!farmDoc) return res.status(404).json({ error: "Farm not found" });
 
     // ✅ Capacity
     if (Number(Guest_Count) > Number(farmDoc.capacity || 0)) {
-      return res.status(400).json({ error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}).` });
+      return res
+        .status(400)
+        .json({
+          error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}).`,
+        });
     }
 
     // ✅ Duplicate inquiry guard
@@ -67,55 +85,93 @@ exports.sendInquiry = async (req, res) => {
       date: normalizedDate,
       customerPhone,
       bookingModes: { $in: bookingModes },
-      status: { $in: ['pending', 'confirmed'] },
+      status: { $in: ["pending", "confirmed"] },
     });
     if (existingInquiry) {
-      return res.status(409).json({ error: `You already submitted an inquiry for this farm and slot(s).` });
+      return res
+        .status(409)
+        .json({
+          error: `You already submitted an inquiry for this farm and slot(s).`,
+        });
     }
 
     // ✅ Disallow combos
-    if (bookingModes.includes('full_day') && bookingModes.length > 1) {
-      return res.status(400).json({ error: `'full_day' cannot be combined with other slots.` });
+    if (bookingModes.includes("full_day") && bookingModes.length > 1) {
+      return res
+        .status(400)
+        .json({ error: `'full_day' cannot be combined with other slots.` });
     }
-    if (bookingModes.includes('full_night') && bookingModes.includes('full_day')) {
-      return res.status(400).json({ error: `'full_night' cannot be combined with full_day.` });
+    if (
+      bookingModes.includes("full_night") &&
+      bookingModes.includes("full_day")
+    ) {
+      return res
+        .status(400)
+        .json({ error: `'full_night' cannot be combined with full_day.` });
     }
 
     // ✅ Existing confirmed conflicts
     const existingConfirmed = await FarmBooking.find({
       farm: farm_id,
       date: normalizedDate,
-      status: 'confirmed',
+      status: "confirmed",
     });
-    const existingModes = existingConfirmed.flatMap(b => b.bookingModes || []);
+    const existingModes = existingConfirmed.flatMap(
+      (b) => b.bookingModes || []
+    );
 
     if (
-      (bookingModes.includes('day_slot') || bookingModes.includes('night_slot') || bookingModes.includes('full_night')) &&
-      existingModes.includes('full_day')
+      (bookingModes.includes("day_slot") ||
+        bookingModes.includes("night_slot") ||
+        bookingModes.includes("full_night")) &&
+      existingModes.includes("full_day")
     ) {
-      return res.status(409).json({ error: `Farm is already confirmed for full day on ${isoDateStr}.` });
+      return res
+        .status(409)
+        .json({
+          error: `Farm is already confirmed for full day on ${isoDateStr}.`,
+        });
     }
-    if (bookingModes.includes('full_day') && existingModes.length > 0) {
-      return res.status(409).json({ error: `Farm already has confirmed bookings on ${isoDateStr}.` });
+    if (bookingModes.includes("full_day") && existingModes.length > 0) {
+      return res
+        .status(409)
+        .json({
+          error: `Farm already has confirmed bookings on ${isoDateStr}.`,
+        });
     }
     if (
-      (bookingModes.includes('full_night') && existingModes.includes('night_slot')) ||
-      (bookingModes.includes('night_slot') && existingModes.includes('full_night'))
+      (bookingModes.includes("full_night") &&
+        existingModes.includes("night_slot")) ||
+      (bookingModes.includes("night_slot") &&
+        existingModes.includes("full_night"))
     ) {
-      return res.status(409).json({ error: `Farm already confirmed for a conflicting night slot on ${isoDateStr}.` });
+      return res
+        .status(409)
+        .json({
+          error: `Farm already confirmed for a conflicting night slot on ${isoDateStr}.`,
+        });
     }
 
-    const conflicting = existingConfirmed.filter(b => (b.bookingModes || []).some(mode => bookingModes.includes(mode)));
+    const conflicting = existingConfirmed.filter((b) =>
+      (b.bookingModes || []).some((mode) => bookingModes.includes(mode))
+    );
     if (conflicting.length > 0) {
-      const conflictModes = [...new Set(conflicting.flatMap(b => b.bookingModes))];
-      return res.status(409).json({ error: `Farm already confirmed for: ${conflictModes.join(', ')}`, conflict: conflictModes });
+      const conflictModes = [
+        ...new Set(conflicting.flatMap((b) => b.bookingModes)),
+      ];
+      return res
+        .status(409)
+        .json({
+          error: `Farm already confirmed for: ${conflictModes.join(", ")}`,
+          conflict: conflictModes,
+        });
     }
 
     // =========================
     // 💰 PRICING
     // =========================
     const priceBreakdownObj = {}; // plain object first
-    const pricingDetails = {};    // optional: rich details
+    const pricingDetails = {}; // optional: rich details
     let totalPrice = 0;
 
     const num = (v, d = 0) => {
@@ -124,52 +180,73 @@ exports.sendInquiry = async (req, res) => {
     };
 
     // find daily (yyyy-mm-dd match)
-    const matchedDaily = (farmDoc.dailyPricing || []).find(d => {
+    const matchedDaily = (farmDoc.dailyPricing || []).find((d) => {
       const dDate = new Date(d.date);
       if (isNaN(dDate)) return false;
-      const local = new Date(dDate.getTime() - dDate.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+      const local = new Date(
+        dDate.getTime() - dDate.getTimezoneOffset() * 60000
+      )
+        .toISOString()
+        .split("T")[0];
       return local === isoDateStr;
     });
 
     // merged source (default + daily overrides)
     const defaultPricing = farmDoc.defaultPricing || {};
     const mergedSource = { ...defaultPricing };
-    if (matchedDaily && matchedDaily.slots && typeof matchedDaily.slots === 'object' && !Array.isArray(matchedDaily.slots)) {
+    if (
+      matchedDaily &&
+      matchedDaily.slots &&
+      typeof matchedDaily.slots === "object" &&
+      !Array.isArray(matchedDaily.slots)
+    ) {
       Object.assign(mergedSource, matchedDaily.slots);
     }
 
-    console.log('🧾 price source picked =>', matchedDaily ? 'merged(default+daily)' : 'default', mergedSource);
-    console.log('🧾 raw defaultPricing =>', defaultPricing);
-    if (matchedDaily) console.log('🧾 raw daily slots =>', matchedDaily.slots);
+    console.log(
+      "🧾 price source picked =>",
+      matchedDaily ? "merged(default+daily)" : "default",
+      mergedSource
+    );
+    console.log("🧾 raw defaultPricing =>", defaultPricing);
+    if (matchedDaily) console.log("🧾 raw daily slots =>", matchedDaily.slots);
 
     for (const mode of bookingModes) {
       let cfg = mergedSource?.[mode];
       if (cfg === undefined || cfg === null) {
-        return res.status(400).json({ error: `Pricing not configured for "${mode}" on ${isoDateStr}.` });
+        return res
+          .status(400)
+          .json({
+            error: `Pricing not configured for "${mode}" on ${isoDateStr}.`,
+          });
       }
 
       let base = 0;
       let perGuest = 0;
 
-      if (typeof cfg === 'number') {
+      if (typeof cfg === "number") {
         base = num(cfg, 0);
-      } else if (typeof cfg === 'object') {
+      } else if (typeof cfg === "object") {
         base = num(cfg.price, 0);
         perGuest = num(cfg.pricePerGuest, 0);
 
         // 👇 if daily override sets both to 0, fallback to default
         if (base === 0 && perGuest === 0 && defaultPricing?.[mode] != null) {
           const def = defaultPricing[mode];
-          if (typeof def === 'number') {
+          if (typeof def === "number") {
             base = num(def, 0);
             perGuest = 0;
-          } else if (typeof def === 'object') {
+          } else if (typeof def === "object") {
             base = num(def.price, 0);
             perGuest = num(def.pricePerGuest, 0);
           }
         }
       } else {
-        return res.status(400).json({ error: `Invalid pricing format for "${mode}" on ${isoDateStr}.` });
+        return res
+          .status(400)
+          .json({
+            error: `Invalid pricing format for "${mode}" on ${isoDateStr}.`,
+          });
       }
 
       const guests = num(Guest_Count, 0);
@@ -177,7 +254,7 @@ exports.sendInquiry = async (req, res) => {
 
       priceBreakdownObj[mode] = num(subtotal, 0);
       pricingDetails[mode] = {
-        source: matchedDaily ? 'daily-override' : 'default',
+        source: matchedDaily ? "daily-override" : "default",
         base,
         perGuest,
         guests,
@@ -197,7 +274,13 @@ exports.sendInquiry = async (req, res) => {
       });
       customerId = existingCustomer
         ? existingCustomer._id
-        : (await Customer.create({ name: customerName, phone: customerPhone, email: customerEmail }))._id;
+        : (
+            await Customer.create({
+              name: customerName,
+              phone: customerPhone,
+              email: customerEmail,
+            })
+          )._id;
     }
 
     const generateBookingId = () => Math.floor(100000 + Math.random() * 900000);
@@ -229,8 +312,8 @@ exports.sendInquiry = async (req, res) => {
       additionalInfo1: s(additionalInfo1),
       additionalInfo2: s(additionalInfo2),
 
-      status: 'pending',
-      paymentStatus: 'unpaid',
+      status: "pending",
+      paymentStatus: "unpaid",
       totalPrice,
       priceBreakdown: priceBreakdownMap,
       meta: { pricingDetails },
@@ -252,25 +335,24 @@ exports.sendInquiry = async (req, res) => {
     // 📤 RESPONSE (normalize Map→object)
     // =========================
     const data = inquiry.toObject({ virtuals: true, getters: true });
-    const pb = data.priceBreakdown instanceof Map
-      ? Object.fromEntries(data.priceBreakdown)
-      : (typeof data.priceBreakdown === 'object' && data.priceBreakdown !== null
-          ? data.priceBreakdown
-          : Object.fromEntries(priceBreakdownMap));
+    const pb =
+      data.priceBreakdown instanceof Map
+        ? Object.fromEntries(data.priceBreakdown)
+        : typeof data.priceBreakdown === "object" &&
+          data.priceBreakdown !== null
+        ? data.priceBreakdown
+        : Object.fromEntries(priceBreakdownMap);
     data.priceBreakdown = pb;
 
     return res.status(201).json({
-      message: 'Inquiry submitted successfully!',
+      message: "Inquiry submitted successfully!",
       data,
     });
   } catch (err) {
-    console.error('[FarmInquiry Error]', err);
-    return res.status(500).json({ error: 'Server error. Try again later.' });
+    console.error("[FarmInquiry Error]", err);
+    return res.status(500).json({ error: "Server error. Try again later." });
   }
 };
-
-
-
 
 exports.getMonthlyFarmBookings = async (req, res) => {
   try {
@@ -281,7 +363,7 @@ exports.getMonthlyFarmBookings = async (req, res) => {
     }
 
     const { monthYear } = value;
-    const [monthStr, yearStr] = monthYear.split('/');
+    const [monthStr, yearStr] = monthYear.split("/");
     const month = parseInt(monthStr);
     const year = parseInt(yearStr);
 
@@ -289,34 +371,37 @@ exports.getMonthlyFarmBookings = async (req, res) => {
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
     // ✅ Get all active and approved farms (include unavailableDates)
-    const farms = await Farm.find({ isActive: true, isApproved: true }, '_id unavailableDates');
-    const farmIds = farms.map(f => f._id.toString());
+    const farms = await Farm.find(
+      { isActive: true, isApproved: true },
+      "_id unavailableDates"
+    );
+    const farmIds = farms.map((f) => f._id.toString());
 
     // ✅ Build map of farm → blocked dates (ISO string)
     const blockedMap = {};
-    farms.forEach(f => {
+    farms.forEach((f) => {
       blockedMap[f._id.toString()] = new Set(
-        (f.unavailableDates || []).map(d => d.toISOString().split('T')[0])
+        (f.unavailableDates || []).map((d) => d.toISOString().split("T")[0])
       );
     });
 
     // ✅ Fetch all bookings for the month
     const bookings = await FarmBooking.find({
       date: { $gte: startDate, $lte: endDate },
-      status: { $in: ['pending', 'confirmed'] }
+      status: { $in: ["pending", "confirmed"] },
     });
 
     // ✅ Build a booking map: { date: { farmId: Set of booked modes } }
     const bookingMap = {};
 
-    bookings.forEach(b => {
-      const dayKey = b.date.toISOString().split('T')[0];
+    bookings.forEach((b) => {
+      const dayKey = b.date.toISOString().split("T")[0];
       const farmId = b.farm.toString();
 
       if (!bookingMap[dayKey]) bookingMap[dayKey] = {};
       if (!bookingMap[dayKey][farmId]) bookingMap[dayKey][farmId] = new Set();
 
-      b.bookingModes.forEach(mode => bookingMap[dayKey][farmId].add(mode));
+      b.bookingModes.forEach((mode) => bookingMap[dayKey][farmId].add(mode));
     });
 
     // ✅ Final calendar result
@@ -325,7 +410,7 @@ exports.getMonthlyFarmBookings = async (req, res) => {
 
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month - 1, day);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = date.toISOString().split("T")[0];
       const dayBookings = bookingMap[dateStr] || {};
 
       let fullyBookedCount = 0;
@@ -355,17 +440,17 @@ exports.getMonthlyFarmBookings = async (req, res) => {
       result.push({
         date: dateStr,
         Full_available: hasCompletelyFreeFarm,
-        partial_Available: !hasCompletelyFreeFarm && partialAvailable
+        partial_Available: !hasCompletelyFreeFarm && partialAvailable,
       });
     }
 
     return res.json({
       success: true,
-      data: result
+      data: result,
     });
   } catch (err) {
-    console.error('Calendar booking fetch error:', err);
-    return res.status(500).json({ message: 'Server error' });
+    console.error("Calendar booking fetch error:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -374,63 +459,64 @@ exports.getMonthlyFarmBookings = async (req, res) => {
 exports.FilterQueeryHomePage = async (req, res) => {
   try {
     // ✅ Validate input
-    const { error, value } = FarmValidation.FilterQueeryHomePageScheam.validate(req.body);
+    const { error, value } = FarmValidation.FilterQueeryHomePageScheam.validate(
+      req.body
+    );
     if (error) {
       return res.status(400).json({
         success: false,
-        message: error.details.map(err => err.message).join(', ')
+        message: error.details.map((err) => err.message).join(", "),
       });
     }
 
     const { date, category, capacityRange } = value;
     const { min, max } = capacityRange;
 
-    const isoDateStr = new Date(date).toISOString().split('T')[0];
+    const isoDateStr = new Date(date).toISOString().split("T")[0];
 
-// Build exact day range
-const start = new Date(`${isoDateStr}T00:00:00.000Z`);
-const end = new Date(`${isoDateStr}T23:59:59.999Z`);
-  
+    // Build exact day range
+    const start = new Date(`${isoDateStr}T00:00:00.000Z`);
+    const end = new Date(`${isoDateStr}T23:59:59.999Z`);
 
     // ✅ Step 1: Verify category exists
     const foundCategory = await FarmCategory.findById(category);
     if (!foundCategory) {
       return res.status(404).json({
         success: false,
-        message: 'The selected category does not exist.'
+        message: "The selected category does not exist.",
       });
     }
 
     // ✅ Step 2: Get farms in that category
     const categoryFarms = await Farm.find({
-    farmCategory: { $in: [category] },
+      farmCategory: { $in: [category] },
       isActive: true,
-      isApproved: true
+      isApproved: true,
     });
 
     if (categoryFarms.length === 0) {
       return res.status(404).json({
         success: false,
-        message: `No farms found under the selected category "${foundCategory.name}".`
+        message: `No farms found under the selected category "${foundCategory.name}".`,
       });
     }
 
     // ✅ Step 3: Filter farms by capacity range
-    const capacityFarms = categoryFarms.filter(farm => (
-      farm.capacity >= min && farm.capacity <= max
-    ));
+    const capacityFarms = categoryFarms.filter(
+      (farm) => farm.capacity >= min && farm.capacity <= max
+    );
 
     if (capacityFarms.length === 0) {
       return res.status(404).json({
         success: false,
-        message: `No farms found under category "${foundCategory.name}" with capacity between ${min} and ${max}.`
+        message: `No farms found under category "${foundCategory.name}" with capacity between ${min} and ${max}.`,
       });
     }
 
     // ✅ Step 4: Filter out farms blocked by vendor on the selected date
-    const farmsNotBlocked = capacityFarms.filter(farm => {
-      const blockedDates = (farm.unavailableDates || []).map(d =>
-        new Date(d).toISOString().split('T')[0]
+    const farmsNotBlocked = capacityFarms.filter((farm) => {
+      const blockedDates = (farm.unavailableDates || []).map(
+        (d) => new Date(d).toISOString().split("T")[0]
       );
       return !blockedDates.includes(isoDateStr);
     });
@@ -438,134 +524,150 @@ const end = new Date(`${isoDateStr}T23:59:59.999Z`);
     if (farmsNotBlocked.length === 0) {
       return res.status(404).json({
         success: false,
-        message: `All farms under category "${foundCategory.name}" with capacity between ${min} and ${max} are blocked on ${isoDateStr}.`
+        message: `All farms under category "${foundCategory.name}" with capacity between ${min} and ${max} are blocked on ${isoDateStr}.`,
       });
     }
 
-    const farmIds = farmsNotBlocked.map(f => f._id);
+    const farmIds = farmsNotBlocked.map((f) => f._id);
 
     // ✅ Step 5: Fetch bookings for the given date
     const bookings = await FarmBooking.find({
       farm: { $in: farmIds },
       date: { $gte: start, $lte: end },
-      status: { $in: ['pending', 'confirmed'] }
+      status: { $in: ["pending", "confirmed"] },
     });
 
     // ✅ Step 6: Build farmId → bookedModes map
     const bookingMap = {};
-    bookings.forEach(b => {
+    bookings.forEach((b) => {
       const farmId = b.farm.toString();
       if (!bookingMap[farmId]) bookingMap[farmId] = new Set();
-      b.bookingModes.forEach(mode => bookingMap[farmId].add(mode));
+      b.bookingModes.forEach((mode) => bookingMap[farmId].add(mode));
     });
 
     // ✅ Step 7: Filter farms that are not fully booked
-    const allModes = ['full_day', 'day_slot', 'night_slot'];
-    const availableFarms = farmsNotBlocked.filter(farm => {
+    const allModes = ["full_day", "day_slot", "night_slot"];
+    const availableFarms = farmsNotBlocked.filter((farm) => {
       const bookedModes = bookingMap[farm._id.toString()] || new Set();
-      return !allModes.every(mode => bookedModes.has(mode));
+      return !allModes.every((mode) => bookedModes.has(mode));
     });
 
     if (availableFarms.length === 0) {
       return res.status(404).json({
         success: false,
-        message: `All farms under category "${foundCategory.name}" with capacity between ${min} and ${max} are fully booked on ${isoDateStr}.`
+        message: `All farms under category "${foundCategory.name}" with capacity between ${min} and ${max} are fully booked on ${isoDateStr}.`,
       });
     }
 
     // ✅ Success Response
- return res.status(200).json({
-  success: true,
-  message: `${availableFarms.length} farm(s) available on ${isoDateStr}.`,
-  data: availableFarms
-});
-
+    return res.status(200).json({
+      success: true,
+      message: `${availableFarms.length} farm(s) available on ${isoDateStr}.`,
+      data: availableFarms,
+    });
   } catch (err) {
-    console.error('FilterQueeryHomePage error:', err);
+    console.error("FilterQueeryHomePage error:", err);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error. Please try again later.'
+      message: "Internal server error. Please try again later.",
     });
   }
 };
 
 exports.getFarmById = async (req, res) => {
   try {
-    const { error, value } = FarmValidation.getFarmByIdSchema.validate({ farmId: req.body.farmId });
+    const { error, value } = FarmValidation.getFarmByIdSchema.validate({
+      farmId: req.body.farmId,
+    });
     if (error) {
-      return res.status(400).json({ success: false, message: error.details[0].message });
+      return res
+        .status(400)
+        .json({ success: false, message: error.details[0].message });
     }
 
     const farm = await Farm.findById(value.farmId)
-      .populate('farmCategory', '_id name')
-      .populate('facilities', '_id name icon')
-      .populate('types', '_id name')
-      .populate('owner', '_id name email phone');
+      .populate("farmCategory", "_id name")
+      .populate("facilities", "_id name icon")
+      .populate("types", "_id name")
+      .populate("owner", "_id name email phone");
 
     if (!farm || !farm.isActive || !farm.isApproved) {
-      return res.status(404).json({ success: false, message: 'Farm not found or inactive/unapproved.' });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "Farm not found or inactive/unapproved.",
+        });
     }
 
-    const today = moment().startOf('day');
-    const next30Days = Array.from({ length: 30 }, (_, i) => today.clone().add(i, 'days'));
+    const today = moment().startOf("day");
+    const next30Days = Array.from({ length: 30 }, (_, i) =>
+      today.clone().add(i, "days")
+    );
     const blockedMap = {};
 
-    (farm.unavailableDates || []).forEach(entry => {
-      const dateStr = moment(entry.date).format('YYYY-MM-DD');
+    (farm.unavailableDates || []).forEach((entry) => {
+      const dateStr = moment(entry.date).format("YYYY-MM-DD");
       blockedMap[dateStr] = new Set(entry.blockedSlots || []);
     });
 
     const confirmedBookings = await FarmBooking.find({
       farm: farm._id,
-      status: 'confirmed',
-      date: { $gte: today.toDate(), $lte: next30Days[next30Days.length - 1].toDate() }
+      status: "confirmed",
+      date: {
+        $gte: today.toDate(),
+        $lte: next30Days[next30Days.length - 1].toDate(),
+      },
     });
 
-    confirmedBookings.forEach(b => {
-      const dateStr = moment(b.date).format('YYYY-MM-DD');
-      const nextDateStr = moment(b.date).add(1, 'day').format('YYYY-MM-DD');
+    confirmedBookings.forEach((b) => {
+      const dateStr = moment(b.date).format("YYYY-MM-DD");
+      const nextDateStr = moment(b.date).add(1, "day").format("YYYY-MM-DD");
 
       if (!blockedMap[dateStr]) blockedMap[dateStr] = new Set();
       if (!blockedMap[nextDateStr]) blockedMap[nextDateStr] = new Set();
 
       const modes = b.bookingModes;
 
-      if (modes.includes('full_day')) {
-        blockedMap[dateStr].add('full_day');
-        blockedMap[dateStr].add('day_slot');
-        blockedMap[dateStr].add('night_slot');
-        blockedMap[dateStr].add('full_night');
+      if (modes.includes("full_day")) {
+        blockedMap[dateStr].add("full_day");
+        blockedMap[dateStr].add("day_slot");
+        blockedMap[dateStr].add("night_slot");
+        blockedMap[dateStr].add("full_night");
       }
 
-      if (modes.includes('day_slot')) {
-        blockedMap[dateStr].add('day_slot');
-        blockedMap[dateStr].add('full_day');
-        blockedMap[dateStr].add('full_night');
+      if (modes.includes("day_slot")) {
+        blockedMap[dateStr].add("day_slot");
+        blockedMap[dateStr].add("full_day");
+        blockedMap[dateStr].add("full_night");
       }
 
-      if (modes.includes('night_slot')) {
-        blockedMap[dateStr].add('night_slot');
-        blockedMap[dateStr].add('full_day');
-        blockedMap[dateStr].add('full_night');
+      if (modes.includes("night_slot")) {
+        blockedMap[dateStr].add("night_slot");
+        blockedMap[dateStr].add("full_day");
+        blockedMap[dateStr].add("full_night");
       }
 
-      if (modes.includes('full_night')) {
-        blockedMap[dateStr].add('night_slot');
-        blockedMap[dateStr].add('full_day');
-        blockedMap[dateStr].add('full_night');
-        blockedMap[nextDateStr].add('day_slot');
+      if (modes.includes("full_night")) {
+        blockedMap[dateStr].add("night_slot");
+        blockedMap[dateStr].add("full_day");
+        blockedMap[dateStr].add("full_night");
+
+        // 🆕 also block next day's full_day
+        blockedMap[nextDateStr].add("day_slot");
+        blockedMap[nextDateStr].add("full_day");
       }
     });
 
-    const allModes = ['full_day', 'day_slot', 'night_slot', 'full_night'];
+    const allModes = ["full_day", "day_slot", "night_slot", "full_night"];
 
-    const availability = next30Days.map(dayMoment => {
-      const dateStr = dayMoment.format('YYYY-MM-DD');
-      const dayName = dayMoment.format('dddd');
+    const availability = next30Days.map((dayMoment) => {
+      const dateStr = dayMoment.format("YYYY-MM-DD");
+      const dayName = dayMoment.format("dddd");
       const blockedSlots = blockedMap[dateStr] || new Set();
 
       const slots = {};
-      allModes.forEach(mode => {
+      allModes.forEach((mode) => {
         slots[mode] = !blockedSlots.has(mode);
       });
 
@@ -574,51 +676,56 @@ exports.getFarmById = async (req, res) => {
 
     const farmObj = farm.toObject();
     if (Array.isArray(farmObj.dailyPricing)) {
-      farmObj.dailyPricing = farmObj.dailyPricing.map(dp => ({
+      farmObj.dailyPricing = farmObj.dailyPricing.map((dp) => ({
         ...dp,
-        checkIn: dp.checkIn ? moment(dp.checkIn, 'HH:mm').format('hh:mm A') : '10:00 AM',
-        checkOut: dp.checkOut ? moment(dp.checkOut, 'HH:mm').format('hh:mm A') : '06:00 PM'
+        checkIn: dp.checkIn
+          ? moment(dp.checkIn, "HH:mm").format("hh:mm A")
+          : "10:00 AM",
+        checkOut: dp.checkOut
+          ? moment(dp.checkOut, "HH:mm").format("hh:mm A")
+          : "06:00 PM",
       }));
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Farm fetched successfully.',
+      message: "Farm fetched successfully.",
       data: {
         ...farmObj,
-        availability
-      }
+        availability,
+      },
     });
-
   } catch (err) {
-    console.error('[GetFarmById Error]', err);
-    return res.status(500).json({ success: false, message: 'Internal server error.' });
+    console.error("[GetFarmById Error]", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error." });
   }
 };
 
-
-
 exports.getFarmByImageUrl = async (req, res) => {
   try {
-    console.log('req.body printing:', req.body);
+    console.log("req.body printing:", req.body);
 
     // ✅ Validate body
-    const { error, value } = FarmValidation.getFarmByImageSchema.validate(req.body);
+    const { error, value } = FarmValidation.getFarmByImageSchema.validate(
+      req.body
+    );
     if (error) {
       return res.status(400).json({
         success: false,
-        message: error.details[0].message
+        message: error.details[0].message,
       });
     }
 
     const { farmId, imageurl } = value;
-    console.log('farmId:', farmId, 'imageurl:', imageurl);
+    console.log("farmId:", farmId, "imageurl:", imageurl);
 
     // ✅ Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(farmId)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid Farm ID.'
+        message: "Invalid Farm ID.",
       });
     }
 
@@ -627,30 +734,29 @@ exports.getFarmByImageUrl = async (req, res) => {
       _id: farmId,
       images: imageurl,
       isActive: true,
-      isApproved: true
+      isApproved: true,
     })
-      .populate('farmCategory', '_id name')  // ✅ Only fetch _id and name
-      .populate('facilities', '_id name');   // ✅ Only fetch _id and name
+      .populate("farmCategory", "_id name") // ✅ Only fetch _id and name
+      .populate("facilities", "_id name"); // ✅ Only fetch _id and name
 
     if (!farm) {
       return res.status(404).json({
         success: false,
-        message: 'No farm found with the provided ID and image URL.'
+        message: "No farm found with the provided ID and image URL.",
       });
     }
 
     // ✅ Respond with populated farm details
     return res.status(200).json({
       success: true,
-      message: 'Farm found successfully.',
-      data: farm
+      message: "Farm found successfully.",
+      data: farm,
     });
-
   } catch (err) {
-    console.error('[GetFarmByImageUrl Error]', err);
+    console.error("[GetFarmByImageUrl Error]", err);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error. Please try again later.'
+      message: "Internal server error. Please try again later.",
     });
   }
 };
@@ -659,13 +765,13 @@ const cleanInput = (input) => {
   const clone = { ...input };
 
   // Clean top-level dates
-  if (clone.startDate === '') clone.startDate = undefined;
-  if (clone.endDate === '') clone.endDate = undefined;
+  if (clone.startDate === "") clone.startDate = undefined;
+  if (clone.endDate === "") clone.endDate = undefined;
 
   // Clean capacityRange if min/max is empty
   if (clone.capacityRange) {
     const { min, max } = clone.capacityRange;
-    if (min === '' || max === '') {
+    if (min === "" || max === "") {
       delete clone.capacityRange;
     }
   }
@@ -673,7 +779,7 @@ const cleanInput = (input) => {
   // Clean priceRange if min/max is empty
   if (clone.priceRange) {
     const { min, max } = clone.priceRange;
-    if (min === '' || max === '') {
+    if (min === "" || max === "") {
       delete clone.priceRange;
     }
   }
@@ -681,8 +787,7 @@ const cleanInput = (input) => {
   return clone;
 };
 
-// without type filter 
-
+// without type filter
 
 // exports.FilterQueeryFarms = async (req, res) => {
 //   try {
@@ -933,12 +1038,13 @@ const cleanInput = (input) => {
 exports.FilterQueeryFarms = async (req, res) => {
   try {
     const cleanedBody = cleanInput(req.body);
-    const { error, value } = FarmValidation.FilterQueeryFarm.validate(cleanedBody);
+    const { error, value } =
+      FarmValidation.FilterQueeryFarm.validate(cleanedBody);
 
     if (error) {
       return res.status(400).json({
         success: false,
-        message: error.details[0].message
+        message: error.details[0].message,
       });
     }
 
@@ -951,7 +1057,7 @@ exports.FilterQueeryFarms = async (req, res) => {
       facilities = [],
       types = [],
       page = 1,
-      limit = 10
+      limit = 10,
     } = value;
 
     const now = new Date();
@@ -966,14 +1072,16 @@ exports.FilterQueeryFarms = async (req, res) => {
     }
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return res.status(400).json({ success: false, message: 'Invalid date format.' });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid date format." });
     }
 
     // Create array of all dates in range
     const allDates = [];
     let d = new Date(start);
     while (d <= end) {
-      allDates.push(d.toISOString().split('T')[0]);
+      allDates.push(d.toISOString().split("T")[0]);
       d.setDate(d.getDate() + 1);
     }
 
@@ -984,41 +1092,42 @@ exports.FilterQueeryFarms = async (req, res) => {
     }
 
     let farms = await Farm.find(baseQuery)
-      .populate('farmCategory', '_id name')
-      .populate('facilities', '_id name')
-      .populate('types', '_id name');
+      .populate("farmCategory", "_id name")
+      .populate("facilities", "_id name")
+      .populate("types", "_id name");
 
     if (!farms.length) {
       return res.status(200).json({
         success: false,
         message:
           farmCategory.length > 0
-            ? 'No active and approved farms found for the selected categories.'
-            : 'No active and approved farms found.'
+            ? "No active and approved farms found for the selected categories."
+            : "No active and approved farms found.",
       });
     }
 
     // Filter by capacity
     if (capacityRange) {
       const { min: capMin, max: capMax } = capacityRange;
-      farms = farms.filter(f => f.capacity >= capMin && f.capacity <= capMax);
+      farms = farms.filter((f) => f.capacity >= capMin && f.capacity <= capMax);
     }
 
     // Filter by facilities
     if (facilities.length > 0) {
       const facilitySet = new Set(facilities.map(String));
-      farms = farms.filter(farm =>
-        Array.isArray(farm.facilities) &&
-        farm.facilities.some(f => facilitySet.has(String(f._id)))
+      farms = farms.filter(
+        (farm) =>
+          Array.isArray(farm.facilities) &&
+          farm.facilities.some((f) => facilitySet.has(String(f._id)))
       );
     }
 
     // Filter by types
     if (types.length > 0) {
       const typesSet = new Set(types.map(String));
-      farms = farms.filter(farm => {
+      farms = farms.filter((farm) => {
         const assigned = Array.isArray(farm.types) ? farm.types : [];
-        return assigned.some(t => typesSet.has(String(t?._id || t)));
+        return assigned.some((t) => typesSet.has(String(t?._id || t)));
       });
     }
 
@@ -1026,54 +1135,60 @@ exports.FilterQueeryFarms = async (req, res) => {
     if (priceRange) {
       const { min: priceMin, max: priceMax } = priceRange;
 
-      farms = farms.filter(farm => {
-        return allDates.some(dateStr => {
-          const dailyEntry = farm.dailyPricing?.find(d => {
+      farms = farms.filter((farm) => {
+        return allDates.some((dateStr) => {
+          const dailyEntry = farm.dailyPricing?.find((d) => {
             const dt = new Date(d.date);
-            return !isNaN(dt.getTime()) &&
-              dt.toISOString().split('T')[0] === dateStr;
+            return (
+              !isNaN(dt.getTime()) && dt.toISOString().split("T")[0] === dateStr
+            );
           });
 
           let slotPrices = dailyEntry?.slots || farm.defaultPricing || {};
-          let prices = Object.values(slotPrices).map(s => s?.pricePerGuest || 0);
+          let prices = Object.values(slotPrices).map(
+            (s) => s?.pricePerGuest || 0
+          );
 
-          return prices.some(p => p >= priceMin && p <= priceMax);
+          return prices.some((p) => p >= priceMin && p <= priceMax);
         });
       });
     }
 
     // Get all bookings in the date range
     const bookings = await FarmBooking.find({
-      farm: { $in: farms.map(f => f._id) },
+      farm: { $in: farms.map((f) => f._id) },
       date: { $gte: start, $lte: end },
-      status: { $in: ['pending', 'confirmed'] }
+      status: { $in: ["pending", "confirmed"] },
     });
 
     const bookingMap = {};
-    bookings.forEach(b => {
+    bookings.forEach((b) => {
       const fid = b.farm.toString();
-      const dateStr = new Date(b.date).toISOString().split('T')[0];
+      const dateStr = new Date(b.date).toISOString().split("T")[0];
       if (!bookingMap[fid]) bookingMap[fid] = {};
       if (!bookingMap[fid][dateStr]) bookingMap[fid][dateStr] = new Set();
-      b.bookingModes.forEach(mode => bookingMap[fid][dateStr].add(mode));
+      b.bookingModes.forEach((mode) => bookingMap[fid][dateStr].add(mode));
     });
 
-    const allModes = ['full_day', 'day_slot', 'night_slot', 'full_night'];
+    const allModes = ["full_day", "day_slot", "night_slot", "full_night"];
 
     // Map farms with availability per slot per date
-    const availableFarms = farms.map(farm => {
+    const availableFarms = farms.map((farm) => {
       const farmObj = farm.toObject();
       farmObj.availability = {};
 
-      allDates.forEach(dateStr => {
+      allDates.forEach((dateStr) => {
         const blockedEntry = (farm.unavailableDates || []).find(
-          d => new Date(d.date).toISOString().split('T')[0] === dateStr
+          (d) => new Date(d.date).toISOString().split("T")[0] === dateStr
         );
-        const bookedModes = bookingMap[farm._id.toString()]?.[dateStr] || new Set();
-        const offeredSlots = allModes.filter(mode => farm.bookingModes[mode]);
+        const bookedModes =
+          bookingMap[farm._id.toString()]?.[dateStr] || new Set();
+        const offeredSlots = allModes.filter((mode) => farm.bookingModes[mode]);
 
         farmObj.availability[dateStr] = offeredSlots.reduce((acc, mode) => {
-          acc[mode] = !bookedModes.has(mode) && !(blockedEntry?.blockedSlots || []).includes(mode);
+          acc[mode] =
+            !bookedModes.has(mode) &&
+            !(blockedEntry?.blockedSlots || []).includes(mode);
           return acc;
         }, {});
       });
@@ -1087,26 +1202,25 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `${availableFarms.length} active & approved farm(s) available from ${start.toDateString()} to ${end.toDateString()}.`,
+      message: `${
+        availableFarms.length
+      } active & approved farm(s) available from ${start.toDateString()} to ${end.toDateString()}.`,
       pagination: {
         total: availableFarms.length,
         page,
         limit,
-        totalPages: Math.ceil(availableFarms.length / limit)
+        totalPages: Math.ceil(availableFarms.length / limit),
       },
-      data: paginatedFarms
+      data: paginatedFarms,
     });
-
   } catch (err) {
-    console.error('Farm filter query error:', err);
+    console.error("Farm filter query error:", err);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error. Please try again later.'
+      message: "Internal server error. Please try again later.",
     });
   }
 };
-
-
 
 exports.getFarmCategories = async (req, res) => {
   try {
@@ -1115,36 +1229,38 @@ exports.getFarmCategories = async (req, res) => {
     if (error) {
       return res.status(400).json({
         success: false,
-        message: error.details[0].message
+        message: error.details[0].message,
       });
     }
 
     // 1️⃣ Get distinct farmCategory IDs from Farm collection
-    const categoryIds = await Farm.distinct('farmCategory')
+    const categoryIds = await Farm.distinct("farmCategory");
 
-    console.log("farm categoruies printing",categoryIds)
+    console.log("farm categoruies printing", categoryIds);
 
     if (!categoryIds || categoryIds.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'No farm categories associated with any farm.'
+        message: "No farm categories associated with any farm.",
       });
     }
 
     // 2️⃣ Get FarmCategory documents matching those IDs
-    const categories = await FarmCategory.find({ _id: { $in: categoryIds } }, '_id name').sort({ name: 1 });
+    const categories = await FarmCategory.find(
+      { _id: { $in: categoryIds } },
+      "_id name"
+    ).sort({ name: 1 });
 
     return res.status(200).json({
       success: true,
-      message: 'Farm categories fetched successfully.',
-      data: categories
+      message: "Farm categories fetched successfully.",
+      data: categories,
     });
-
   } catch (err) {
-    console.error('Category fetch error:', err);
+    console.error("Category fetch error:", err);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error. Please try again later.'
+      message: "Internal server error. Please try again later.",
     });
   }
 };
@@ -1156,37 +1272,36 @@ exports.getUsedFacilities = async (req, res) => {
     if (error) {
       return res.status(400).json({
         success: false,
-        message: error.details[0].message
+        message: error.details[0].message,
       });
     }
 
     // 1️⃣ Fetch used facility IDs
-    const facilityIds = await Farm.distinct('facilities')
+    const facilityIds = await Farm.distinct("facilities");
 
     if (!facilityIds.length) {
       return res.status(404).json({
         success: false,
-        message: 'No facilities are currently associated with any farm.'
+        message: "No facilities are currently associated with any farm.",
       });
     }
 
     // 2️⃣ Get full facility details
     const facilities = await Facility.find(
       { _id: { $in: facilityIds } },
-      '_id name class_name'
+      "_id name class_name"
     ).sort({ name: 1 });
-//  console.log("facilites printing",facilities)
+    //  console.log("facilites printing",facilities)
     return res.status(200).json({
       success: true,
-      message: 'Facilities fetched successfully.',
-      data: facilities
+      message: "Facilities fetched successfully.",
+      data: facilities,
     });
-
   } catch (err) {
-    console.error('Facility fetch error:', err);
+    console.error("Facility fetch error:", err);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error. Please try again later.'
+      message: "Internal server error. Please try again later.",
     });
   }
 };
@@ -1198,12 +1313,12 @@ exports.getFarmTypes = async (req, res) => {
     if (error) {
       return res.status(400).json({
         success: false,
-        message: error.details[0].message
+        message: error.details[0].message,
       });
     }
 
     // 1️⃣ Get distinct Type IDs from farms that are active + approved
-    let typeIds = await Farm.distinct('types')
+    let typeIds = await Farm.distinct("types");
 
     // filter out null/undefined just in case
     typeIds = (typeIds || []).filter(Boolean);
@@ -1211,26 +1326,25 @@ exports.getFarmTypes = async (req, res) => {
     if (!typeIds.length) {
       return res.status(404).json({
         success: false,
-        message: 'No types associated with any farm.'
+        message: "No types associated with any farm.",
       });
     }
 
     // 2️⃣ Fetch Types docs for those IDs (only _id, name), sorted A→Z
-    const types = await Types.find(
-      { _id: { $in: typeIds } },
-      '_id name'
-    ).sort({ name: 1 });
+    const types = await Types.find({ _id: { $in: typeIds } }, "_id name").sort({
+      name: 1,
+    });
 
     return res.status(200).json({
       success: true,
-      message: 'Farm types fetched successfully.',
-      data: types
+      message: "Farm types fetched successfully.",
+      data: types,
     });
   } catch (err) {
-    console.error('Type fetch error:', err);
+    console.error("Type fetch error:", err);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error. Please try again later.'
+      message: "Internal server error. Please try again later.",
     });
   }
 };
@@ -1306,17 +1420,17 @@ exports.getFarmTypes = async (req, res) => {
 //   }
 // };
 
-
-
 exports.getFarmImagesByCategories = async (req, res) => {
   try {
     console.log("req.body printing", req.body);
 
-    const { error, value } = FarmValidation.getImagesByFarmTypeSchema.validate(req.body);
+    const { error, value } = FarmValidation.getImagesByFarmTypeSchema.validate(
+      req.body
+    );
     if (error) {
       return res.status(400).json({
         success: false,
-        message: error.details[0].message
+        message: error.details[0].message,
       });
     }
 
@@ -1325,7 +1439,7 @@ exports.getFarmImagesByCategories = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(categoryId)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid category ID.'
+        message: "Invalid category ID.",
       });
     }
 
@@ -1334,7 +1448,7 @@ exports.getFarmImagesByCategories = async (req, res) => {
     if (!categoryExists) {
       return res.status(404).json({
         success: false,
-        message: 'Farm category not found.'
+        message: "Farm category not found.",
       });
     }
 
@@ -1343,46 +1457,43 @@ exports.getFarmImagesByCategories = async (req, res) => {
       {
         farmCategory: categoryId,
         isActive: true,
-        isApproved: true
+        isApproved: true,
       },
-      '_id images'
+      "_id images"
     );
 
     if (!farms.length) {
       return res.status(404).json({
         success: false,
-        message: 'No farms found for this category.'
+        message: "No farms found for this category.",
       });
     }
 
     // ✅ Extract images along with farmId
-    const allImagesWithFarmId = farms.flatMap(farm =>
-      (farm.images || []).map(img => ({
+    const allImagesWithFarmId = farms.flatMap((farm) =>
+      (farm.images || []).map((img) => ({
         farmId: farm._id,
-        image: img
+        image: img,
       }))
     );
 
     if (!allImagesWithFarmId.length) {
       return res.status(404).json({
         success: false,
-        message: 'No images found for farms of this category.'
+        message: "No images found for farms of this category.",
       });
     }
 
     res.status(200).json({
       success: true,
       message: `${allImagesWithFarmId.length} image(s) found for this category.`,
-      data: allImagesWithFarmId
+      data: allImagesWithFarmId,
     });
-
   } catch (err) {
-    console.error('[GetFarmImagesByCategory Error]', err);
+    console.error("[GetFarmImagesByCategory Error]", err);
     res.status(500).json({
       success: false,
-      message: 'Internal server error. Please try again later.'
+      message: "Internal server error. Please try again later.",
     });
   }
 };
-
-

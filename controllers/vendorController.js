@@ -2512,7 +2512,7 @@ exports.updateBookingStatusByVendor = async (req, res) => {
         currentDaySlotsToCancel = ["day_slot", "night_slot", "full_day", "full_night"];
       } else if (modes.includes("full_night")) {
         currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
-        nextDaySlotsToCancel = ["day_slot"];
+       nextDaySlotsToCancel = ["day_slot", "full_day"];
       }
 
       // Cancel current day conflicting bookings
