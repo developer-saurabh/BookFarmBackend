@@ -405,13 +405,13 @@ exports.sendInquiry = async (req, res) => {
     if (!farmDoc) return res.status(404).json({ error: "Farm not found" });
 
     // ✅ Capacity
-    if (Number(Guest_Count) > Number(farmDoc.capacity || 0)) {
-      return res
-        .status(400)
-        .json({
-          error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}).`,
-        });
-    }
+    // if (Number(Guest_Count) > Number(farmDoc.capacity || 0)) {
+    //   return res
+    //     .status(400)
+    //     .json({
+    //       error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}).`,
+    //     });
+    // }
 
     // ✅ Duplicate inquiry guard
     const existingInquiry = await FarmBooking.findOne({
