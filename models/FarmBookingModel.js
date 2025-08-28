@@ -84,16 +84,15 @@ farmSnapshot: {
     areaName: String
   }
 },
+  barbequeCharcoal: {
+    type: Boolean,
+    default: false
+  },
+  kitchen: {
+    type: Boolean,
+    default: false
+  },
 
-  // 🥘 Meals & Addons
-  meal1: { type: String },
-  meal2: { type: String },
-  meal3: { type: String },
-  meal4: { type: String },
-  barbequeCharcoal: { type: String },
-  kitchen: { type: String },
-  additionalInfo1: { type: String },
-  additionalInfo2: { type: String },
  
    updatedBy: { type: UpdatedBySchema, default: null },  
 }, { timestamps: true });

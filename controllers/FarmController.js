@@ -14,6 +14,339 @@ const { Types: MongooseTypes, isValidObjectId } = require("mongoose");
 
 // sendInquiry — Map<Number> safe + daily-zeros fallback to default
 
+// exports.sendInquiry = async (req, res) => {
+//   try {
+//     // ✅ Validate
+//     const { error, value } =
+//       FarmValidation.farmBookingValidationSchema.validate(req.body, {
+//         abortEarly: false,
+//       });
+//     if (error) {
+//       return res
+//         .status(400)
+//         .json({
+//           message: "Validation failed",
+//           errors: error.details.map((e) => e.message),
+//         });
+//     }
+
+//     // 🧹 tiny helper to normalize optional strings
+//     const s = (v) => (typeof v === "string" ? v.trim() : undefined);
+
+//     const {
+//       customerName,
+//       customerPhone,
+//       customerEmail,
+//       customer,
+//       farm_id,
+//       date,
+//       bookingModes,
+//       Guest_Count,
+//       Group_Category,
+
+//       // 🆕 Optional extras
+//       meal1,
+//       meal2,
+//       meal3,
+//       meal4,
+//       barbequeCharcoal,
+//       kitchen,
+//       additionalInfo1,
+//       additionalInfo2,
+//     } = value;
+
+//     // ✅ Date normalize (midnight) + yyyy-mm-dd (local)
+//     const normalizedDate = new Date(date);
+//     if (isNaN(normalizedDate))
+//       return res.status(400).json({ error: "Invalid date." });
+//     normalizedDate.setHours(0, 0, 0, 0);
+//     const isoDateStr = new Date(
+//       normalizedDate.getTime() - normalizedDate.getTimezoneOffset() * 60000
+//     )
+//       .toISOString()
+//       .split("T")[0];
+
+//     // ✅ Farm
+//     const farmDoc = await Farm.findById(farm_id);
+//     if (!farmDoc) return res.status(404).json({ error: "Farm not found" });
+
+//     // ✅ Capacity
+//     if (Number(Guest_Count) > Number(farmDoc.capacity || 0)) {
+//       return res
+//         .status(400)
+//         .json({
+//           error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}).`,
+//         });
+//     }
+
+//     // ✅ Duplicate inquiry guard
+//     const existingInquiry = await FarmBooking.findOne({
+//       farm: farm_id,
+//       date: normalizedDate,
+//       customerPhone,
+//       bookingModes: { $in: bookingModes },
+//       status: { $in: ["pending", "confirmed"] },
+//     });
+//     if (existingInquiry) {
+//       return res
+//         .status(409)
+//         .json({
+//           error: `You already submitted an inquiry for this farm and slot(s).`,
+//         });
+//     }
+
+//     // ✅ Disallow combos
+//     if (bookingModes.includes("full_day") && bookingModes.length > 1) {
+//       return res
+//         .status(400)
+//         .json({ error: `'full_day' cannot be combined with other slots.` });
+//     }
+//     if (
+//       bookingModes.includes("full_night") &&
+//       bookingModes.includes("full_day")
+//     ) {
+//       return res
+//         .status(400)
+//         .json({ error: `'full_night' cannot be combined with full_day.` });
+//     }
+
+//     // ✅ Existing confirmed conflicts
+//     const existingConfirmed = await FarmBooking.find({
+//       farm: farm_id,
+//       date: normalizedDate,
+//       status: "confirmed",
+//     });
+//     const existingModes = existingConfirmed.flatMap(
+//       (b) => b.bookingModes || []
+//     );
+
+//     if (
+//       (bookingModes.includes("day_slot") ||
+//         bookingModes.includes("night_slot") ||
+//         bookingModes.includes("full_night")) &&
+//       existingModes.includes("full_day")
+//     ) {
+//       return res
+//         .status(409)
+//         .json({
+//           error: `Farm is already confirmed for full day on ${isoDateStr}.`,
+//         });
+//     }
+//     if (bookingModes.includes("full_day") && existingModes.length > 0) {
+//       return res
+//         .status(409)
+//         .json({
+//           error: `Farm already has confirmed bookings on ${isoDateStr}.`,
+//         });
+//     }
+//     if (
+//       (bookingModes.includes("full_night") &&
+//         existingModes.includes("night_slot")) ||
+//       (bookingModes.includes("night_slot") &&
+//         existingModes.includes("full_night"))
+//     ) {
+//       return res
+//         .status(409)
+//         .json({
+//           error: `Farm already confirmed for a conflicting night slot on ${isoDateStr}.`,
+//         });
+//     }
+
+//     const conflicting = existingConfirmed.filter((b) =>
+//       (b.bookingModes || []).some((mode) => bookingModes.includes(mode))
+//     );
+//     if (conflicting.length > 0) {
+//       const conflictModes = [
+//         ...new Set(conflicting.flatMap((b) => b.bookingModes)),
+//       ];
+//       return res
+//         .status(409)
+//         .json({
+//           error: `Farm already confirmed for: ${conflictModes.join(", ")}`,
+//           conflict: conflictModes,
+//         });
+//     }
+
+//     // =========================
+//     // 💰 PRICING
+//     // =========================
+//     const priceBreakdownObj = {}; // plain object first
+//     const pricingDetails = {}; // optional: rich details
+//     let totalPrice = 0;
+
+//     const num = (v, d = 0) => {
+//       const n = Number(v);
+//       return Number.isFinite(n) ? n : d;
+//     };
+
+//     // find daily (yyyy-mm-dd match)
+//     const matchedDaily = (farmDoc.dailyPricing || []).find((d) => {
+//       const dDate = new Date(d.date);
+//       if (isNaN(dDate)) return false;
+//       const local = new Date(
+//         dDate.getTime() - dDate.getTimezoneOffset() * 60000
+//       )
+//         .toISOString()
+//         .split("T")[0];
+//       return local === isoDateStr;
+//     });
+
+//     // merged source (default + daily overrides)
+//     const defaultPricing = farmDoc.defaultPricing || {};
+//     const mergedSource = { ...defaultPricing };
+//     if (
+//       matchedDaily &&
+//       matchedDaily.slots &&
+//       typeof matchedDaily.slots === "object" &&
+//       !Array.isArray(matchedDaily.slots)
+//     ) {
+//       Object.assign(mergedSource, matchedDaily.slots);
+//     }
+
+//     console.log(
+//       "🧾 price source picked =>",
+//       matchedDaily ? "merged(default+daily)" : "default",
+//       mergedSource
+//     );
+//     console.log("🧾 raw defaultPricing =>", defaultPricing);
+//     if (matchedDaily) console.log("🧾 raw daily slots =>", matchedDaily.slots);
+
+//     for (const mode of bookingModes) {
+//       let cfg = mergedSource?.[mode];
+//       if (cfg === undefined || cfg === null) {
+//         return res
+//           .status(400)
+//           .json({
+//             error: `Pricing not configured for "${mode}" on ${isoDateStr}.`,
+//           });
+//       }
+
+//       let base = 0;
+//       let perGuest = 0;
+
+//       if (typeof cfg === "number") {
+//         base = num(cfg, 0);
+//       } else if (typeof cfg === "object") {
+//         base = num(cfg.price, 0);
+//         perGuest = num(cfg.pricePerGuest, 0);
+
+//         // 👇 if daily override sets both to 0, fallback to default
+//         if (base === 0 && perGuest === 0 && defaultPricing?.[mode] != null) {
+//           const def = defaultPricing[mode];
+//           if (typeof def === "number") {
+//             base = num(def, 0);
+//             perGuest = 0;
+//           } else if (typeof def === "object") {
+//             base = num(def.price, 0);
+//             perGuest = num(def.pricePerGuest, 0);
+//           }
+//         }
+//       } else {
+//         return res
+//           .status(400)
+//           .json({
+//             error: `Invalid pricing format for "${mode}" on ${isoDateStr}.`,
+//           });
+//       }
+
+//       const guests = num(Guest_Count, 0);
+//       const subtotal = base + perGuest * guests;
+
+//       priceBreakdownObj[mode] = num(subtotal, 0);
+//       pricingDetails[mode] = {
+//         source: matchedDaily ? "daily-override" : "default",
+//         base,
+//         perGuest,
+//         guests,
+//         subtotal,
+//       };
+
+//       totalPrice += subtotal;
+//     }
+
+//     // =========================
+//     // 👤 CUSTOMER UPSERT
+//     // =========================
+//     let customerId = customer;
+//     if (!customerId) {
+//       const existingCustomer = await Customer.findOne({
+//         $or: [{ phone: customerPhone }, { email: customerEmail }],
+//       });
+//       customerId = existingCustomer
+//         ? existingCustomer._id
+//         : (
+//             await Customer.create({
+//               name: customerName,
+//               phone: customerPhone,
+//               email: customerEmail,
+//             })
+//           )._id;
+//     }
+
+//     const generateBookingId = () => Math.floor(100000 + Math.random() * 900000);
+
+//     // =========================
+//     // 📝 SAVE
+//     // =========================
+//     const priceBreakdownMap = new Map(Object.entries(priceBreakdownObj));
+
+//     const inquiry = new FarmBooking({
+//       Booking_id: generateBookingId(),
+//       customerName,
+//       customerPhone,
+//       customerEmail,
+//       customer: customerId,
+//       farm: farm_id,
+//       date: normalizedDate,
+//       bookingModes,
+//       Group_Category,
+//       Guest_Count,
+
+//       // 🆕 Save optional extras (trimmed if strings present)
+  
+
+//       status: "pending",
+//       paymentStatus: "unpaid",
+//       totalPrice,
+//       priceBreakdown: priceBreakdownMap,
+//       meta: { pricingDetails },
+//       farmSnapshot: {
+//         name: farmDoc.name,
+//         location: {
+//           address: farmDoc.location?.address,
+//           city: farmDoc.location?.city,
+//           state: farmDoc.location?.state,
+//           pinCode: farmDoc.location?.pinCode,
+//           areaName: farmDoc.location?.areaName,
+//         },
+//       },
+//     });
+
+//     await inquiry.save();
+
+//     // =========================
+//     // 📤 RESPONSE (normalize Map→object)
+//     // =========================
+//     const data = inquiry.toObject({ virtuals: true, getters: true });
+//     const pb =
+//       data.priceBreakdown instanceof Map
+//         ? Object.fromEntries(data.priceBreakdown)
+//         : typeof data.priceBreakdown === "object" &&
+//           data.priceBreakdown !== null
+//         ? data.priceBreakdown
+//         : Object.fromEntries(priceBreakdownMap);
+//     data.priceBreakdown = pb;
+
+//     return res.status(201).json({
+//       message: "Inquiry submitted successfully!",
+//       data,
+//     });
+//   } catch (err) {
+//     console.error("[FarmInquiry Error]", err);
+//     return res.status(500).json({ error: "Server error. Try again later." });
+//   }
+// };
+
 exports.sendInquiry = async (req, res) => {
   try {
     // ✅ Validate
@@ -302,15 +635,9 @@ exports.sendInquiry = async (req, res) => {
       Group_Category,
       Guest_Count,
 
-      // 🆕 Save optional extras (trimmed if strings present)
-      meal1: s(meal1),
-      meal2: s(meal2),
-      meal3: s(meal3),
-      meal4: s(meal4),
-      barbequeCharcoal: s(barbequeCharcoal),
-      kitchen: s(kitchen),
-      additionalInfo1: s(additionalInfo1),
-      additionalInfo2: s(additionalInfo2),
+      // 🆕 Save optional extras
+      barbequeCharcoal: barbequeCharcoal ?? false,
+      kitchen: kitchen ?? false,
 
       status: "pending",
       paymentStatus: "unpaid",
@@ -353,6 +680,7 @@ exports.sendInquiry = async (req, res) => {
     return res.status(500).json({ error: "Server error. Try again later." });
   }
 };
+
 
 exports.getMonthlyFarmBookings = async (req, res) => {
   try {
