@@ -153,6 +153,14 @@ Guest_Count: Joi.number()
     .messages({
       'boolean.base': 'kitchen must be true or false.'
     }),
+      Total_Price_By_Customer: Joi.number()
+    .min(0)
+    .optional()
+    .messages({
+      'number.base': 'Total price must be a number.',
+      'number.min': 'Total price cannot be negative.',
+      'any.required': 'Total price is required.'
+    }),
 });
 
 

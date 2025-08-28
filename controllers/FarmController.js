@@ -386,6 +386,7 @@ exports.sendInquiry = async (req, res) => {
       kitchen,
       additionalInfo1,
       additionalInfo2,
+        Total_Price_By_Customer
     } = value;
 
     // ✅ Date normalize (midnight) + yyyy-mm-dd (local)
@@ -622,39 +623,40 @@ exports.sendInquiry = async (req, res) => {
     // 📝 SAVE
     // =========================
     const priceBreakdownMap = new Map(Object.entries(priceBreakdownObj));
+const inquiry = new FarmBooking({
+  Booking_id: generateBookingId(),
+  customerName,
+  customerPhone,
+  customerEmail,
+  customer: customerId,
+  farm: farm_id,
+  date: normalizedDate,
+  bookingModes,
+  Group_Category,
+  Guest_Count,
 
-    const inquiry = new FarmBooking({
-      Booking_id: generateBookingId(),
-      customerName,
-      customerPhone,
-      customerEmail,
-      customer: customerId,
-      farm: farm_id,
-      date: normalizedDate,
-      bookingModes,
-      Group_Category,
-      Guest_Count,
+  // Optional extras
+  barbequeCharcoal: barbequeCharcoal ?? false,
+  kitchen: kitchen ?? false,
 
-      // 🆕 Save optional extras
-      barbequeCharcoal: barbequeCharcoal ?? false,
-      kitchen: kitchen ?? false,
+  status: "pending",
+  paymentStatus: "unpaid",
+  totalPrice, // system-calculated
+  totalPriceByCustomer: Total_Price_By_Customer ,
+  priceBreakdown: priceBreakdownMap,
+  meta: { pricingDetails },
+  farmSnapshot: {
+    name: farmDoc.name,
+    location: {
+      address: farmDoc.location?.address,
+      city: farmDoc.location?.city,
+      state: farmDoc.location?.state,
+      pinCode: farmDoc.location?.pinCode,
+      areaName: farmDoc.location?.areaName,
+    },
+  },
+});
 
-      status: "pending",
-      paymentStatus: "unpaid",
-      totalPrice,
-      priceBreakdown: priceBreakdownMap,
-      meta: { pricingDetails },
-      farmSnapshot: {
-        name: farmDoc.name,
-        location: {
-          address: farmDoc.location?.address,
-          city: farmDoc.location?.city,
-          state: farmDoc.location?.state,
-          pinCode: farmDoc.location?.pinCode,
-          areaName: farmDoc.location?.areaName,
-        },
-      },
-    });
 
     await inquiry.save();
 
@@ -673,7 +675,7 @@ exports.sendInquiry = async (req, res) => {
 
     return res.status(201).json({
       message: "Inquiry submitted successfully!",
-      data,
+      data
     });
   } catch (err) {
     console.error("[FarmInquiry Error]", err);

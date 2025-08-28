@@ -92,8 +92,7 @@ farmSnapshot: {
     type: Boolean,
     default: false
   },
-
- 
+totalPriceByCustomer: { type: Number, default: 0 },
    updatedBy: { type: UpdatedBySchema, default: null },  
 }, { timestamps: true });
 
