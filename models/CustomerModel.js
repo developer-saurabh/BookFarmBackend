@@ -9,7 +9,7 @@ const customerSchema = new mongoose.Schema({
   name: String,
   email: {
     type: String,
-    required: true,
+    required: false,
     unique: true
   },
   isBlacklisted: { type: Boolean, default: false },
