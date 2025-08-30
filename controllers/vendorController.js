@@ -3182,7 +3182,6 @@ exports.loginVendorMobile = async (req, res) => {
       return res.status(401).json({ error: "Incorrect password. Please try again." });
     }
 
-    // ✅ 5) Update last login + store playerId
   // ✅ 5) Update last login + store playerId
 vendor.lastLogin = new Date();
 if (playerId && playerId.length === 36 && !vendor.playerIds.includes(playerId)) {
