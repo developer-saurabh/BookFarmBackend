@@ -3183,13 +3183,12 @@ exports.loginVendorMobile = async (req, res) => {
     }
 
     // ✅ 5) Update last login + store playerId
-    vendor.lastLogin = new Date();
-    if (playerId) {
-      if (!vendor.playerIds.includes(playerId)) {
-        vendor.playerIds.push(playerId); // add only if new
-      }
-    }
-    await vendor.save();
+  // ✅ 5) Update last login + store playerId
+vendor.lastLogin = new Date();
+if (playerId && playerId.length === 36 && !vendor.playerIds.includes(playerId)) {
+    vendor.playerIds.push(playerId);
+}
+await vendor.save();
 
     // ✅ 6) Generate JWT with lastLogin
     const token = jwt.sign(
@@ -3207,14 +3206,18 @@ exports.loginVendorMobile = async (req, res) => {
     // ✅ 7) Send token in header
     res.setHeader("Authorization", `Bearer ${token}`);
 
-    // ✅ 8) 🔔 Send notification on login (optional)
+// ✅ 8) 🔔 Send notification safely
+const validPlayerIds = vendor.playerIds.filter(id => typeof id === 'string' && id.length === 36);
+if (validPlayerIds.length > 0) {
     await sendNotification({
-      playerIds: vendor.playerIds,
-      title: "🎉 Login Successful",
-      message: `Welcome back, ${vendor.name}!`,
-      data: { vendorId: vendor._id },
+        playerIds: validPlayerIds,
+        title: "🎉 Login Successful",
+        message: `Welcome back, ${vendor.name}!`,
+        data: { vendorId: vendor._id },
     });
-
+} else {
+    console.warn("No valid playerIds to send notification");
+}
     // ✅ 9) Response
     return res.status(200).json({
       message: "✅ Login successful.",
