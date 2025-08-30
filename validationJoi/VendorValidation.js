@@ -100,6 +100,12 @@ exports. vendorLoginSchema = Joi.object({
   })
 });
 
+exports.vendorLoginSchemaMobile = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().min(6).required(),
+  playerId: Joi.string().optional().allow(null, ""), // 👉 allow empty or null
+});
+
 exports.changePasswordSchema = Joi.object({
   oldPassword: Joi.string().required().messages({
     'string.empty': 'Old password is required.'

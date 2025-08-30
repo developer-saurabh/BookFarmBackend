@@ -50,7 +50,12 @@ const vendorSchema = new mongoose.Schema({
   ,isHold:{
     type:Boolean,
     default:false
-  }
+  },
+    // 👉 OneSignal Player ID (for push notifications)
+  playerIds: {
+    type: [String], // store multiple player IDs
+    default: [],
+  },
 }, { timestamps: true });
 
 vendorSchema.pre('save', async function (next) {

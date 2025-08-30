@@ -1,33 +1,36 @@
-// services/oneSignalService.js
-const axios = require("axios");
-const { appId, apiKey, baseURL } = require("../config/oneSignal");
 
-// Send push notification to specific device(s)
-async function sendPushNotification({ title, message, playerIds = [] }) {
+const axios = require("axios");
+const oneSignalConfig = require("../config/oneSignal");
+async function sendNotification({ playerIds, title, message, data = {} }) {
   try {
+    if (!playerIds || playerIds.length === 0) {
+      console.warn("⚠️ No playerIds provided, skipping notification.");
+      return;
+    }
+
     const response = await axios.post(
-      `${baseURL}/api/v1/notifications`,
+      `${oneSignalConfig.baseURL}/notifications`,
       {
-        app_id: appId,
+        app_id: oneSignalConfig.appId,
+        include_player_ids: playerIds, // supports multiple devices
         headings: { en: title },
         contents: { en: message },
-        include_player_ids: playerIds, // device tokens
+        data,
       },
       {
         headers: {
-          Authorization: `Basic ${apiKey}`,
+          Authorization: `Basic ${oneSignalConfig.restApiKey}`,
           "Content-Type": "application/json",
         },
+        timeout: oneSignalConfig.timeoutMs,
       }
     );
 
     return response.data;
   } catch (err) {
-    console.error("❌ Error sending notification:", err.response?.data || err.message);
+    console.error("🚨 Error sending notification:", err.response?.data || err.message);
     throw err;
   }
 }
 
-module.exports = {
-  sendPushNotification,
-};
+module.exports = { sendNotification };

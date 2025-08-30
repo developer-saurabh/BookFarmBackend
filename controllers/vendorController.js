@@ -19,6 +19,7 @@ const Types = require("../models/TypeModel");
 const FarmType = require("../models/TypeModel");
 const moment = require("moment");
 const { normalizeFeature } = require("../utils/AddFarmUtil");
+const { sendNotification } = require("../services/OneSignal");
 
 // Register  Apis
 
@@ -3065,6 +3066,170 @@ exports.getAllVendorDetails = async (req, res) => {
       message: "Internal server error",
       error: err.message,
     });
+  }
+};
+
+exports.loginVendor = async (req, res) => {
+  try {
+    // ✅ 1) Validate input
+    const { error, value } = VendorValiidation.vendorLoginSchema.validate(
+      req.body
+    );
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const { email, password, playerId } = value; // 👉 get playerId also
+
+    // ✅ 2) Find vendor by email
+    const vendor = await Vendor.findOne({ email });
+    if (!vendor) {
+      return res.status(404).json({
+        error: "Email not found. Please register first or check your email address.",
+      });
+    }
+
+    // ✅ 3) Check vendor status BEFORE comparing password
+    if (!vendor.isVerified) {
+      return res.status(403).json({ error: "Vendor is not verified. Please contact admin." });
+    }
+    if (!vendor.isActive) {
+      return res.status(403).json({ error: "Vendor account is inactive. Please contact admin." });
+    }
+    if (vendor.isBlocked) {
+      return res.status(403).json({ error: "Vendor account is blocked. Access denied." });
+    }
+
+    // ✅ 4) Compare password
+    const isMatch = await bcrypt.compare(password, vendor.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Incorrect password. Please try again." });
+    }
+
+    // ✅ 5) Update last login + store playerId
+    vendor.lastLogin = new Date();
+    if (playerId) {
+      vendor.playerId = playerId; // 👉 store OneSignal playerId
+    }
+    await vendor.save();
+
+    // ✅ 6) Generate JWT with lastLogin
+    const token = jwt.sign(
+      {
+        id: vendor._id,
+        email: vendor.email,
+        role: "vendor",
+        name: vendor.name,
+        lastLogin: vendor.lastLogin.getTime(),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // ✅ 7) Send token in header
+    res.setHeader("Authorization", `Bearer ${token}`);
+
+    // ✅ 8) Response
+    return res.status(200).json({
+      message: "✅ Login successful.",
+      token,
+      vendor: {
+        id: vendor._id,
+        name: vendor.name,
+        email: vendor.email,
+        phone: vendor.phone,
+        playerId: vendor.playerId, // return stored playerId
+      },
+    });
+  } catch (err) {
+    console.error("🚨 Error logging in vendor:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+};
+
+exports.loginVendorMobile = async (req, res) => {
+  try {
+    // ✅ 1) Validate input
+    const { error, value } = VendorValiidation.vendorLoginSchemaMobile.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const { email, password, playerId } = value; // 👉 get playerId also
+
+    // ✅ 2) Find vendor by email
+    const vendor = await Vendor.findOne({ email });
+    if (!vendor) {
+      return res.status(404).json({
+        error: "Email not found. Please register first or check your email address.",
+      });
+    }
+
+    // ✅ 3) Check vendor status BEFORE comparing password
+    if (!vendor.isVerified) {
+      return res.status(403).json({ error: "Vendor is not verified. Please contact admin." });
+    }
+    if (!vendor.isActive) {
+      return res.status(403).json({ error: "Vendor account is inactive. Please contact admin." });
+    }
+    if (vendor.isBlocked) {
+      return res.status(403).json({ error: "Vendor account is blocked. Access denied." });
+    }
+
+    // ✅ 4) Compare password
+    const isMatch = await bcrypt.compare(password, vendor.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Incorrect password. Please try again." });
+    }
+
+    // ✅ 5) Update last login + store playerId
+    vendor.lastLogin = new Date();
+    if (playerId) {
+      if (!vendor.playerIds.includes(playerId)) {
+        vendor.playerIds.push(playerId); // add only if new
+      }
+    }
+    await vendor.save();
+
+    // ✅ 6) Generate JWT with lastLogin
+    const token = jwt.sign(
+      {
+        id: vendor._id,
+        email: vendor.email,
+        role: "vendor",
+        name: vendor.name,
+        lastLogin: vendor.lastLogin.getTime(),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // ✅ 7) Send token in header
+    res.setHeader("Authorization", `Bearer ${token}`);
+
+    // ✅ 8) 🔔 Send notification on login (optional)
+    await sendNotification({
+      playerIds: vendor.playerIds,
+      title: "🎉 Login Successful",
+      message: `Welcome back, ${vendor.name}!`,
+      data: { vendorId: vendor._id },
+    });
+
+    // ✅ 9) Response
+    return res.status(200).json({
+      message: "✅ Login successful.",
+      token,
+      vendor: {
+        id: vendor._id,
+        name: vendor.name,
+        email: vendor.email,
+        phone: vendor.phone,
+        playerIds: vendor.playerIds, // return all stored playerIds
+      },
+    });
+  } catch (err) {
+    console.error("🚨 Error logging in vendor:", err);
+    return res.status(500).json({ error: "Internal server error." });
   }
 };
 

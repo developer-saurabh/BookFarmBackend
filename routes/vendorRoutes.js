@@ -58,7 +58,7 @@ router.post('/upate_booking_staus',ParseNest,vendorAuth,vendorController.updateB
 
 // Mobile apis
 
-
+router.post('/login_mobile', vendorController.loginVendorMobile);
 router.get('/get_vendor_farm_booking',ParseNest,vendorAuth,vendorController.getVendorFarmBooking);
 router.get('/get_booking_detail/:booking_id',ParseNest,vendorAuth,vendorController.getBookingByBookingId);
 router.get('/get_vendor_farm_details',ParseNest,vendorAuth,vendorController.getAllVendorDetails);
