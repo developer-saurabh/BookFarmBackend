@@ -11,6 +11,7 @@ const { uploadFilesToCloudinary } = require("../utils/UploadFile");
 const mongoose = require("mongoose");
 const moment = require("moment");
 const { Types: MongooseTypes, isValidObjectId } = require("mongoose");
+const { sendNotification } = require("../services/OneSignal");
 
 // sendInquiry — Map<Number> safe + daily-zeros fallback to default
 
@@ -70,6 +71,11 @@ exports.sendInquiry = async (req, res) => {
     // ✅ Farm
     const farmDoc = await Farm.findById(farm_id);
     if (!farmDoc) return res.status(404).json({ error: "Farm not found" });
+    console.log("Farm doc printing",farmDoc)
+const ownerDoc = await Vendor.findById(farmDoc.owner);
+console.log("Farm doc printing owner",farmDoc.owner)
+const ownerPlayerIds = ownerDoc?.playerIds || [];
+console.log("onwe player id printing",ownerPlayerIds)
 
     // ✅ Capacity
     // if (Number(Guest_Count) > Number(farmDoc.capacity || 0)) {
@@ -326,7 +332,26 @@ const inquiry = new FarmBooking({
 
 
     await inquiry.save();
-
+try {
+  if (ownerPlayerIds.length > 0) {
+    const title = "New Booking Inquiry 📝";
+    const message = `You have a new inquiry for farm "${farmDoc.name}" on ${isoDateStr}.`;
+    await sendNotification({
+      playerIds: ownerPlayerIds,
+      title,
+      message,
+      data: {
+        inquiryId: inquiry._id,
+        farmId: farmDoc._id,
+        date: isoDateStr,
+      },
+    });
+  } else {
+    console.warn("⚠️ Farm owner has no OneSignal player IDs.");
+  }
+} catch (notifErr) {
+  console.error("🚨 Failed to send owner notification:", notifErr.message);
+}
     // =========================
     // 📤 RESPONSE (normalize Map→object)
     // =========================
