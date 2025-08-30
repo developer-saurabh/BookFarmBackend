@@ -2931,7 +2931,7 @@ exports.getVendorFarmBooking = async (req, res) => {
     });
   }
 };
-exports.getBookingByBookingId = async (req, res) => {
+exports.getBookingByBookingIds = async (req, res) => {
   try {
     // ✅ Step 1: Validate input from params
 
@@ -3065,5 +3065,23 @@ exports.getAllVendorDetails = async (req, res) => {
       message: "Internal server error",
       error: err.message,
     });
+  }
+};
+
+
+// push notificaton
+
+
+exports.testNotification = async (req, res) => {
+  try {
+    const result = await sendPushNotification({
+      title: "Hello 👋",
+      message: "This is a test notification",
+      playerIds: ["YOUR_DEVICE_PLAYER_ID"], // from OneSignal SDK
+    });
+
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 };

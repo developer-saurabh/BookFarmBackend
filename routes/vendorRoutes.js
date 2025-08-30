@@ -63,6 +63,9 @@ router.get('/get_vendor_farm_booking',ParseNest,vendorAuth,vendorController.getV
 router.get('/get_booking_detail/:booking_id',ParseNest,vendorAuth,vendorController.getBookingByBookingId);
 router.get('/get_vendor_farm_details',ParseNest,vendorAuth,vendorController.getAllVendorDetails);
 
+// Test Notification
+
+router.get('/test_notification',ParseNest,vendorAuth,vendorController.testNotification);
 
 module.exports = router;
     
