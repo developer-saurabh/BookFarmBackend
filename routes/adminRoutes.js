@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
+const additional_pdf_controller=require('../controllers/adminAdditionalController')
 const { authenticateAdmin } = require('../middlewares/Auth');
 const ParseNest = require('../utils/ParseNest');
 
@@ -62,6 +63,15 @@ router.delete('/delete_vendor_farm',ParseNest,authenticateAdmin,adminController.
 
 router.post('/profile',authenticateAdmin, adminController.getAdminProfile);
 router.post('/update_profile',authenticateAdmin, adminController.updateAdminProfile);
+
+
+// Adittional Apis
+
+
+router.post('/additional_pdf',authenticateAdmin, additional_pdf_controller.createBooking);
+router.post('/update_additional_pdf',authenticateAdmin, additional_pdf_controller.updateBooking);
+router.post('/get_pdf_by_id',authenticateAdmin, additional_pdf_controller.getBooking);
+router.post('/get_all_pdf',authenticateAdmin, additional_pdf_controller.getAllBookings);
 
 module.exports = router;
     
