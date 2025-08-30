@@ -1598,7 +1598,8 @@ exports.blockDate = async (req, res) => {
           ["night_slot", "full_day", "full_night"].forEach((m) => current.add(m));
         } else if (s === "full_night") {
           ["full_night", "full_day", "night_slot"].forEach((m) => current.add(m));
-          nextDay.add("day_slot"); // ripple: next day only day_slot blocked
+          nextDay.add("day_slot");
+            nextDay.add("full_day"); // ripple: next day only day_slot blocked
         }
       }
 
