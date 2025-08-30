@@ -54,5 +54,14 @@ router.get('/get_all_types',ParseNest,vendorAuth,vendorController.getAllTypes);
 router.post('/get_vendor_farm_bookings',ParseNest,vendorAuth,vendorController.getVendorFarmBookings);
 router.post('/get_booking_details',ParseNest,vendorAuth,vendorController.getBookingByBookingId);
 router.post('/upate_booking_staus',ParseNest,vendorAuth,vendorController.updateBookingStatusByVendor);
+
+
+// Mobile apis
+
+
+router.get('/get_vendor_farm_booking',ParseNest,vendorAuth,vendorController.getVendorFarmBooking);
+router.get('/get_booking_detail/:booking_id',ParseNest,vendorAuth,vendorController.getBookingByBookingId);
+
+
 module.exports = router;
     

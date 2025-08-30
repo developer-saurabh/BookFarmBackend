@@ -455,6 +455,21 @@ exports.getBookingByIdSchema = Joi.object({
       'any.required': 'booking_id is required'
     })
 });
+
+
+exports.getBookingByIdParamsSchema = Joi.object({
+  booking_id: Joi.number()
+    .integer()
+    .min(100000)
+    .max(999999)
+    .required()
+    .messages({
+      "number.base": "booking_id must be a number",
+      "number.min": "booking_id must be a 6-digit number",
+      "number.max": "booking_id must be a 6-digit number",
+      "any.required": "booking_id is required",
+    }),
+});
 exports.getVendorBookingsSchema = Joi.object({
   status: Joi.string()
     .allow("")

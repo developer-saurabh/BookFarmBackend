@@ -286,16 +286,14 @@ exports.loginVendor = async (req, res) => {
     // ✅ 5) Update last login
     vendor.lastLogin = new Date();
     await vendor.save();
- console.log(
-"vendor printing ",vendor
- )
+    console.log("vendor printing ", vendor);
     // ✅ 6) Generate JWT with lastLogin
     const token = jwt.sign(
       {
         id: vendor._id,
         email: vendor.email,
         role: "vendor",
-        name:vendor.name,
+        name: vendor.name,
         lastLogin: vendor.lastLogin.getTime(),
       },
       process.env.JWT_SECRET,
@@ -598,15 +596,14 @@ exports.changePassword = async (req, res) => {
 
 // New Updaete Major
 
-
-
-
 const MAX_BATCH_SIZE = 5; // batch 5 images at a time
 
-const normalizeFiles = (files) => (!files ? [] : Array.isArray(files) ? files : [files]);
+const normalizeFiles = (files) =>
+  !files ? [] : Array.isArray(files) ? files : [files];
 const chunkArray = (arr, size) => {
   const chunks = [];
-  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  for (let i = 0; i < arr.length; i += size)
+    chunks.push(arr.slice(i, i + size));
   return chunks;
 };
 
@@ -614,12 +611,29 @@ exports.addOrUpdateFarm = async (req, res) => {
   try {
     // === Parse stringified JSON ===
     if (req.body.areaImages && typeof req.body.areaImages === "string") {
-      try { req.body.areaImages = JSON.parse(req.body.areaImages); } 
-      catch { return res.status(400).json({ success: false, message: "Invalid JSON format for areaImages" }); }
+      try {
+        req.body.areaImages = JSON.parse(req.body.areaImages);
+      } catch {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Invalid JSON format for areaImages",
+          });
+      }
     }
-    ["rules", "address", "propertyDetails", "mealsOffered", "kitchenOffered", "barbequeCharcoal"].forEach((key) => {
+    [
+      "rules",
+      "address",
+      "propertyDetails",
+      "mealsOffered",
+      "kitchenOffered",
+      "barbequeCharcoal",
+    ].forEach((key) => {
       if (req.body[key] && typeof req.body[key] === "string") {
-        try { req.body[key] = JSON.parse(req.body[key]); } catch {}
+        try {
+          req.body[key] = JSON.parse(req.body[key]);
+        } catch {}
       }
     });
 
@@ -630,8 +644,18 @@ exports.addOrUpdateFarm = async (req, res) => {
     }
 
     // === Validate farm data ===
-    const { error, value } = VendorValiidation.farmAddValidationSchema.validate(req.body, { abortEarly: false, allowUnknown: true });
-    if (error) return res.status(400).json({ success: false, message: "Validation failed", errors: error.details.map(e => e.message) });
+    const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
+      req.body,
+      { abortEarly: false, allowUnknown: true }
+    );
+    if (error)
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Validation failed",
+          errors: error.details.map((e) => e.message),
+        });
 
     const ownerId = req.user.id;
     value.owner = ownerId;
@@ -639,66 +663,137 @@ exports.addOrUpdateFarm = async (req, res) => {
 
     // === Vendor checks ===
     const vendor = await Vendor.findById(ownerId);
-    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found." });
-    if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) return res.status(403).json({ success: false, message: "Vendor is not eligible to create/update farms." });
+    if (!vendor)
+      return res
+        .status(404)
+        .json({ success: false, message: "Vendor not found." });
+    if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked)
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Vendor is not eligible to create/update farms.",
+        });
 
-    value.kitchenOffered = normalizeFeature(value.kitchenOffered, { withDesc: true, bookingModes: value.bookingModes || {} });
-    value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, { withDesc: false, bookingModes: value.bookingModes || {} });
+    value.kitchenOffered = normalizeFeature(value.kitchenOffered, {
+      withDesc: true,
+      bookingModes: value.bookingModes || {},
+    });
+    value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, {
+      withDesc: false,
+      bookingModes: value.bookingModes || {},
+    });
 
     // === Validate relations ===
     if (value.farmCategory?.length) {
-      const categoryExists = await FarmCategory.find({ _id: { $in: value.farmCategory } });
-      if (categoryExists.length !== value.farmCategory.length) return res.status(400).json({ success: false, message: "One or more farmCategory IDs are invalid." });
+      const categoryExists = await FarmCategory.find({
+        _id: { $in: value.farmCategory },
+      });
+      if (categoryExists.length !== value.farmCategory.length)
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "One or more farmCategory IDs are invalid.",
+          });
     }
     if (value.facilities?.length) {
-      const validFacilities = await Facility.find({ _id: { $in: value.facilities } });
-      if (validFacilities.length !== value.facilities.length) return res.status(400).json({ success: false, message: "One or more facilities IDs are invalid." });
+      const validFacilities = await Facility.find({
+        _id: { $in: value.facilities },
+      });
+      if (validFacilities.length !== value.facilities.length)
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "One or more facilities IDs are invalid.",
+          });
     }
     if (value.Types?.length) {
       const incomingTypes = value.Types.filter(Boolean);
-      const invalidIds = incomingTypes.filter((id) => !mongoose.Types.ObjectId.isValid(id));
-      if (invalidIds.length) return res.status(400).json({ success: false, message: "One or more type IDs are invalid.", errors: invalidIds });
+      const invalidIds = incomingTypes.filter(
+        (id) => !mongoose.Types.ObjectId.isValid(id)
+      );
+      if (invalidIds.length)
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "One or more type IDs are invalid.",
+            errors: invalidIds,
+          });
 
-      const found = await FarmType.find({ _id: { $in: incomingTypes } }, { _id: 1 }).lean();
+      const found = await FarmType.find(
+        { _id: { $in: incomingTypes } },
+        { _id: 1 }
+      ).lean();
       if (found.length !== incomingTypes.length) {
         const foundSet = new Set(found.map((t) => String(t._id)));
         const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
-        return res.status(400).json({ success: false, message: "One or more type IDs do not exist.", errors: missing });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "One or more type IDs do not exist.",
+            errors: missing,
+          });
       }
       value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
       delete value.Types;
     }
 
     if (value.rules && !Array.isArray(value.rules)) value.rules = [value.rules];
-    if (value.propertyDetails && typeof value.propertyDetails !== "object") return res.status(400).json({ success: false, message: "propertyDetails must be an object." });
+    if (value.propertyDetails && typeof value.propertyDetails !== "object")
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "propertyDetails must be an object.",
+        });
 
     if (value.address) {
-      if (typeof value.address !== "object") return res.status(400).json({ success: false, message: "Address must be an object." });
+      if (typeof value.address !== "object")
+        return res
+          .status(400)
+          .json({ success: false, message: "Address must be an object." });
       if (value.address.mapLink) {
-        const urlRegex = /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
-        if (!urlRegex.test(value.address.mapLink)) return res.status(400).json({ success: false, message: "Invalid URL format for mapLink" });
+        const urlRegex =
+          /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
+        if (!urlRegex.test(value.address.mapLink))
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message: "Invalid URL format for mapLink",
+            });
       }
-      value.location = { ...value.address, mapLink: value.address.mapLink || null, createdBy: req.user.id };
+      value.location = {
+        ...value.address,
+        mapLink: value.address.mapLink || null,
+        createdBy: req.user.id,
+      };
       delete value.address;
     }
 
     // === MAIN IMAGES ===
     if (req.files?.images || req.files?.image || req.body.images) {
-      const imagesArray = normalizeFiles(req.files?.images || req.files?.image || req.body.images);
-      const oldImages = farmId ? (await Farm.findOne({ _id: farmId, owner: ownerId }))?.images || [] : [];
+      const imagesArray = normalizeFiles(
+        req.files?.images || req.files?.image || req.body.images
+      );
+      const oldImages = farmId
+        ? (await Farm.findOne({ _id: farmId, owner: ownerId }))?.images || []
+        : [];
 
       const uploadedUrls = [];
       const batches = chunkArray(imagesArray, MAX_BATCH_SIZE);
-      for (const batch of batches) {   
-         // === Local Upload (commented for now) ===
+      for (const batch of batches) {
+        // === Local Upload (commented for now) ===
 
         // const urls = await uploadFilesToLocal(batch, "farms", []);
         // uploadedUrls.push(...urls);
 
-        
-      // === Cloudinary Upload ===
-   const urls = await uploadFilesToCloudinary(batch, "farms");
-
+        // === Cloudinary Upload ===
+        const urls = await uploadFilesToCloudinary(batch, "farms");
       }
       value.images = uploadedUrls;
     }
@@ -708,22 +803,25 @@ exports.addOrUpdateFarm = async (req, res) => {
       const areaImagesData = [];
       for (let i = 0; i < value.areaImages.length; i++) {
         const area = value.areaImages[i];
-        const filesArray = normalizeFiles(req.files?.[`areaImages[${i}][images]`]);
+        const filesArray = normalizeFiles(
+          req.files?.[`areaImages[${i}][images]`]
+        );
         const base64Array = Array.isArray(area.images) ? area.images : [];
         const allFiles = [...base64Array, ...filesArray];
 
         const uploadedUrls = [];
         const batches = chunkArray(allFiles, MAX_BATCH_SIZE);
         for (const batch of batches) {
-             // === Local Upload (commented for now) ===
-      // const urls = await uploadFilesToLocal(batch, `farms/${area.areaType}`, []);
-      // uploadedUrls.push(...urls);
+          // === Local Upload (commented for now) ===
+          // const urls = await uploadFilesToLocal(batch, `farms/${area.areaType}`, []);
+          // uploadedUrls.push(...urls);
 
-
-      // === Cloudinary Upload ===
-           const urls = await uploadFilesToCloudinary(batch, `farms/${area.areaType}`);
-      uploadedUrls.push(...urls);
-
+          // === Cloudinary Upload ===
+          const urls = await uploadFilesToCloudinary(
+            batch,
+            `farms/${area.areaType}`
+          );
+          uploadedUrls.push(...urls);
         }
         areaImagesData.push({ areaType: area.areaType, images: uploadedUrls });
       }
@@ -731,101 +829,163 @@ exports.addOrUpdateFarm = async (req, res) => {
     }
 
     // === DAILY PRICING VALIDATION ===
-// === DAILY PRICING VALIDATION ===
-if (value.dailyPricing?.length) {
-  const validateDailyPricing = (dailyPricing) => {
-    const seenDates = new Set();
-    const timeRegex = /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
-    const isBlank = (v) => v === '' || v == null;
+    // === DAILY PRICING VALIDATION ===
+    if (value.dailyPricing?.length) {
+      const validateDailyPricing = (dailyPricing) => {
+        const seenDates = new Set();
+        const timeRegex =
+          /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
+        const isBlank = (v) => v === "" || v == null;
 
-    const toMinutes = (timeStr) => {
-      if (/AM|PM/i.test(timeStr)) {
-        const [, hh, mm, meridian] = timeStr.match(/(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i);
-        let h = parseInt(hh, 10), m = parseInt(mm, 10);
-        if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
-        if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
-        return h * 60 + m;
-      } else {
-        const [h, m] = timeStr.split(":").map(Number);
-        return h * 60 + m;
-      }
-    };
+        const toMinutes = (timeStr) => {
+          if (/AM|PM/i.test(timeStr)) {
+            const [, hh, mm, meridian] = timeStr.match(
+              /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
+            );
+            let h = parseInt(hh, 10),
+              m = parseInt(mm, 10);
+            if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
+            if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
+            return h * 60 + m;
+          } else {
+            const [h, m] = timeStr.split(":").map(Number);
+            return h * 60 + m;
+          }
+        };
 
-    const buildInterval = (slot, checkIn, checkOut) => {
-      // both empty/null => skip silently
-      if (isBlank(checkIn) && isBlank(checkOut)) return null;
-      // one provided but the other missing => error
-      if (isBlank(checkIn) || isBlank(checkOut)) {
-        throw new Error(`${slot} requires both checkIn and checkOut when one is provided.`);
-      }
-      // both provided => must be valid format
-      if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
-        throw new Error(`Invalid time format for ${slot}.`);
-      }
+        const buildInterval = (slot, checkIn, checkOut) => {
+          // both empty/null => skip silently
+          if (isBlank(checkIn) && isBlank(checkOut)) return null;
+          // one provided but the other missing => error
+          if (isBlank(checkIn) || isBlank(checkOut)) {
+            throw new Error(
+              `${slot} requires both checkIn and checkOut when one is provided.`
+            );
+          }
+          // both provided => must be valid format
+          if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
+            throw new Error(`Invalid time format for ${slot}.`);
+          }
 
-      const start = toMinutes(checkIn);
-      let end = toMinutes(checkOut);
-      if (["night_slot", "full_day", "full_night"].includes(slot) && end <= start) end += 1440;
-      else if (end <= start) throw new Error(`${slot} checkOut must be after checkIn.`);
+          const start = toMinutes(checkIn);
+          let end = toMinutes(checkOut);
+          if (
+            ["night_slot", "full_day", "full_night"].includes(slot) &&
+            end <= start
+          )
+            end += 1440;
+          else if (end <= start)
+            throw new Error(`${slot} checkOut must be after checkIn.`);
 
-      return { slot, start, end };
-    };
+          return { slot, start, end };
+        };
 
-    dailyPricing.forEach((entry) => {
-      const isoDate = new Date(entry.date).toISOString().split("T")[0];
-      if (seenDates.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
-      seenDates.add(isoDate);
+        dailyPricing.forEach((entry) => {
+          const isoDate = new Date(entry.date).toISOString().split("T")[0];
+          if (seenDates.has(isoDate))
+            throw new Error(`Duplicate pricing for ${isoDate}`);
+          seenDates.add(isoDate);
 
-      // timings optional
-      if (!entry.timings) entry.timings = {};
-      const t = entry.timings;
+          // timings optional
+          if (!entry.timings) entry.timings = {};
+          const t = entry.timings;
 
-      const intervals = [];
-      if (t.full_day)  { const iv = buildInterval("full_day",  t.full_day.checkIn,  t.full_day.checkOut);   if (iv) intervals.push(iv); }
-      if (t.day_slot)  { const iv = buildInterval("day_slot",  t.day_slot.checkIn,  t.day_slot.checkOut);   if (iv) intervals.push(iv); }
-      if (t.night_slot){ const iv = buildInterval("night_slot",t.night_slot.checkIn,t.night_slot.checkOut); if (iv) intervals.push(iv); }
-      if (t.full_night){ const iv = buildInterval("full_night",t.full_night.checkIn,t.full_night.checkOut); if (iv) intervals.push(iv); }
+          const intervals = [];
+          if (t.full_day) {
+            const iv = buildInterval(
+              "full_day",
+              t.full_day.checkIn,
+              t.full_day.checkOut
+            );
+            if (iv) intervals.push(iv);
+          }
+          if (t.day_slot) {
+            const iv = buildInterval(
+              "day_slot",
+              t.day_slot.checkIn,
+              t.day_slot.checkOut
+            );
+            if (iv) intervals.push(iv);
+          }
+          if (t.night_slot) {
+            const iv = buildInterval(
+              "night_slot",
+              t.night_slot.checkIn,
+              t.night_slot.checkOut
+            );
+            if (iv) intervals.push(iv);
+          }
+          if (t.full_night) {
+            const iv = buildInterval(
+              "full_night",
+              t.full_night.checkIn,
+              t.full_night.checkOut
+            );
+            if (iv) intervals.push(iv);
+          }
 
-      // normalize feature flags for the day
-      entry.kitchenOffered = normalizeFeature(entry.kitchenOffered || {}, { withDesc: true,  bookingModes: value.bookingModes });
-      entry.barbequeCharcoal = normalizeFeature(entry.barbequeCharcoal || {}, { withDesc: false, bookingModes: value.bookingModes });
+          // normalize feature flags for the day
+          entry.kitchenOffered = normalizeFeature(entry.kitchenOffered || {}, {
+            withDesc: true,
+            bookingModes: value.bookingModes,
+          });
+          entry.barbequeCharcoal = normalizeFeature(
+            entry.barbequeCharcoal || {},
+            { withDesc: false, bookingModes: value.bookingModes }
+          );
 
-      // ensure mealsOffered skeleton for enabled bookingModes
-      entry.mealsOffered = entry.mealsOffered || {};
-      Object.keys(value.bookingModes || {}).forEach((slot) => {
-        if (!entry.mealsOffered[slot]) {
-          entry.mealsOffered[slot] = {
-            isOffered: false,
-            meals: {
-              breakfast: { isAvailable: false, value: [] },
-              lunch:     { isAvailable: false, value: [] },
-              hi_tea:    { isAvailable: false, value: [] },
-              dinner:    { isAvailable: false, value: [] }
+          // ensure mealsOffered skeleton for enabled bookingModes
+          entry.mealsOffered = entry.mealsOffered || {};
+          Object.keys(value.bookingModes || {}).forEach((slot) => {
+            if (!entry.mealsOffered[slot]) {
+              entry.mealsOffered[slot] = {
+                isOffered: false,
+                meals: {
+                  breakfast: { isAvailable: false, value: [] },
+                  lunch: { isAvailable: false, value: [] },
+                  hi_tea: { isAvailable: false, value: [] },
+                  dinner: { isAvailable: false, value: [] },
+                },
+              };
             }
-          };
-        }
-      });
-    });
+          });
+        });
 
-    return dailyPricing;
-  };
+        return dailyPricing;
+      };
 
-  try {
-    value.dailyPricing = validateDailyPricing(value.dailyPricing);
-  } catch (e) {
-    return res.status(400).json({ success: false, message: e.message });
-  }
-}
+      try {
+        value.dailyPricing = validateDailyPricing(value.dailyPricing);
+      } catch (e) {
+        return res.status(400).json({ success: false, message: e.message });
+      }
+    }
 
     // === CREATE OR UPDATE FARM ===
     let farmDoc;
     if (farmId) {
-      farmDoc = await Farm.findOneAndUpdate({ _id: farmId, owner: ownerId }, { $set: value }, { new: true });
-      if (!farmDoc) return res.status(404).json({ success: false, message: "Farm not found." });
+      farmDoc = await Farm.findOneAndUpdate(
+        { _id: farmId, owner: ownerId },
+        { $set: value },
+        { new: true }
+      );
+      if (!farmDoc)
+        return res
+          .status(404)
+          .json({ success: false, message: "Farm not found." });
     } else {
       if (value.name) {
-        const duplicate = await Farm.findOne({ name: value.name, owner: ownerId });
-        if (duplicate) return res.status(409).json({ success: false, message: "A farm with this name already exists." });
+        const duplicate = await Farm.findOne({
+          name: value.name,
+          owner: ownerId,
+        });
+        if (duplicate)
+          return res
+            .status(409)
+            .json({
+              success: false,
+              message: "A farm with this name already exists.",
+            });
       }
       farmDoc = await new Farm(value).save();
     }
@@ -835,22 +995,30 @@ if (value.dailyPricing?.length) {
       .populate("facilities", "_id name")
       .populate("types", "_id name");
 
-    const farmResponse = { ...populatedFarm.toObject(), Types: populatedFarm.types };
+    const farmResponse = {
+      ...populatedFarm.toObject(),
+      Types: populatedFarm.types,
+    };
     delete farmResponse.types;
 
     return res.status(farmId ? 200 : 201).json({
       success: true,
-      message: farmId ? "Farm updated successfully." : "Farm created successfully.",
-      data: farmResponse
+      message: farmId
+        ? "Farm updated successfully."
+        : "Farm created successfully.",
+      data: farmResponse,
     });
-
   } catch (err) {
     console.error("[AddOrUpdateFarm Error]", err);
-    return res.status(500).json({ success: false, message: "Internal server error", error: err.message });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: "Internal server error",
+        error: err.message,
+      });
   }
 };
-
-
 
 // exports.addOrUpdateFarm = async (req, res) => {
 //   try {
@@ -1574,12 +1742,16 @@ exports.blockDate = async (req, res) => {
     // ✅ Step 2: Find farm
     const farm = await Farm.findById(farmId);
     if (!farm) {
-      return res.status(404).json({ success: false, message: "Farm not found." });
+      return res
+        .status(404)
+        .json({ success: false, message: "Farm not found." });
     }
 
     // ✅ Step 3: Ownership check
     if (farm.owner.toString() !== vendorId) {
-      return res.status(403).json({ success: false, message: "Access denied." });
+      return res
+        .status(403)
+        .json({ success: false, message: "Access denied." });
     }
 
     const ALL = ["full_day", "day_slot", "night_slot", "full_night"];
@@ -1595,11 +1767,15 @@ exports.blockDate = async (req, res) => {
         } else if (s === "day_slot") {
           ["day_slot", "full_day", "full_night"].forEach((m) => current.add(m));
         } else if (s === "night_slot") {
-          ["night_slot", "full_day", "full_night"].forEach((m) => current.add(m));
+          ["night_slot", "full_day", "full_night"].forEach((m) =>
+            current.add(m)
+          );
         } else if (s === "full_night") {
-          ["full_night", "full_day", "night_slot"].forEach((m) => current.add(m));
+          ["full_night", "full_day", "night_slot"].forEach((m) =>
+            current.add(m)
+          );
           nextDay.add("day_slot");
-            nextDay.add("full_day"); // ripple: next day only day_slot blocked
+          nextDay.add("full_day"); // ripple: next day only day_slot blocked
         }
       }
 
@@ -1629,19 +1805,21 @@ exports.blockDate = async (req, res) => {
       const confirmedExists = await FarmBooking.exists({
         farm: farm._id,
         date: sameDay,
-        status: "confirmed"
+        status: "confirmed",
       });
 
       if (confirmedExists) {
         preventedDueToConfirmed.push({
           date: iso,
-          message: "Already a confirmed booking on this date — you cannot block this date."
+          message:
+            "Already a confirmed booking on this date — you cannot block this date.",
         });
         continue; // skip all blocking/cancelling for this date
       }
 
       // compute the exact blocked patterns for this date (and next if ripple)
-      const { current: currentBlocked, nextDay: nextBlocked } = deriveBlockedSets(slots || []);
+      const { current: currentBlocked, nextDay: nextBlocked } =
+        deriveBlockedSets(slots || []);
 
       // --- Persist block for CURRENT day: overwrite to EXACT pattern ---
       const existingIdx = farm.unavailableDates.findIndex((d) => {
@@ -1660,7 +1838,10 @@ exports.blockDate = async (req, res) => {
           newlyBlocked.push({ date: iso, slots: currentBlocked });
         }
       } else {
-        farm.unavailableDates.push({ date: dateObj, blockedSlots: currentBlocked });
+        farm.unavailableDates.push({
+          date: dateObj,
+          blockedSlots: currentBlocked,
+        });
         newlyBlocked.push({ date: iso, slots: currentBlocked });
       }
 
@@ -1686,7 +1867,12 @@ exports.blockDate = async (req, res) => {
         }
 
         const pendingCancelled = await FarmBooking.updateMany(
-          { farm: farm._id, date: sameDay, status: "pending", bookingModes: { $in: currentBlocked } },
+          {
+            farm: farm._id,
+            date: sameDay,
+            status: "pending",
+            bookingModes: { $in: currentBlocked },
+          },
           {
             $set: {
               status: "cancelled",
@@ -1702,7 +1888,11 @@ exports.blockDate = async (req, res) => {
         );
 
         if (pendingCancelled.modifiedCount > 0) {
-          cancelledNow.push({ date: iso, count: pendingCancelled.modifiedCount, slots: currentBlocked });
+          cancelledNow.push({
+            date: iso,
+            count: pendingCancelled.modifiedCount,
+            slots: currentBlocked,
+          });
         }
       }
 
@@ -1746,7 +1936,12 @@ exports.blockDate = async (req, res) => {
         }
 
         const pendingNextCancelled = await FarmBooking.updateMany(
-          { farm: farm._id, date: next, status: "pending", bookingModes: { $in: nextBlocked } },
+          {
+            farm: farm._id,
+            date: next,
+            status: "pending",
+            bookingModes: { $in: nextBlocked },
+          },
           {
             $set: {
               status: "cancelled",
@@ -1782,9 +1977,15 @@ exports.blockDate = async (req, res) => {
       summary: {
         newlyBlockedCount: newlyBlocked.length,
         alreadyBlockedCount: alreadyBlocked.length,
-        cancelledPendingCount: cancelledNow.reduce((n, x) => n + (x.count || 0), 0),
-        confirmedConflictsCount: skippedDueToConfirmed.reduce((n, x) => n + (x.bookings?.length || 0), 0),
-        preventedDatesCount: preventedDueToConfirmed.length // 🆕
+        cancelledPendingCount: cancelledNow.reduce(
+          (n, x) => n + (x.count || 0),
+          0
+        ),
+        confirmedConflictsCount: skippedDueToConfirmed.reduce(
+          (n, x) => n + (x.bookings?.length || 0),
+          0
+        ),
+        preventedDatesCount: preventedDueToConfirmed.length, // 🆕
       },
       details: {
         preventedDueToConfirmed, // 🆕 dates we skipped entirely
@@ -1802,12 +2003,11 @@ exports.blockDate = async (req, res) => {
     console.error("❌ Error while blocking dates:", err);
     return res.status(500).json({
       success: false,
-      message: "An unexpected error occurred while blocking dates. Please try again later.",
+      message:
+        "An unexpected error occurred while blocking dates. Please try again later.",
     });
   }
 };
-
-
 
 exports.getVendorFarms = async (req, res) => {
   try {
@@ -2446,7 +2646,6 @@ exports.getBookingByBookingId = async (req, res) => {
 //   }
 // };
 
-
 // exports.updateBookingStatusByVendor = async (req, res) => {
 //   try {
 //     const vendorId = req.user.id;
@@ -2479,7 +2678,6 @@ exports.getBookingByBookingId = async (req, res) => {
 //         message: "This booking is already confirmed by the admin. Vendor cannot override.",
 //       });
 //     }
-
 
 //     booking.status = status;
 
@@ -2552,8 +2750,6 @@ exports.getBookingByBookingId = async (req, res) => {
 //   }
 // };
 
-
-
 exports.updateBookingStatusByVendor = async (req, res) => {
   try {
     const vendorId = req.user.id;
@@ -2567,12 +2763,19 @@ exports.updateBookingStatusByVendor = async (req, res) => {
       });
     }
 
-    const booking = await FarmBooking.findOne({ Booking_id: bookingId }).populate("farm", "owner");
+    const booking = await FarmBooking.findOne({
+      Booking_id: bookingId,
+    }).populate("farm", "owner");
     if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Booking not found" });
     }
 
-    if (!booking.farm || booking.farm.owner.toString() !== vendorId.toString()) {
+    if (
+      !booking.farm ||
+      booking.farm.owner.toString() !== vendorId.toString()
+    ) {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
@@ -2583,7 +2786,8 @@ exports.updateBookingStatusByVendor = async (req, res) => {
     ) {
       return res.status(403).json({
         success: false,
-        message: "This booking is already confirmed by the admin. Vendor cannot override.",
+        message:
+          "This booking is already confirmed by the admin. Vendor cannot override.",
       });
     }
 
@@ -2593,7 +2797,7 @@ exports.updateBookingStatusByVendor = async (req, res) => {
       role: req.user.role || "vendor",
       name: req.user.name || null,
       email: req.user.email || null,
-      at: new Date()
+      at: new Date(),
     };
 
     // ========== CONFIRM LOGIC ==========
@@ -2604,8 +2808,18 @@ exports.updateBookingStatusByVendor = async (req, res) => {
       const currentDate = moment(booking.date);
       const nextDate = currentDate.clone().add(1, "days").toDate();
 
-      const currentSlotQuery = { _id: { $ne: booking._id }, farm: booking.farm._id, status: "pending", date: booking.date };
-      const nextDaySlotQuery = { _id: { $ne: booking._id }, farm: booking.farm._id, status: "pending", date: nextDate };
+      const currentSlotQuery = {
+        _id: { $ne: booking._id },
+        farm: booking.farm._id,
+        status: "pending",
+        date: booking.date,
+      };
+      const nextDaySlotQuery = {
+        _id: { $ne: booking._id },
+        farm: booking.farm._id,
+        status: "pending",
+        date: nextDate,
+      };
 
       let currentDaySlotsToCancel = [];
       let nextDaySlotsToCancel = [];
@@ -2616,7 +2830,12 @@ exports.updateBookingStatusByVendor = async (req, res) => {
       } else if (modes.includes("night_slot")) {
         currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
       } else if (modes.includes("full_day")) {
-        currentDaySlotsToCancel = ["day_slot", "night_slot", "full_day", "full_night"];
+        currentDaySlotsToCancel = [
+          "day_slot",
+          "night_slot",
+          "full_day",
+          "full_night",
+        ];
       } else if (modes.includes("full_night")) {
         currentDaySlotsToCancel = ["night_slot", "full_day", "full_night"];
         nextDaySlotsToCancel = ["day_slot", "full_day"];
@@ -2625,7 +2844,10 @@ exports.updateBookingStatusByVendor = async (req, res) => {
       // Cancel current day conflicting bookings
       if (currentDaySlotsToCancel.length) {
         await FarmBooking.updateMany(
-          { ...currentSlotQuery, bookingModes: { $in: currentDaySlotsToCancel } },
+          {
+            ...currentSlotQuery,
+            bookingModes: { $in: currentDaySlotsToCancel },
+          },
           { $set: { status: "cancelled", cancelledDueTo: booking._id } } // 🆕 track why cancelled
         );
       }
@@ -2661,6 +2883,144 @@ exports.updateBookingStatusByVendor = async (req, res) => {
     });
   } catch (err) {
     console.error("updateBookingStatusByVendor error:", err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
+  }
+};
+
+// Mobile apis
+
+exports.getVendorFarmBooking = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+
+    // ✅ 1. Get all farms owned by vendor
+    const vendorFarms = await Farm.find({ owner: vendorId })
+      .select("_id")
+      .lean();
+
+    if (!vendorFarms.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No farms found for this vendor. No bookings available.",
+      });
+    }
+
+    const farmIds = vendorFarms.map((f) => f._id);
+
+    // ✅ 2. Fetch all bookings for these farms
+    const bookings = await FarmBooking.find({ farm: { $in: farmIds } })
+      .populate("farm", "_id name address farmCategory")
+      .sort({ date: -1 }) // latest bookings first
+      .lean();
+
+    // ✅ 3. Response
+    return res.status(200).json({
+      success: true,
+      message: "Vendor farm bookings fetched successfully",
+      total: bookings.length,
+      data: bookings,
+    });
+  } catch (err) {
+    console.error("[GetVendorFarmBookings Error]", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
+exports.getBookingByBookingId = async (req, res) => {
+  try {
+    // ✅ Step 1: Validate input from params
+
+    const { error, value } =VendorValiidation. getBookingByIdParamsSchema.validate(req.params, {
+      abortEarly: false,
+    });
+
+    if (error) {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: error.details.map((e) => e.message),
+      });
+    }
+
+    const { booking_id } = value;
+
+    // ✅ Step 2: Find booking with populated farm and customer
+    const booking = await FarmBooking.findOne({ Booking_id: booking_id })
+      .populate("customer")
+      .populate("farm");
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    // ✅ Step 3: Convert to object
+    const bookingObj = booking.toObject();
+
+    // ✅ Helper to convert HH:mm → hh:mm AM/PM
+    const toAmPm = (time) => {
+      if (!time) return null;
+      let [h, m] = time.split(":").map(Number);
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      return `${h}:${m.toString().padStart(2, "0")} ${ampm}`;
+    };
+
+    // ✅ Step 4: Extract checkIn/checkOut for booking date
+    let checkInOut = {};
+    if (bookingObj.farm?.dailyPricing && bookingObj.date) {
+      const bookingDate = new Date(bookingObj.date).toISOString().split("T")[0];
+
+      const matched = bookingObj.farm.dailyPricing.find((dp) => {
+        const dpDate = new Date(dp.date).toISOString().split("T")[0];
+        return dpDate === bookingDate;
+      });
+
+      if (matched) {
+        checkInOut = {
+          checkIn: toAmPm(matched.checkIn),
+          checkOut: toAmPm(matched.checkOut),
+        };
+      }
+    }
+
+    // ✅ Step 5: Remove unwanted fields
+    delete bookingObj.__v;
+    delete bookingObj.createdAt;
+    delete bookingObj.updatedAt;
+
+    if (bookingObj.farm) {
+      delete bookingObj.farm.__v;
+      delete bookingObj.farm.createdAt;
+      delete bookingObj.farm.updatedAt;
+      delete bookingObj.farm.location;
+      delete bookingObj.farm.defaultPricing;
+      delete bookingObj.farm.farmCategory;
+      delete bookingObj.farm.images;
+      delete bookingObj.farm.bookingModes;
+      delete bookingObj.farm.facilities;
+      delete bookingObj.farm.owner;
+      delete bookingObj.farm.currency;
+      delete bookingObj.farm.capacity;
+      delete bookingObj.farm.unavailableDates;
+      delete bookingObj.farm.isActive;
+      delete bookingObj.farm.isApproved;
+      delete bookingObj.farm.dailyPricing;
+
+      // ✅ Add only AM/PM formatted times
+      bookingObj.farm.checkInOut = checkInOut;
+    }
+
+    // ✅ Step 6: Send clean response
+    res.status(200).json({
+      message: "Booking details fetched successfully",
+      data: bookingObj,
+    });
+  } catch (err) {
+    console.error("[GetBookingByBookingId Error]", err);
+    res.status(500).json({ error: "Server error. Please try again later." });
   }
 };
