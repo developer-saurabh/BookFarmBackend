@@ -3024,3 +3024,46 @@ exports.getBookingByBookingId = async (req, res) => {
     res.status(500).json({ error: "Server error. Please try again later." });
   }
 };
+
+exports.getAllVendorDetails = async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+
+    // ✅ Fetch only necessary fields
+    const farms = await Farm.find({ owner: ownerId })
+      .select([
+        "_id",
+        "name",
+        "description",
+        "farmCategory",
+        "types",
+        "location",
+        "defaultPricing",
+        "defaultTimings",
+        "capacity",
+        "occupancy",
+        "currency",
+        "images",
+        "isActive",
+        "isApproved"
+      ])
+      .populate("farmCategory", "_id name")
+      .populate("types", "_id name")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: "Farms fetched successfully",
+      total: farms.length,
+      data: farms,
+    });
+  } catch (err) {
+    console.error("[GetVendorFarms Error]", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
