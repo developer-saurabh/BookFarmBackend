@@ -7,19 +7,7 @@ const addressSchema = new mongoose.Schema(
     state: { type: String, required: false },
     pinCode: { type: String },
     areaName: { type: String, default: null },
-    mapLink: {
-      type: String,
-      default: null,
-      validate: {
-        validator: function (v) {
-          if (!v) return true; // allow null/empty
-          return /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i.test(
-            v
-          );
-        },
-        message: (props) => `${props.value} is not a valid URL!`,
-      },
-    },
+  mapLink: { type: String },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Vendor",
