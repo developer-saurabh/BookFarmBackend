@@ -1,5 +1,5 @@
 const Joi = require('joi');
-
+const mongoose = require("mongoose");
 const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
 const phoneRegex = /^[0-9]{10}$/;
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
@@ -154,9 +154,6 @@ exports. updateVendorStatusSchema = Joi.object({
   .messages({
     'object.missing': 'At least one of isActive, isVerified, or isBlocked must be provided.'
   });
-
-
-
 
 // Get All Bookings Schema
 
@@ -323,7 +320,6 @@ exports. approvedVendorQuerySchema = Joi.object({
     .default(10)
 });
 
-
 exports.getBookingByIdSchema = Joi.object({
   booking_id: Joi.number()
     .integer()
@@ -402,11 +398,8 @@ exports.updateFarmStatusSchema = Joi.object({
   })
   .options({ allowUnknown: false });
 
-
   // udpate admin profile
 
-
-  
   exports.getFarmByVendorSchema = Joi.object({
     farmId: Joi.string()
       .required()
@@ -416,6 +409,7 @@ exports.updateFarmStatusSchema = Joi.object({
         "string.pattern.base": "farmId must be a valid MongoDB ObjectId"
       })
   });
+
 exports.adminUpdateSchema = Joi.object({
   name: Joi.string()
     .pattern(/^[A-Za-z]+(\s[A-Za-z]+)*$/)
@@ -446,4 +440,25 @@ exports.adminUpdateSchema = Joi.object({
       'string.min': 'Address must be at least 5 characters long.',
       'string.max': 'Address must not exceed 200 characters.'
     })
+});
+
+// Notification 
+exports. vendorNotificationSchema = Joi.object({
+  vendorIds: Joi.array()
+    .items(
+      Joi.string().custom((value, helpers) => {
+        if (!mongoose.Types.ObjectId.isValid(value)) {
+          return helpers.error("any.invalid");
+        }
+        return value;
+      }, "Mongo ObjectId Validation")
+    )
+    .min(1)
+    .required()
+    .messages({
+      "array.base": "Vendor IDs must be an array.",
+      "array.min": "At least one vendor ID is required.",
+      "any.invalid": "Invalid vendor ID format.",
+      "any.required": "Vendor IDs are required.",
+    }),
 });

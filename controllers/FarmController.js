@@ -334,8 +334,11 @@ const inquiry = new FarmBooking({
     await inquiry.save();
 try {
   if (ownerPlayerIds.length > 0) {
-    const title = "New Booking Inquiry 📝";
-    const message = `You have a new inquiry for farm "${farmDoc.name}" on ${isoDateStr}.`;
+    // const title = "New Booking Inquiry 📝";
+    // const message = `You have a new inquiry for farm "${farmDoc.name}" on ${isoDateStr}.`;
+    const title = "New Farm Inquiry Received 📝";
+const message = `You have received a new inquiry for "${farmDoc.name}" on ${isoDateStr}. Please check your App for details.`;
+
     await sendNotification({
       playerIds: ownerPlayerIds,
       title,

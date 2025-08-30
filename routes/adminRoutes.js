@@ -65,6 +65,11 @@ router.post('/profile',authenticateAdmin, adminController.getAdminProfile);
 router.post('/update_profile',authenticateAdmin, adminController.updateAdminProfile);
 
 
+// Notification apis
+
+router.get('/get_all_active_vendors',authenticateAdmin, adminController.getAllActiveVendors);
+router.post('/send_notification_to_active_vendors',authenticateAdmin, adminController.notifyVendorsForAvailabilityChange);
+
 // Adittional Apis
 
 

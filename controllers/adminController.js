@@ -18,6 +18,7 @@ const { uploadFilesToCloudinary } = require('../utils/UploadFile');
 const VendorValiidation = require("../validationJoi/VendorValidation");
 const Types=require("../models/TypeModel")
 const moment = require("moment");
+const { sendNotification } = require('../services/OneSignal');
 // Register 
 
 exports.sendAdminOtp = async (req, res) => {
@@ -765,7 +766,6 @@ exports.addType = async (req, res) => {
   }
 };
 
-
 exports.addFarmCategory = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -800,79 +800,6 @@ exports.addFarmCategory = async (req, res) => {
   }
 };
 
-// exports.addFacilities = async (req, res) => {
-//   const session = await mongoose.startSession();
-//   session.startTransaction();
-
-//   try {
-//     // ✅ Step 1: Validate input
-//     const { error, value } = addFacilitiesSchema.validate(req.body);
-//     if (error) {
-//       return res.status(400).json({ success: false, message: error.details[0].message });
-//     }
-
-//     const facilitiesToAdd = value.facilities;
-
-//     // ✅ Step 2: Prepare normalized sets (only for provided class_name)
-//     const nameSet = new Set(facilitiesToAdd.map(f => f.name.trim().toLowerCase()));
-//     const classNameSet = new Set(
-//       facilitiesToAdd.filter(f => f.class_name).map(f => f.class_name.trim().toLowerCase())
-//     );
-
-//     // ✅ Step 3: Check for existing duplicates in DB
-//     const existingFacilities = await Facility.find({
-//       $or: [
-//         { name: { $in: Array.from(nameSet).map(n => new RegExp(`^${n}$`, 'i')) } },
-//         { class_name: { $in: Array.from(classNameSet).map(n => new RegExp(`^${n}$`, 'i')) } }
-//       ]
-//     });
-
-//     if (existingFacilities.length > 0) {
-//       const duplicates = existingFacilities.map(f => ({
-//         name: f.name,
-//         class_name: f.class_name
-//       }));
-//       return res.status(409).json({
-//         success: false,
-//         message: 'One or more facilities already exist.',
-//         duplicates
-//       });
-//     }
-
-//     // ✅ Step 4: Build insert payload without adding `class_name` when empty
-//     const newFacilities = facilitiesToAdd.map(facility => {
-//       const data = {
-//         name: facility.name.trim(),
-//         icon: facility.icon?.trim() || null
-//       };
-//       if (facility.class_name && facility.class_name.trim() !== '') {
-//         data.class_name = facility.class_name.trim();
-//       }
-//       return data;
-//     });
-
-//     // ✅ Step 5: Insert using transaction
-//     const insertedFacilities = await Facility.insertMany(newFacilities, { session });
-
-//     await session.commitTransaction();
-//     session.endSession();
-
-//     return res.status(201).json({
-//       success: true,
-//       message: `${insertedFacilities.length} facility(ies) added successfully`,
-//       data: insertedFacilities
-//     });
-
-//   } catch (error) {
-//     await session.abortTransaction();
-//     session.endSession();
-//     console.error('❌ Error adding facilities:', error);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Internal server error. Please try again later.'
-//     });
-//   }
-// };
 exports.addFacilities = async (req, res) => {
   try {
     // ✅ Step 1: Validate input
@@ -1536,7 +1463,6 @@ exports.getVendorFarmById = async (req, res) => {
     });
   }
 };
-
 exports.getVendorWithFarms = async (req, res) => {
   try {
     // ✅ Step 1: Validate input (vendor_id in body)
@@ -1596,10 +1522,6 @@ exports.getVendorWithFarms = async (req, res) => {
   }
 };
 
-
-
-
-
 exports.getAdminProfile = async (req, res) => {
   try {
     // ✅ Step 1: Validate user ID from auth
@@ -1638,9 +1560,6 @@ exports.getAdminProfile = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error.' });
   }
 };
-
-
-
 
 exports.getAllFarms = async (req, res) => {
   try {
@@ -1701,7 +1620,6 @@ exports.getAllFarms = async (req, res) => {
     return res.status(500).json({ error: 'Server error. Please try again later.' });
   }
 };
-
 
 exports.updateFarmStatus = async (req, res) => {
   try {
@@ -1806,8 +1724,6 @@ exports.updateFarmStatus = async (req, res) => {
   }
 };
 
-
-
 exports.updateAdminProfile = async (req, res) => {
   try {
     const adminId = req.user.id;
@@ -1893,3 +1809,91 @@ exports.updateAdminProfile = async (req, res) => {
   }
 };
 
+// Notification 
+
+
+exports.getAllActiveVendors = async (req, res) => {
+  try {
+    const vendors = await Vendor.find({ isActive: true })
+      .select("_id name createdAt updatedAt lastLogin isActive")
+      .sort({ createdAt: -1 }); // latest first
+
+    return res.status(200).json({
+      success: true,
+      count: vendors.length,
+      data: vendors,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching active vendors:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch active vendors",
+      error: error.message,
+    });
+  }
+};
+
+
+exports.notifyVendorsForAvailabilityChange = async (req, res) => {
+  try {
+    // ✅ 1) Validate request body
+    const { error, value } = AdminValidation.vendorNotificationSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map((err) => err.message),
+      });
+    }
+
+    const { vendorIds } = value;
+
+    // ✅ 2) Fetch vendors & collect playerIds
+    const vendors = await Vendor.find({ _id: { $in: vendorIds }, isActive: true })
+      .select("name playerIds");
+
+    if (!vendors || vendors.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No active vendors found with given IDs",
+      });
+    }
+
+    const allPlayerIds = vendors.flatMap(v => v.playerIds || []);
+    const uniquePlayerIds = [...new Set(allPlayerIds)];
+
+    if (uniquePlayerIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid OneSignal player IDs found for vendors",
+      });
+    }
+
+    // ✅ 3) Send notification
+ const title = "Update Your Farm Availability";
+const message = "Admin has requested you to review and update your farm’s availability status in the BookFarm app.";
+
+    
+    await sendNotification({
+      playerIds: uniquePlayerIds,
+      title,
+      message,
+      data: { type: "availability_update" },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Notification sent to vendors successfully",
+      notifiedVendors: vendors.map(v => ({ id: v._id, name: v.name })),
+      totalRecipients: uniquePlayerIds.length,
+    });
+
+  } catch (err) {
+    console.error("🚨 notifyVendorsForAvailabilityChange error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to notify vendors",
+      error: err.message,
+    });
+  }
+};
