@@ -3323,9 +3323,9 @@ exports.getFarmAvailability = async (req, res) => {
       availability.push({
         date: isoDate,
         dayName,
-        availableSlots,
-        slots,
-        timings,
+        availableSlots
+        // slots,
+        // timings,
       });
     }
 
