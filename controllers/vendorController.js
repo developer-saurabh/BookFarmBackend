@@ -3237,6 +3237,114 @@ if (validPlayerIds.length > 0) {
 };
 
 
+exports.getFarmAvailability = async (req, res) => {
+  try {
+    const { farmId } = req.body;
+    const vendorId = req.user.id;
+
+    if (!farmId) {
+      return res.status(400).json({ success: false, message: "Farm ID is required" });
+    }
+
+    const farm = await Farm.findById(farmId);
+    if (!farm) {
+      return res.status(404).json({ success: false, message: "Farm not found" });
+    }
+
+    // 🔐 Ownership check
+    if (farm.owner.toString() !== vendorId) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const today = moment().startOf("day");
+    const days = Array.from({ length: 45 }, (_, i) => moment(today).add(i, "days"));
+
+    const availability = [];
+
+    for (const date of days) {
+      const isoDate = date.format("YYYY-MM-DD");
+      const dayName = date.format("dddd");
+
+      // default: all true
+      let availableSlots = {
+        full_day: true,
+        day_slot: true,
+        night_slot: true,
+        full_night: true,
+      };
+
+      // --- Step 1: check manual block (unavailableDates)
+      const block = farm.unavailableDates.find((d) =>
+        moment(d.date).startOf("day").isSame(date, "day")
+      );
+      if (block) {
+        block.blockedSlots.forEach((slot) => {
+          availableSlots[slot] = false;
+        });
+      }
+
+      // --- Step 2: check confirmed bookings
+      const confirmedBookings = await FarmBooking.find({
+        farm: farm._id,
+        date: { $eq: date.toDate() },
+        status: "confirmed",
+      }).select("bookingModes");
+
+      confirmedBookings.forEach((b) => {
+        (b.bookingModes || []).forEach((mode) => {
+          availableSlots[mode] = false;
+        });
+      });
+
+      // --- Step 3: pricing (daily > default)
+      const dailyPricing = farm.dailyPricing.find((d) =>
+        moment(d.date).startOf("day").isSame(date, "day")
+      );
+
+      const slots = {};
+      const timings = {};
+
+      ["full_day", "day_slot", "night_slot", "full_night"].forEach((slot) => {
+        if (dailyPricing) {
+          slots[slot] = {
+            price: dailyPricing.slots?.[slot]?.price || 0,
+            pricePerGuest: dailyPricing.slots?.[slot]?.pricePerGuest || 0,
+          };
+          timings[slot] = dailyPricing.timings?.[slot] || {};
+        } else {
+          slots[slot] = {
+            price: farm.defaultPricing?.[slot]?.price || 0,
+            pricePerGuest: farm.defaultPricing?.[slot]?.pricePerGuest || 0,
+          };
+          timings[slot] = farm.defaultTimings?.[slot] || {};
+        }
+      });
+
+      availability.push({
+        date: isoDate,
+        dayName,
+        availableSlots,
+        slots,
+        timings,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "45 days availability fetched successfully",
+      data: availability,
+    });
+  } catch (err) {
+    console.error("❌ Error in getFarmAvailability:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
+
+
 // push notificaton
 
 
