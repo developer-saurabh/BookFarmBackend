@@ -3045,6 +3045,7 @@ exports.getAllVendorDetails = async (req, res) => {
         "occupancy",
         "currency",
         "images",
+        "areaImages",
         "isActive",
         "isApproved"
       ])
