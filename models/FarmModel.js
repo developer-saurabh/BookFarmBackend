@@ -61,10 +61,10 @@ const farmSchema = new mongoose.Schema(
 
     // 🔁 MODES: added full_night everywhere
     bookingModes: {
-      full_day: { type: Boolean, default: false },
-      day_slot: { type: Boolean, default: false },
-      night_slot: { type: Boolean, default: false },
-      full_night: { type: Boolean, default: false },
+      full_day: { type: Boolean, default: true },
+      day_slot: { type: Boolean, default: true },
+      night_slot: { type: Boolean, default: true },
+      full_night: { type: Boolean, default: true },
     },
     barbequeCharcoal: {
       isAvailable: { type: Boolean, default: false }, // overall toggle
