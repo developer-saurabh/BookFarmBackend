@@ -790,11 +790,11 @@ exports.addOrUpdateFarm = async (req, res) => {
       for (const batch of batches) {
         // === Local Upload (commented for now) ===
 
-        // const urls = await uploadFilesToLocal(batch, "farms", []);
-        // uploadedUrls.push(...urls);
+        const urls = await uploadFilesToLocal(batch, "farms", []);
+        uploadedUrls.push(...urls);
 
         // === Cloudinary Upload ===
-        const urls = await uploadFilesToCloudinary(batch, "farms");
+        // const urls = await uploadFilesToCloudinary(batch, "farms");
       }
       value.images = uploadedUrls;
     }
@@ -814,15 +814,15 @@ exports.addOrUpdateFarm = async (req, res) => {
         const batches = chunkArray(allFiles, MAX_BATCH_SIZE);
         for (const batch of batches) {
           // === Local Upload (commented for now) ===
-          // const urls = await uploadFilesToLocal(batch, `farms/${area.areaType}`, []);
-          // uploadedUrls.push(...urls);
+          const urls = await uploadFilesToLocal(batch, `farms/${area.areaType}`, []);
+          uploadedUrls.push(...urls);
 
           // === Cloudinary Upload ===
-          const urls = await uploadFilesToCloudinary(
-            batch,
-            `farms/${area.areaType}`
-          );
-          uploadedUrls.push(...urls);
+          // const urls = await uploadFilesToCloudinary(
+          //   batch,
+          //   `farms/${area.areaType}`
+          // );
+          // uploadedUrls.push(...urls);
         }
         areaImagesData.push({ areaType: area.areaType, images: uploadedUrls });
       }
@@ -3070,83 +3070,83 @@ exports.getAllVendorDetails = async (req, res) => {
   }
 };
 
-exports.loginVendor = async (req, res) => {
-  try {
-    // ✅ 1) Validate input
-    const { error, value } = VendorValiidation.vendorLoginSchema.validate(
-      req.body
-    );
-    if (error) {
-      return res.status(400).json({ error: error.details[0].message });
-    }
+// exports.loginVendor = async (req, res) => {
+//   try {
+//     // ✅ 1) Validate input
+//     const { error, value } = VendorValiidation.vendorLoginSchema.validate(
+//       req.body
+//     );
+//     if (error) {
+//       return res.status(400).json({ error: error.details[0].message });
+//     }
 
-    const { email, password, playerId } = value; // 👉 get playerId also
+//     const { email, password, playerId } = value; // 👉 get playerId also
 
-    // ✅ 2) Find vendor by email
-    const vendor = await Vendor.findOne({ email });
-    if (!vendor) {
-      return res.status(404).json({
-        error: "Email not found. Please register first or check your email address.",
-      });
-    }
+//     // ✅ 2) Find vendor by email
+//     const vendor = await Vendor.findOne({ email });
+//     if (!vendor) {
+//       return res.status(404).json({
+//         error: "Email not found. Please register first or check your email address.",
+//       });
+//     }
 
-    // ✅ 3) Check vendor status BEFORE comparing password
-    if (!vendor.isVerified) {
-      return res.status(403).json({ error: "Vendor is not verified. Please contact admin." });
-    }
-    if (!vendor.isActive) {
-      return res.status(403).json({ error: "Vendor account is inactive. Please contact admin." });
-    }
-    if (vendor.isBlocked) {
-      return res.status(403).json({ error: "Vendor account is blocked. Access denied." });
-    }
+//     // ✅ 3) Check vendor status BEFORE comparing password
+//     if (!vendor.isVerified) {
+//       return res.status(403).json({ error: "Vendor is not verified. Please contact admin." });
+//     }
+//     if (!vendor.isActive) {
+//       return res.status(403).json({ error: "Vendor account is inactive. Please contact admin." });
+//     }
+//     if (vendor.isBlocked) {
+//       return res.status(403).json({ error: "Vendor account is blocked. Access denied." });
+//     }
 
-    // ✅ 4) Compare password
-    const isMatch = await bcrypt.compare(password, vendor.password);
-    if (!isMatch) {
-      return res.status(401).json({ error: "Incorrect password. Please try again." });
-    }
+//     // ✅ 4) Compare password
+//     const isMatch = await bcrypt.compare(password, vendor.password);
+//     if (!isMatch) {
+//       return res.status(401).json({ error: "Incorrect password. Please try again." });
+//     }
 
-    // ✅ 5) Update last login + store playerId
-    vendor.lastLogin = new Date();
-    if (playerId) {
-      vendor.playerId = playerId; // 👉 store OneSignal playerId
-    }
-    await vendor.save();
+//     // ✅ 5) Update last login + store playerId
+//     vendor.lastLogin = new Date();
+//     if (playerId) {
+//       vendor.playerId = playerId; // 👉 store OneSignal playerId
+//     }
+//     await vendor.save();
 
-    // ✅ 6) Generate JWT with lastLogin
-    const token = jwt.sign(
-      {
-        id: vendor._id,
-        email: vendor.email,
-        role: "vendor",
-        name: vendor.name,
-        lastLogin: vendor.lastLogin.getTime(),
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+//     // ✅ 6) Generate JWT with lastLogin
+//     const token = jwt.sign(
+//       {
+//         id: vendor._id,
+//         email: vendor.email,
+//         role: "vendor",
+//         name: vendor.name,
+//         lastLogin: vendor.lastLogin.getTime(),
+//       },
+//       process.env.JWT_SECRET,
+//       { expiresIn: "7d" }
+//     );
 
-    // ✅ 7) Send token in header
-    res.setHeader("Authorization", `Bearer ${token}`);
+//     // ✅ 7) Send token in header
+//     res.setHeader("Authorization", `Bearer ${token}`);
 
-    // ✅ 8) Response
-    return res.status(200).json({
-      message: "✅ Login successful.",
-      token,
-      vendor: {
-        id: vendor._id,
-        name: vendor.name,
-        email: vendor.email,
-        phone: vendor.phone,
-        playerId: vendor.playerId, // return stored playerId
-      },
-    });
-  } catch (err) {
-    console.error("🚨 Error logging in vendor:", err);
-    return res.status(500).json({ error: "Internal server error." });
-  }
-};
+//     // ✅ 8) Response
+//     return res.status(200).json({
+//       message: "✅ Login successful.",
+//       token,
+//       vendor: {
+//         id: vendor._id,
+//         name: vendor.name,
+//         email: vendor.email,
+//         phone: vendor.phone,
+//         playerId: vendor.playerId, // return stored playerId
+//       },
+//     });
+//   } catch (err) {
+//     console.error("🚨 Error logging in vendor:", err);
+//     return res.status(500).json({ error: "Internal server error." });
+//   }
+// };
 
 exports.loginVendorMobile = async (req, res) => {
   try {
