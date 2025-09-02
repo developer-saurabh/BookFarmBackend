@@ -608,6 +608,421 @@ const chunkArray = (arr, size) => {
   return chunks;
 };
 
+// exports.addOrUpdateFarm = async (req, res) => {
+//   try {
+//     // === Parse stringified JSON ===
+//     if (req.body.areaImages && typeof req.body.areaImages === "string") {
+//       try {
+//         req.body.areaImages = JSON.parse(req.body.areaImages);
+//       } catch {
+//         return res
+//           .status(400)
+//           .json({
+//             success: false,
+//             message: "Invalid JSON format for areaImages",
+//           });
+//       }
+//     }
+//     [
+//       "rules",
+//       "address",
+//       "propertyDetails",
+//       "mealsOffered",
+//       "kitchenOffered",
+//       "barbequeCharcoal",
+//     ].forEach((key) => {
+//       if (req.body[key] && typeof req.body[key] === "string") {
+//         try {
+//           req.body[key] = JSON.parse(req.body[key]);
+//         } catch {}
+//       }
+//     });
+
+//     // Types handling
+//     if (req.body.Types?.length) {
+//       req.body.types = req.body.Types;
+//       delete req.body.Types;
+//     }
+
+//     // === Validate farm data ===
+//     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
+//       req.body,
+//       { abortEarly: false, allowUnknown: true }
+//     );
+//     if (error)
+//       return res
+//         .status(400)
+//         .json({
+//           success: false,
+//           message: "Validation failed",
+//           errors: error.details.map((e) => e.message),
+//         });
+
+//     const ownerId = req.user.id;
+//     value.owner = ownerId;
+//     const farmId = value.farmId;
+
+//     // === Vendor checks ===
+//     const vendor = await Vendor.findById(ownerId);
+//     if (!vendor)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Vendor not found." });
+//     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked)
+//       return res
+//         .status(403)
+//         .json({
+//           success: false,
+//           message: "Vendor is not eligible to create/update farms.",
+//         });
+
+//     value.kitchenOffered = normalizeFeature(value.kitchenOffered, {
+//       withDesc: true,
+//       bookingModes: value.bookingModes || {},
+//     });
+//     value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, {
+//       withDesc: false,
+//       bookingModes: value.bookingModes || {},
+//     });
+
+//     // === Validate relations ===
+//     if (value.farmCategory?.length) {
+//       const categoryExists = await FarmCategory.find({
+//         _id: { $in: value.farmCategory },
+//       });
+//       if (categoryExists.length !== value.farmCategory.length)
+//         return res
+//           .status(400)
+//           .json({
+//             success: false,
+//             message: "One or more farmCategory IDs are invalid.",
+//           });
+//     }
+//     if (value.facilities?.length) {
+//       const validFacilities = await Facility.find({
+//         _id: { $in: value.facilities },
+//       });
+//       if (validFacilities.length !== value.facilities.length)
+//         return res
+//           .status(400)
+//           .json({
+//             success: false,
+//             message: "One or more facilities IDs are invalid.",
+//           });
+//     }
+//     if (value.Types?.length) {
+//       const incomingTypes = value.Types.filter(Boolean);
+//       const invalidIds = incomingTypes.filter(
+//         (id) => !mongoose.Types.ObjectId.isValid(id)
+//       );
+//       if (invalidIds.length)
+//         return res
+//           .status(400)
+//           .json({
+//             success: false,
+//             message: "One or more type IDs are invalid.",
+//             errors: invalidIds,
+//           });
+
+//       const found = await FarmType.find(
+//         { _id: { $in: incomingTypes } },
+//         { _id: 1 }
+//       ).lean();
+//       if (found.length !== incomingTypes.length) {
+//         const foundSet = new Set(found.map((t) => String(t._id)));
+//         const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
+//         return res
+//           .status(400)
+//           .json({
+//             success: false,
+//             message: "One or more type IDs do not exist.",
+//             errors: missing,
+//           });
+//       }
+//       value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
+//       delete value.Types;
+//     }
+
+//     if (value.rules && !Array.isArray(value.rules)) value.rules = [value.rules];
+//     if (value.propertyDetails && typeof value.propertyDetails !== "object")
+//       return res
+//         .status(400)
+//         .json({
+//           success: false,
+//           message: "propertyDetails must be an object.",
+//         });
+
+//     if (value.address) {
+//       if (typeof value.address !== "object")
+//         return res
+//           .status(400)
+//           .json({ success: false, message: "Address must be an object." });
+//       if (value.address.mapLink) {
+//         const urlRegex =
+//           /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
+//         if (!urlRegex.test(value.address.mapLink))
+//           return res
+//             .status(400)
+//             .json({
+//               success: false,
+//               message: "Invalid URL format for mapLink",
+//             });
+//       }
+//       value.location = {
+//         ...value.address,
+//         mapLink: value.address.mapLink || null,
+//         createdBy: req.user.id,
+//       };
+//       delete value.address;
+//     }
+
+//     // === MAIN IMAGES ===
+//     if (req.files?.images || req.files?.image || req.body.images) {
+//       const imagesArray = normalizeFiles(
+//         req.files?.images || req.files?.image || req.body.images
+//       );
+//       const oldImages = farmId
+//         ? (await Farm.findOne({ _id: farmId, owner: ownerId }))?.images || []
+//         : [];
+
+//       const uploadedUrls = [];
+//       const batches = chunkArray(imagesArray, MAX_BATCH_SIZE);
+//       for (const batch of batches) {
+//         // === Local Upload (commented for now) ===
+
+//         const urls = await uploadFilesToLocal(batch, "farms", []);
+//         uploadedUrls.push(...urls);
+
+//         // === Cloudinary Upload ===
+//         // const urls = await uploadFilesToCloudinary(batch, "farms");
+//       }
+//       value.images = uploadedUrls;
+//     }
+
+//     // === AREA IMAGES ===
+//     if (value.areaImages) {
+//       const areaImagesData = [];
+//       for (let i = 0; i < value.areaImages.length; i++) {
+//         const area = value.areaImages[i];
+//         const filesArray = normalizeFiles(
+//           req.files?.[`areaImages[${i}][images]`]
+//         );
+//         const base64Array = Array.isArray(area.images) ? area.images : [];
+//         const allFiles = [...base64Array, ...filesArray];
+
+//         const uploadedUrls = [];
+//         const batches = chunkArray(allFiles, MAX_BATCH_SIZE);
+//         for (const batch of batches) {
+//           // === Local Upload (commented for now) ===
+//           const urls = await uploadFilesToLocal(batch, `farms/${area.areaType}`, []);
+//           uploadedUrls.push(...urls);
+
+//           // === Cloudinary Upload ===
+//           // const urls = await uploadFilesToCloudinary(
+//           //   batch,
+//           //   `farms/${area.areaType}`
+//           // );
+//           // uploadedUrls.push(...urls);
+//         }
+//         areaImagesData.push({ areaType: area.areaType, images: uploadedUrls });
+//       }
+//       value.areaImages = areaImagesData;
+//     }
+
+//     // === DAILY PRICING VALIDATION ===
+//     // === DAILY PRICING VALIDATION ===
+//     if (value.dailyPricing?.length) {
+//       const validateDailyPricing = (dailyPricing) => {
+//         const seenDates = new Set();
+//         const timeRegex =
+//           /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
+//         const isBlank = (v) => v === "" || v == null;
+
+//         const toMinutes = (timeStr) => {
+//           if (/AM|PM/i.test(timeStr)) {
+//             const [, hh, mm, meridian] = timeStr.match(
+//               /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
+//             );
+//             let h = parseInt(hh, 10),
+//               m = parseInt(mm, 10);
+//             if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
+//             if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
+//             return h * 60 + m;
+//           } else {
+//             const [h, m] = timeStr.split(":").map(Number);
+//             return h * 60 + m;
+//           }
+//         };
+
+//         const buildInterval = (slot, checkIn, checkOut) => {
+//           // both empty/null => skip silently
+//           if (isBlank(checkIn) && isBlank(checkOut)) return null;
+//           // one provided but the other missing => error
+//           if (isBlank(checkIn) || isBlank(checkOut)) {
+//             throw new Error(
+//               `${slot} requires both checkIn and checkOut when one is provided.`
+//             );
+//           }
+//           // both provided => must be valid format
+//           if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
+//             throw new Error(`Invalid time format for ${slot}.`);
+//           }
+
+//           const start = toMinutes(checkIn);
+//           let end = toMinutes(checkOut);
+//           if (
+//             ["night_slot", "full_day", "full_night"].includes(slot) &&
+//             end <= start
+//           )
+//             end += 1440;
+//           else if (end <= start)
+//             throw new Error(`${slot} checkOut must be after checkIn.`);
+
+//           return { slot, start, end };
+//         };
+
+//         dailyPricing.forEach((entry) => {
+//           const isoDate = new Date(entry.date).toISOString().split("T")[0];
+//           if (seenDates.has(isoDate))
+//             throw new Error(`Duplicate pricing for ${isoDate}`);
+//           seenDates.add(isoDate);
+
+//           // timings optional
+//           if (!entry.timings) entry.timings = {};
+//           const t = entry.timings;
+
+//           const intervals = [];
+//           if (t.full_day) {
+//             const iv = buildInterval(
+//               "full_day",
+//               t.full_day.checkIn,
+//               t.full_day.checkOut
+//             );
+//             if (iv) intervals.push(iv);
+//           }
+//           if (t.day_slot) {
+//             const iv = buildInterval(
+//               "day_slot",
+//               t.day_slot.checkIn,
+//               t.day_slot.checkOut
+//             );
+//             if (iv) intervals.push(iv);
+//           }
+//           if (t.night_slot) {
+//             const iv = buildInterval(
+//               "night_slot",
+//               t.night_slot.checkIn,
+//               t.night_slot.checkOut
+//             );
+//             if (iv) intervals.push(iv);
+//           }
+//           if (t.full_night) {
+//             const iv = buildInterval(
+//               "full_night",
+//               t.full_night.checkIn,
+//               t.full_night.checkOut
+//             );
+//             if (iv) intervals.push(iv);
+//           }
+
+//           // normalize feature flags for the day
+//           entry.kitchenOffered = normalizeFeature(entry.kitchenOffered || {}, {
+//             withDesc: true,
+//             bookingModes: value.bookingModes,
+//           });
+//           entry.barbequeCharcoal = normalizeFeature(
+//             entry.barbequeCharcoal || {},
+//             { withDesc: false, bookingModes: value.bookingModes }
+//           );
+
+//           // ensure mealsOffered skeleton for enabled bookingModes
+//           entry.mealsOffered = entry.mealsOffered || {};
+//           Object.keys(value.bookingModes || {}).forEach((slot) => {
+//             if (!entry.mealsOffered[slot]) {
+//               entry.mealsOffered[slot] = {
+//                 isOffered: false,
+//                 meals: {
+//                   breakfast: { isAvailable: false, value: [] },
+//                   lunch: { isAvailable: false, value: [] },
+//                   hi_tea: { isAvailable: false, value: [] },
+//                   dinner: { isAvailable: false, value: [] },
+//                 },
+//               };
+//             }
+//           });
+//         });
+
+//         return dailyPricing;
+//       };
+
+//       try {
+//         value.dailyPricing = validateDailyPricing(value.dailyPricing);
+//       } catch (e) {
+//         return res.status(400).json({ success: false, message: e.message });
+//       }
+//     }
+
+//     // === CREATE OR UPDATE FARM ===
+//     let farmDoc;
+//     if (farmId) {
+//       farmDoc = await Farm.findOneAndUpdate(
+//         { _id: farmId, owner: ownerId },
+//         { $set: value },
+//         { new: true }
+//       );
+//       if (!farmDoc)
+//         return res
+//           .status(404)
+//           .json({ success: false, message: "Farm not found." });
+//     } else {
+//       if (value.name) {
+//         const duplicate = await Farm.findOne({
+//           name: value.name,
+//           owner: ownerId,
+//         });
+//         if (duplicate)
+//           return res
+//             .status(409)
+//             .json({
+//               success: false,
+//               message: "A farm with this name already exists.",
+//             });
+//       }
+//       farmDoc = await new Farm(value).save();
+//     }
+
+//     const populatedFarm = await Farm.findById(farmDoc._id)
+//       .populate("farmCategory", "_id name")
+//       .populate("facilities", "_id name")
+//       .populate("types", "_id name");
+
+//     const farmResponse = {
+//       ...populatedFarm.toObject(),
+//       Types: populatedFarm.types,
+//     };
+//     delete farmResponse.types;
+
+//     return res.status(farmId ? 200 : 201).json({
+//       success: true,
+//       message: farmId
+//         ? "Farm updated successfully."
+//         : "Farm created successfully.",
+//       data: farmResponse,
+//     });
+//   } catch (err) {
+//     console.error("[AddOrUpdateFarm Error]", err);
+//     return res
+//       .status(500)
+//       .json({
+//         success: false,
+//         message: "Internal server error",
+//         error: err.message,
+//       });
+//   }
+// };
+
+
+
 exports.addOrUpdateFarm = async (req, res) => {
   try {
     // === Parse stringified JSON ===
@@ -710,38 +1125,36 @@ exports.addOrUpdateFarm = async (req, res) => {
             message: "One or more facilities IDs are invalid.",
           });
     }
-    if (value.Types?.length) {
-      const incomingTypes = value.Types.filter(Boolean);
-      const invalidIds = incomingTypes.filter(
-        (id) => !mongoose.Types.ObjectId.isValid(id)
-      );
-      if (invalidIds.length)
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "One or more type IDs are invalid.",
-            errors: invalidIds,
-          });
+if (value.types?.length) {
+  const incomingTypes = value.types.filter(Boolean);
+  const invalidIds = incomingTypes.filter(
+    (id) => !mongoose.Types.ObjectId.isValid(id)
+  );
+  if (invalidIds.length) {
+    return res.status(400).json({
+      success: false,
+      message: "One or more type IDs are invalid.",
+      errors: invalidIds,
+    });
+  }
 
-      const found = await FarmType.find(
-        { _id: { $in: incomingTypes } },
-        { _id: 1 }
-      ).lean();
-      if (found.length !== incomingTypes.length) {
-        const foundSet = new Set(found.map((t) => String(t._id)));
-        const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "One or more type IDs do not exist.",
-            errors: missing,
-          });
-      }
-      value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
-      delete value.Types;
-    }
+  const found = await FarmType.find(
+    { _id: { $in: incomingTypes } },
+    { _id: 1 }
+  ).lean();
+
+  if (found.length !== incomingTypes.length) {
+    const foundSet = new Set(found.map((t) => String(t._id)));
+    const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
+    return res.status(400).json({
+      success: false,
+      message: "One or more type IDs do not exist.",
+      errors: missing,
+    });
+  }
+
+  value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
+}
 
     if (value.rules && !Array.isArray(value.rules)) value.rules = [value.rules];
     if (value.propertyDetails && typeof value.propertyDetails !== "object")
@@ -1020,505 +1433,6 @@ exports.addOrUpdateFarm = async (req, res) => {
       });
   }
 };
-
-// exports.addOrUpdateFarm = async (req, res) => {
-//   try {
-//     // ✅ Parse areaImages if it's sent as a string
-//     if (req.body.areaImages && typeof req.body.areaImages === "string") {
-//       try {
-//         req.body.areaImages = JSON.parse(req.body.areaImages);
-//       } catch (err) {
-//         return res
-//           .status(400)
-//           .json({
-//             success: false,
-//             message: "Invalid JSON format for areaImages",
-//           });
-//       }
-//     }
-
-//     // ✅ Do the same for address, rules, propertyDetails if needed
-//     ["rules", "address", "propertyDetails"].forEach((key) => {
-//       if (req.body[key] && typeof req.body[key] === "string") {
-//         try {
-//           req.body[key] = JSON.parse(req.body[key]);
-//         } catch {}
-//       }
-//     });
-//     const normalizeFiles = (files) => {
-//       if (!files) return [];
-//       return Array.isArray(files) ? files : [files];
-//     };
-//     // ✅ Pre-process "Types" → "types" for validation and DB
-
-// if (req.body.Types?.length) {
-//   req.body.types = req.body.Types;
-//   delete req.body.Types;
-// }
-//     // ✅ 1. Validate Request with Joi
-//     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
-//       req.body,
-//       { abortEarly: false, allowUnknown: true }
-//     );
-
-//     if (error) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Validation failed",
-//         errors: error.details.map((err) => err.message),
-//       });
-//     }
-
-//     const ownerId = req.user.id;
-//     value.owner = ownerId;
-//     const farmId = value.farmId;
-
-//     // ✅ 2. Verify Vendor
-//     const vendor = await Vendor.findById(ownerId);
-//     if (!vendor)
-//       return res
-//         .status(404)
-//         .json({ success: false, message: "Vendor not found." });
-//     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked) {
-//       return res
-//         .status(403)
-//         .json({
-//           success: false,
-//           message: "Vendor is not eligible to create/update farms.",
-//         });
-//     }
-
-//     // ✅ 3. Validate farmCategory if provided
-//     if (value.farmCategory?.length) {
-//       const categoryExists = await FarmCategory.find({
-//         _id: { $in: value.farmCategory },
-//       });
-//       if (categoryExists.length !== value.farmCategory.length) {
-//         return res
-//           .status(400)
-//           .json({
-//             success: false,
-//             message: "One or more farmCategory IDs are invalid.",
-//           });
-//       }
-//     }
-
-//     // ✅ 4. Validate facilities if provided
-//     if (value.facilities?.length) {
-//       const validFacilities = await Facility.find({
-//         _id: { $in: value.facilities },
-//       });
-//       if (validFacilities.length !== value.facilities.length) {
-//         return res
-//           .status(400)
-//           .json({
-//             success: false,
-//             message: "One or more facilities IDs are invalid.",
-//           });
-//       }
-//     }
-
-// // ✅ 4.1 Validate and map "Types" from Postman to schema "types"
-// if (value.Types?.length) {
-//   const incomingTypes = value.Types.filter(Boolean);
-
-//   // Validate ObjectId format
-//   const invalidIds = incomingTypes.filter(
-//     (id) => !mongoose.Types.ObjectId.isValid(id)
-//   );
-//   if (invalidIds.length) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "One or more type IDs are not valid ObjectIds.",
-//       errors: invalidIds,
-//     });
-//   }
-
-//   // Check if types actually exist in DB
-//   const found = await FarmType.find(
-//     { _id: { $in: incomingTypes } },
-//     { _id: 1 }
-//   ).lean();
-
-//   if (found.length !== incomingTypes.length) {
-//     const foundSet = new Set(found.map((t) => String(t._id)));
-//     const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
-//     return res.status(400).json({
-//       success: false,
-//       message: "One or more type IDs do not exist.",
-//       errors: missing,
-//     });
-//   }
-
-//   // ✅ Map into proper ObjectId array for schema
-//   console.log("value type printing",value.types)
-//   value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
-//   delete value.Types; // Clean up extra field
-// }
-
-//     // ✅ 5. Embedded Rules → Ensure Always Array
-//     if (value.rules) {
-//       if (!Array.isArray(value.rules)) {
-//         value.rules = [value.rules]; // normalize single object to array
-//       }
-//     }
-
-//     // ✅ 6. Embedded Property Details → No DB Lookup
-//     if (value.propertyDetails && typeof value.propertyDetails !== "object") {
-//       return res
-//         .status(400)
-//         .json({
-//           success: false,
-//           message: "propertyDetails must be an object.",
-//         });
-//     }
-
-//     // ✅ 7. Embedded Address → Must Be Object
-//     if (value.address) {
-//       if (typeof value.address !== "object") {
-//         return res
-//           .status(400)
-//           .json({ success: false, message: "Address must be an object." });
-//       }
-
-//       // ✅ Validate mapLink if provided
-//       if (value.address.mapLink) {
-//         const urlRegex =
-//           /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
-//         if (!urlRegex.test(value.address.mapLink)) {
-//           return res
-//             .status(400)
-//             .json({ success: false, message: "Invalid URL format for mapLink" });
-//         }
-//       }
-
-//       value.location = {
-//         ...value.address,
-//         mapLink: value.address.mapLink || null,
-//         createdBy: req.user.id,
-//       };
-
-//       delete value.address;
-//     }
-//     // ✅ 8. Handle General Farm Images (main gallery) using cloudinary
-
-//     // if (req.files?.images || req.files?.image) {
-//     //   const imagesArray = normalizeFiles(req.files.images || req.files.image);
-//     //   if (imagesArray.length > 0) {
-//     //     const uploadedUrls = await uploadFilesToCloudinary(
-//     //       imagesArray,
-//     //       "farms"
-//     //     );
-//     //     value.images = uploadedUrls;
-//     //   }
-//     // }
-//     // ✅ 8. Handle General Farm Images (main gallery) using local file upload
-//     if (req.files?.images || req.files?.image) {
-//       const imagesArray = normalizeFiles(req.files.images || req.files.image);
-//       if (imagesArray.length > 0) {
-//         let oldImages = [];
-
-//         if (farmId) {
-//           const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
-//           if (existingFarm?.images?.length) {
-//             oldImages = existingFarm.images;
-//           }
-//         }
-
-//         const uploadedUrls = await uploadFilesToLocal(imagesArray, 'farms', oldImages);
-//         value.images = uploadedUrls;
-//       }
-//     }
-//     // setp 9 for areawise image using cloudinary
-
-//     // // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.)
-//     // if (req.body.areaImages) {
-//     //   // ✅ Ensure areaImages is parsed if sent as string
-//     //   let areaImagesParsed;
-//     //   try {
-//     //     areaImagesParsed =
-//     //       typeof req.body.areaImages === "string"
-//     //         ? JSON.parse(req.body.areaImages)
-//     //         : req.body.areaImages;
-//     //   } catch (err) {
-//     //     return res
-//     //       .status(400)
-//     //       .json({
-//     //         success: false,
-//     //         message: "Invalid JSON format for areaImages",
-//     //       });
-//     //   }
-
-//     //   const areaImagesData = [];
-
-//     //   // ✅ Loop through each area group
-//     //   for (let i = 0; i < areaImagesParsed.length; i++) {
-//     //     const area = areaImagesParsed[i];
-//     //     const fieldKey = `areaImages[${i}][images]`; // This matches Postman key names
-
-//     //     // ✅ Find corresponding files in req.files
-//     //     const filesArray = normalizeFiles(req.files?.[fieldKey]);
-//     //     let uploadedUrls = [];
-
-//     //     if (filesArray.length > 0) {
-//     //       uploadedUrls = await uploadFilesToCloudinary(
-//     //         filesArray,
-//     //         `farms/${area.areaType}`
-//     //       );
-//     //     }
-
-//     //     // ✅ Push final structure
-//     //     areaImagesData.push({
-//     //       areaType: area.areaType,
-//     //       images: uploadedUrls,
-//     //     });
-//     //   }
-
-//     //   value.areaImages = areaImagesData;
-//     // }
-
-//     // ✅ 9. Handle Area-wise Images (bedroom, kitchen, etc.) using local file upload
-//     if (req.body.areaImages) {
-//       let areaImagesParsed;
-//       try {
-//         areaImagesParsed =
-//           typeof req.body.areaImages === "string"
-//             ? JSON.parse(req.body.areaImages)
-//             : req.body.areaImages;
-//       } catch (err) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "Invalid JSON format for areaImages",
-//         });
-//       }
-
-//       const areaImagesData = [];
-
-//       for (let i = 0; i < areaImagesParsed.length; i++) {
-//         const area = areaImagesParsed[i];
-//         const fieldKey = `areaImages[${i}][images]`;
-
-//         const filesArray = normalizeFiles(req.files?.[fieldKey]);
-//         let uploadedUrls = [];
-
-//         let oldImagesForArea = [];
-//         if (farmId) {
-//           const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
-//           const matchingArea = existingFarm?.areaImages?.find(
-//             (ai) => ai.areaType === area.areaType
-//           );
-//           if (matchingArea?.images?.length) {
-//             oldImagesForArea = matchingArea.images;
-//           }
-//         }
-
-//         if (filesArray.length > 0) {
-//           uploadedUrls = await uploadFilesToLocal(
-//             filesArray,
-//             `farms/${area.areaType}`,
-//             oldImagesForArea
-//           );
-//         }
-
-//         areaImagesData.push({
-//           areaType: area.areaType,
-//           images: uploadedUrls,
-//         });
-//       }
-
-//       value.areaImages = areaImagesData;
-//     }
-//     // ✅ 9. Validate Daily Pricing (if provided)
-//     if (value.dailyPricing?.length) {
-//       const validateDailyPricing = (dailyPricing) => {
-//         const seenDates = new Set();
-
-//         // Accepts "hh:mm AM/PM" or 24h "HH:MM"
-//         const timeRegex =
-//           /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
-
-//         const toMinutes0to1439 = (timeStr) => {
-//           if (/AM|PM/i.test(timeStr)) {
-//             const [, hh, mm, meridian] = timeStr.match(
-//               /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
-//             );
-//             let h = parseInt(hh, 10);
-//             const m = parseInt(mm, 10);
-//             if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
-//             if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
-//             return h * 60 + m; // 0..1439
-//           } else {
-//             const [h, m] = timeStr.split(":").map(Number);
-//             return h * 60 + m; // 0..1439
-//           }
-//         };
-
-//         // Build an interval for a given slot on date D.
-//         // For same-day slots: start < end within 0..1440
-//         // For night_slot, allow crossing midnight: end may be +1440 (next day)
-//         // Build an interval for a given slot on date D.
-//         const buildInterval = (slotName, checkIn, checkOut) => {
-//           if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
-//             throw new Error(
-//               `Invalid time format for ${slotName}. Use "hh:mm AM/PM" or "HH:MM".`
-//             );
-//           }
-//           const inMin = toMinutes0to1439(checkIn);
-//           const outMin = toMinutes0to1439(checkOut);
-
-//           let start = inMin;
-//           let end = outMin;
-
-//           // ✅ Allow overnight rollover for night_slot *and* full_day
-//           if (slotName === "night_slot" || slotName === "full_day") {
-//             if (end <= start) end += 1440; // treat checkout as “next day”
-//           } else {
-//             // day_slot must be same-day
-//             if (end <= start) {
-//               throw new Error(
-//                 `Check-In must be before Check-Out for ${slotName} (same day).`
-//               );
-//             }
-//           }
-
-//           const duration = end - start; // minutes
-//           if (duration <= 0 || duration > 1440) {
-//             throw new Error(
-//               `Invalid duration for ${slotName}. Check your times; max 24 hours.`
-//             );
-//           }
-
-//           return { slot: slotName, start, end }; // 0..2880 scale
-//         };
-
-//         // Simple interval overlap check on the same 0..2880 timeline
-//         const overlaps = (a, b) => Math.max(a.start, b.start) < Math.min(a.end, b.end);
-
-//         dailyPricing.forEach((p) => {
-//           // normalize date label to yyyy-mm-dd (this is the **check-in date**)
-//           const isoDate = new Date(p.date).toISOString().split("T")[0];
-
-//           if (seenDates.has(isoDate)) {
-//             throw new Error(`Duplicate pricing for ${isoDate}`);
-//           }
-//           seenDates.add(isoDate);
-
-//           if (!p.timings) throw new Error(`Timings required for ${isoDate}`);
-
-//           const t = p.timings;
-
-//           // Build intervals
-//           const intervals = [
-//             buildInterval("full_day", t.full_day?.checkIn, t.full_day?.checkOut),
-//             buildInterval("day_slot", t.day_slot?.checkIn, t.day_slot?.checkOut),
-//             buildInterval("night_slot", t.night_slot?.checkIn, t.night_slot?.checkOut),
-//           ];
-
-//           // Optional: sanity constraints (tweak if your business rules differ)
-//           // e.g., night slot should typically start evening and end morning
-//           // (not hard-failing, but you can uncomment to enforce)
-//           // const ns = intervals.find(i => i.slot === 'night_slot');
-//           // if (ns.start < 12 * 60) { // starts before noon
-//           //   throw new Error(`night_slot should start in the evening on ${isoDate}.`);
-//           // }
-
-//           // Ensure no overlaps between the three slots on the same pricing date.
-//           // Because night_slot may go past midnight, it's on a 0..2880 scale.
-//           // Ensure no overlaps between the three slots unless allowed
-//           for (let i = 0; i < intervals.length; i++) {
-//             for (let j = i + 1; j < intervals.length; j++) {
-//               const a = intervals[i];
-//               const b = intervals[j];
-
-//               // ✅ Allowed overlaps:
-//               const allowedOverlap =
-//                 // full_day with others
-//                 (a.slot === "full_day" && ["day_slot", "night_slot"].includes(b.slot)) ||
-//                 (b.slot === "full_day" && ["day_slot", "night_slot"].includes(a.slot)) ||
-//                 // day_slot with night_slot
-//                 (a.slot === "day_slot" && b.slot === "night_slot") ||
-//                 (b.slot === "day_slot" && a.slot === "night_slot");
-
-//               if (!allowedOverlap && overlaps(a, b)) {
-//                 throw new Error(
-//                   `Timing overlap between ${a.slot} and ${b.slot} on ${isoDate}`
-//                 );
-//               }
-//             }
-//           }
-//         });
-
-//         return dailyPricing;
-//       };
-//       try {
-//         value.dailyPricing = validateDailyPricing(value.dailyPricing);
-//       } catch (e) {
-//         return res.status(400).json({ success: false, message: e.message });
-//       }
-//     }
-
-//     // ✅ 10. Create or Update Farm Document
-//     let farmDoc;
-//     if (farmId) {
-//       farmDoc = await Farm.findOneAndUpdate(
-//         { _id: farmId, owner: ownerId },
-//         { $set: value },
-//         { new: true }
-//       );
-//       if (!farmDoc) {
-//         return res
-//           .status(404)
-//           .json({ success: false, message: "Farm not found ." });
-//       }
-//     } else {
-//       if (value.name) {
-//         const duplicate = await Farm.findOne({
-//           name: value.name,
-//           owner: ownerId,
-//         });
-//         if (duplicate) {
-//           return res
-//             .status(409)
-//             .json({
-//               success: false,
-//               message: "A farm with this name already exists.",
-//             });
-//         }
-//       }
-//       farmDoc = await new Farm(value).save();
-//     }
-
-//     // ✅ 11. Populate References (rules/propertyDetails are embedded, no populate)
-//   const populatedFarm = await Farm.findById(farmDoc._id)
-//   .populate("farmCategory")
-//   .populate("facilities")
-//   .populate("types", "_id name"); // ✅ populate types as well
-
-// // ✅ Convert `types` → `Types` for frontend/postman compatibility
-// const farmResponse = {
-//   ...populatedFarm.toObject(),
-//   Types: populatedFarm.types, // 👈 this maps `types` to `Types`
-// };
-// delete farmResponse.types; // optional: remove lowercase version
-
-//     // ✅ 12. Response
-//     return res.status(farmId ? 200 : 201).json({
-//       success: true,
-//       message: farmId
-//         ? "Farm updated successfully."
-//         : "Farm created successfully.",
-//       data: populatedFarm,
-//     });
-//   } catch (err) {
-//     console.error("[AddOrUpdateFarm Error]", err);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error",
-//       error: err.message,
-//     });
-//   }
-// };
-
 exports.unblockDate = async (req, res) => {
   const vendorId = req.user.id;
 

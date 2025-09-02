@@ -1,4 +1,3 @@
-// utils/utilfarmadd.js or utils/utilfarmadd/index.js
 const SLOT_KEYS = ["full_day", "day_slot", "night_slot", "full_night"];
 
 const safeNum = (v, fallback = 0) => {
@@ -6,17 +5,16 @@ const safeNum = (v, fallback = 0) => {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 
-const normalizeFeature = (input, { withDesc = false, bookingModes = {} } = {}) => {
+const normalizeFeature = (input, { withDesc = false } = {}) => {
   const out = {
     isAvailable: !!(input && input.isAvailable),
     slots: {},
   };
 
   for (const slot of SLOT_KEYS) {
-    const slotEnabled = bookingModes?.[slot] !== false;
     const raw = (input?.slots?.[slot]) || {};
 
-    const effectiveAvailable = !!raw.isAvailable && out.isAvailable && slotEnabled;
+    const effectiveAvailable = !!raw.isAvailable && out.isAvailable;
     const slotObj = {
       isAvailable: effectiveAvailable,
       price: effectiveAvailable ? safeNum(raw.price, 0) : 0,
