@@ -1385,10 +1385,12 @@ exports.FilterQueeryFarms = async (req, res) => {
 
     // Use body dates if provided, else default
     let start = startDate ? new Date(startDate) : new Date(now);
-    let end = endDate ? new Date(endDate) : new Date(now);
+    // If endDate is passed, use it, else default to start (not "now")
+    let end = endDate ? new Date(endDate) : new Date(start);
 
-    if (!startDate) {
-      end.setDate(start.getDate() + 60); // default 60 days
+    // If endDate not passed, extend 60 days from start
+    if (!endDate) {
+      end.setDate(start.getDate() + 60);
     }
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
