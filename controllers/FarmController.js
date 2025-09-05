@@ -1740,13 +1740,90 @@ exports.getFarmTypes = async (req, res) => {
 //   }
 // };
 
+// exports.getFarmImagesByCategories = async (req, res) => {
+//   try {
+//     console.log("req.body printing", req.body);
+
+//     const { error, value } = FarmValidation.getImagesByFarmTypeSchema.validate(
+//       req.body
+//     );
+//     if (error) {
+//       return res.status(400).json({
+//         success: false,
+//         message: error.details[0].message,
+//       });
+//     }
+
+//     const { categoryId } = value;
+
+//     if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid category ID.",
+//       });
+//     }
+
+//     // ✅ Check if category exists
+//     const categoryExists = await FarmCategory.exists({ _id: categoryId });
+//     if (!categoryExists) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Farm category not found.",
+//       });
+//     }
+
+//     // ✅ Find farms that reference this category
+//     const farms = await Farm.find(
+//       {
+//         farmCategory: categoryId,
+//         isActive: true,
+//         isApproved: true,
+//       },
+//       "_id images"
+//     );
+
+//     if (!farms.length) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "No farms found for this category.",
+//       });
+//     }
+
+//     // ✅ Extract images along with farmId
+//     const allImagesWithFarmId = farms.flatMap((farm) =>
+//       (farm.images || []).map((img) => ({
+//         farmId: farm._id,
+//         image: img,
+//       }))
+//     );
+
+//     if (!allImagesWithFarmId.length) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "No images found for farms of this category.",
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: `${allImagesWithFarmId.length} image(s) found for this category.`,
+//       data: allImagesWithFarmId,
+//     });
+//   } catch (err) {
+//     console.error("[GetFarmImagesByCategory Error]", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error. Please try again later.",
+//     });
+//   }
+// };
+
+
 exports.getFarmImagesByCategories = async (req, res) => {
   try {
     console.log("req.body printing", req.body);
 
-    const { error, value } = FarmValidation.getImagesByFarmTypeSchema.validate(
-      req.body
-    );
+    const { error, value } = FarmValidation.getImagesByFarmTypeSchema.validate(req.body);
     if (error) {
       return res.status(400).json({
         success: false,
@@ -1779,7 +1856,7 @@ exports.getFarmImagesByCategories = async (req, res) => {
         isActive: true,
         isApproved: true,
       },
-      "_id images"
+      "_id areaImages"
     );
 
     if (!farms.length) {
@@ -1789,12 +1866,15 @@ exports.getFarmImagesByCategories = async (req, res) => {
       });
     }
 
-    // ✅ Extract images along with farmId
+    // ✅ Extract images along with farmId & areaType
     const allImagesWithFarmId = farms.flatMap((farm) =>
-      (farm.images || []).map((img) => ({
-        farmId: farm._id,
-        image: img,
-      }))
+      (farm.areaImages || []).flatMap((area) =>
+        (area.images || []).map((img) => ({
+          farmId: farm._id,
+          areaType: area.areaType,
+          image: img,
+        }))
+      )
     );
 
     if (!allImagesWithFarmId.length) {
