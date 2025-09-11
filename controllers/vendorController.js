@@ -1051,7 +1051,7 @@ exports.addOrUpdateFarm = async (req, res) => {
       }
     });
 
-    // Types handling
+    // Types handling (client may send "Types")
     if (req.body.Types?.length) {
       req.body.types = req.body.Types;
       delete req.body.Types;
@@ -1083,10 +1083,7 @@ exports.addOrUpdateFarm = async (req, res) => {
         message: "Vendor is not eligible to create/update farms.",
       });
 
-    // NOTE: moved normalization down — DO NOT normalize top-level features here.
-    // We'll normalize AFTER building/merging aggregated slots from dailyPricing.
-
-    // === Validate relations ===
+    // ---- Validate relations ----
     if (value.farmCategory?.length) {
       const categoryExists = await FarmCategory.find({
         _id: { $in: value.farmCategory },
@@ -1205,14 +1202,10 @@ exports.addOrUpdateFarm = async (req, res) => {
     // === DAILY PRICING VALIDATION & NORMALIZATION ===
     if (value.dailyPricing?.length) {
       try {
-        // pass bookingModes so slots respect global bookingModes
-        value.dailyPricing = validateDailyPricing(
-          value.dailyPricing,
-          value.bookingModes || {}
-        );
+        // validate & normalize dailyPricing (this respects bookingModes)
+        value.dailyPricing = validateDailyPricing(value.dailyPricing, value.bookingModes || {});
 
-        // --- derive & aggregate top-level feature slots from dailyPricing ---
-        // buildAggregatedSlots aggregates per-slot prices & availability across dailyPricing
+        // helper to aggregate per-slot from dailyPricing
         const buildAggregatedSlots = (dailyPricing, featureKey, take = "latest") => {
           const result = {};
           for (const slot of SLOT_KEYS) {
@@ -1246,41 +1239,32 @@ exports.addOrUpdateFarm = async (req, res) => {
           return result;
         };
 
-        // derive booleans
         const anyDayHasKitchen = value.dailyPricing.some((d) => !!d.kitchenOfferedActive);
         const anyDayHasBarbeque = value.dailyPricing.some((d) => !!d.barbequeCharcoalActive);
 
-        // aggregated slots (use "latest" by default — change to "min"/"max"/"avg" if needed)
         const aggregatedKitchenSlots = buildAggregatedSlots(value.dailyPricing, "kitchenOffered", "latest");
         const aggregatedBarbequeSlots = buildAggregatedSlots(value.dailyPricing, "barbequeCharcoal", "latest");
 
-        // IMPORTANT: merge in a way that prefers **client-provided raw slots** if they actually supplied them,
-        // but avoid letting previously-normalized default zeros override aggregated slots.
-        // We expect `value.kitchenOffered`/`value.barbequeCharcoal` may be provided raw in the request.
-        // Use request-provided raw slots (if present) to override aggregated; otherwise aggregated wins.
-
+        // if client provided raw top-level kitchen/barbeque in request body, capture it
         const providedKitchenRawSlots = (req.body.kitchenOffered && req.body.kitchenOffered.slots) || null;
         const providedBarbequeRawSlots = (req.body.barbequeCharcoal && req.body.barbequeCharcoal.slots) || null;
 
-        // merge/assign top-level kitchenOffered
+        // Merge logic:
+        // - aggregated slots are baseline
+        // - if client provided top-level raw slots, we let them override aggregated per-slot (so client intent wins)
+        // - top-level isAvailable default comes from aggregated unless client explicitly set it
         if (!value.kitchenOffered || typeof value.kitchenOffered !== "object") {
-          // no top-level provided -> use aggregated
           value.kitchenOffered = { isAvailable: !!anyDayHasKitchen, slots: aggregatedKitchenSlots };
         } else {
-          // top-level object exists (from validated value). Merge so that **client raw slots override aggregated** if provided.
           value.kitchenOffered.slots = {
             ...aggregatedKitchenSlots,
             ...(providedKitchenRawSlots || {}),
           };
-          // if client explicitly set isAvailable, prefer that; otherwise set from aggregated boolean
           if (typeof value.kitchenOffered.isAvailable !== "boolean") {
             value.kitchenOffered.isAvailable = !!anyDayHasKitchen;
-          } else {
-            // if client set isAvailable false but any day has it, we keep client's choice (do not force)
           }
         }
 
-        // merge/assign top-level barbequeCharcoal
         if (!value.barbequeCharcoal || typeof value.barbequeCharcoal !== "object") {
           value.barbequeCharcoal = { isAvailable: !!anyDayHasBarbeque, slots: aggregatedBarbequeSlots };
         } else {
@@ -1293,27 +1277,38 @@ exports.addOrUpdateFarm = async (req, res) => {
           }
         }
 
-        // now re-normalize top-level shapes so bookingModes are applied properly
+        // Now normalize top-level — allow client override of bookingModes if they sent top-level object.
+        const kitchenOverride = !!req.body.kitchenOffered;
+        const barbOverride = !!req.body.barbequeCharcoal;
+
         value.kitchenOffered = normalizeFeature(value.kitchenOffered, {
           withDesc: true,
           bookingModes: value.bookingModes || {},
+          overrideBookingModes: kitchenOverride,
         });
+
         value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, {
           withDesc: false,
           bookingModes: value.bookingModes || {},
+          overrideBookingModes: barbOverride,
         });
       } catch (e) {
         return res.status(400).json({ success: false, message: e.message });
       }
     } else {
-      // no dailyPricing provided -> still normalize top-level if present (use request raw)
+      // no dailyPricing provided -> normalize top-level using request presence to decide override
+      const kitchenOverride = !!req.body.kitchenOffered;
+      const barbOverride = !!req.body.barbequeCharcoal;
+
       value.kitchenOffered = normalizeFeature(value.kitchenOffered || {}, {
         withDesc: true,
         bookingModes: value.bookingModes || {},
+        overrideBookingModes: kitchenOverride,
       });
       value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal || {}, {
         withDesc: false,
         bookingModes: value.bookingModes || {},
+        overrideBookingModes: barbOverride,
       });
     }
 

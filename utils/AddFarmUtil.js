@@ -42,11 +42,7 @@
 //   normalizeFeature,
 // };
 
-
-
 // utils/features.js
-const mongoose = require("mongoose");
-
 const SLOT_KEYS = ["full_day", "day_slot", "night_slot", "full_night"];
 
 const safeNum = (v, fallback = 0) => {
@@ -54,7 +50,13 @@ const safeNum = (v, fallback = 0) => {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 
-const normalizeFeature = (input, { withDesc = false, bookingModes = {} } = {}) => {
+/**
+ * normalizeFeature
+ * - input: top-level feature object (maybe from client) { isAvailable, slots: { full_day: {isAvailable, price, description} } }
+ * - bookingModes: global booking modes to honor (slot disabled if bookingModes[slot] === false)
+ * - overrideBookingModes: if true, do NOT force-disable slots when bookingModes[slot] === false (client intent wins)
+ */
+const normalizeFeature = (input = {}, { withDesc = false, bookingModes = {}, overrideBookingModes = false } = {}) => {
   const out = {
     isAvailable: !!(input && input.isAvailable),
     slots: {},
@@ -63,8 +65,10 @@ const normalizeFeature = (input, { withDesc = false, bookingModes = {} } = {}) =
   for (const slot of SLOT_KEYS) {
     const raw = (input?.slots?.[slot]) || {};
 
-    // effectiveAvailable depends on both the slot and the top-level availability
-    const effectiveAvailable = !!raw.isAvailable && out.isAvailable && (bookingModes[slot] !== false);
+    // if overrideBookingModes true, don't apply bookingModes gating; otherwise require bookingModes[slot] !== false
+    const bookingModeAllows = overrideBookingModes ? true : (bookingModes[slot] !== false);
+
+    const effectiveAvailable = !!raw.isAvailable && out.isAvailable && bookingModeAllows;
     const slotObj = {
       isAvailable: effectiveAvailable,
       price: effectiveAvailable ? safeNum(raw.price, 0) : 0,
@@ -77,6 +81,7 @@ const normalizeFeature = (input, { withDesc = false, bookingModes = {} } = {}) =
     out.slots[slot] = slotObj;
   }
 
+  // if top-level isAvailable false, ensure slots are zeroed
   if (!out.isAvailable) {
     for (const s of SLOT_KEYS) {
       out.slots[s].isAvailable = false;
@@ -89,9 +94,7 @@ const normalizeFeature = (input, { withDesc = false, bookingModes = {} } = {}) =
 };
 
 /**
- * Convert normalized feature ({ isAvailable, slots: { full_day: {isAvailable, price, description} } })
- * into flattened per-slot object: { full_day: { isAvailable, price, description }, ... }
- * This shape is how dailyPricing expects kitchenOffered / barbequeCharcoal in your DB/response.
+ * Convert normalized feature to flattened shape (used by dailyPricing entries)
  */
 const mapNormalizedFeatureToFlat = (normFeat = {}, bookingModes = {}) => {
   const out = {};
@@ -104,18 +107,13 @@ const mapNormalizedFeatureToFlat = (normFeat = {}, bookingModes = {}) => {
       price: safeNum(slotNorm.price, 0),
     };
 
-    // include description when present (keep empty string if not available)
     if ("description" in slotNorm) out[slot].description = finalAvailable ? (slotNorm.description || "") : "";
   }
   return out;
 };
 
 /**
- * Validate and normalize dailyPricing array.
- * - fills entry.slots from entry.timings (price & pricePerGuest)
- * - maps kitchenOffered / barbequeCharcoal -> flattened per-slot shape
- * - sets kitchenOfferedActive / barbequeCharcoalActive / mealsOfferedActive
- * - honors bookingModes to disable slots
+ * validateDailyPricing (same as before) - respects bookingModes for daily entries
  */
 const validateDailyPricing = (dailyPricing, bookingModes = {}) => {
   if (!Array.isArray(dailyPricing)) return [];
@@ -154,7 +152,6 @@ const validateDailyPricing = (dailyPricing, bookingModes = {}) => {
 
     const start = toMinutes(checkIn);
     let end = toMinutes(checkOut);
-    // allow overnight for night_slot and full_day/full_night as per your previous logic
     if (["night_slot", "full_day", "full_night"].includes(slot) && end <= start) {
       end += 1440;
     } else if (end <= start) {
@@ -165,31 +162,24 @@ const validateDailyPricing = (dailyPricing, bookingModes = {}) => {
   };
 
   const out = dailyPricing.map((entryRaw) => {
-    // clone to avoid mutating original object references unexpectedly
     const entry = JSON.parse(JSON.stringify(entryRaw || {}));
 
-    // date normalization + uniqueness
     if (!entry.date) throw new Error("Each dailyPricing entry must have a date.");
     const isoDate = new Date(entry.date).toISOString().split("T")[0];
     if (seenDates.has(isoDate)) throw new Error(`Duplicate pricing for ${isoDate}`);
     seenDates.add(isoDate);
     entry.date = new Date(entry.date).toISOString();
 
-    // ensure timings object exists
     if (!entry.timings) entry.timings = {};
     const t = entry.timings;
 
-    // validate timings (build intervals if needed)
-    const intervals = [];
     for (const slot of SLOT_KEYS) {
       const slotObj = t[slot];
       if (slotObj) {
-        const iv = buildInterval(slot, slotObj.checkIn, slotObj.checkOut);
-        if (iv) intervals.push(iv);
+        buildInterval(slot, slotObj.checkIn, slotObj.checkOut); // will throw if invalid
       }
     }
 
-    // --- build entry.slots from timings prices (price & pricePerGuest) ---
     entry.slots = entry.slots || {};
     for (const slot of SLOT_KEYS) {
       const timing = t[slot] || {};
@@ -198,13 +188,12 @@ const validateDailyPricing = (dailyPricing, bookingModes = {}) => {
         pricePerGuest: safeNum(timing.pricePerGuest, 0),
       };
 
-      // If booking mode disabled globally, zero out
       if (bookingModes && bookingModes[slot] === false) {
         entry.slots[slot] = { price: 0, pricePerGuest: 0 };
       }
     }
 
-    // --- normalize kitchenOffered & barbequeCharcoal into flattened per-slot shape ---
+    // normalize features into flattened per-slot (these calls respect bookingModes)
     const normKitchen = normalizeFeature(entry.kitchenOffered || {}, { withDesc: true, bookingModes });
     entry.kitchenOffered = mapNormalizedFeatureToFlat(normKitchen, bookingModes);
     entry.kitchenOfferedActive = !!normKitchen.isAvailable;
@@ -213,7 +202,7 @@ const validateDailyPricing = (dailyPricing, bookingModes = {}) => {
     entry.barbequeCharcoal = mapNormalizedFeatureToFlat(normBarb, bookingModes);
     entry.barbequeCharcoalActive = !!normBarb.isAvailable;
 
-    // ensure mealsOffered skeleton for enabled bookingModes
+    // meals skeleton
     entry.mealsOffered = entry.mealsOffered || {};
     Object.keys(bookingModes || {}).forEach((slot) => {
       if (!entry.mealsOffered[slot]) {
@@ -227,7 +216,6 @@ const validateDailyPricing = (dailyPricing, bookingModes = {}) => {
           },
         };
       }
-      // if booking mode disabled, force isOffered false
       if (bookingModes && bookingModes[slot] === false) {
         entry.mealsOffered[slot].isOffered = false;
       }
@@ -235,8 +223,7 @@ const validateDailyPricing = (dailyPricing, bookingModes = {}) => {
 
     entry.mealsOfferedActive = Object.values(entry.mealsOffered || {}).some((m) => !!(m && m.isOffered));
 
-    // final safety: ensure keys exist for response shape expected
-    // ensure slots exist
+    // ensure keys exist
     for (const slot of SLOT_KEYS) {
       entry.slots[slot] = entry.slots[slot] || { price: 0, pricePerGuest: 0 };
       entry.kitchenOffered[slot] = entry.kitchenOffered[slot] || { isAvailable: false, price: 0, description: "" };
@@ -248,19 +235,10 @@ const validateDailyPricing = (dailyPricing, bookingModes = {}) => {
 
   return out;
 };
-const MAX_BATCH_SIZE = 5; // batch 5 images at a time
 
-const normalizeFiles = (files) =>
-  !files ? [] : Array.isArray(files) ? files : [files];
-const chunkArray = (arr, size) => {
-  const chunks = [];
-  for (let i = 0; i < arr.length; i += size)
-    chunks.push(arr.slice(i, i + size));
-  return chunks;
-};
 module.exports = {
-  SLOT_KEYS,chunkArray,
-  safeNum,MAX_BATCH_SIZE,
+  SLOT_KEYS,
+  safeNum,
   normalizeFeature,
   mapNormalizedFeatureToFlat,
   validateDailyPricing,
