@@ -18,7 +18,7 @@ const { uploadFilesToLocal } = require("../utils/UploadFileToLocal");
 const Types = require("../models/TypeModel");
 const FarmType = require("../models/TypeModel");
 const moment = require("moment");
-const { normalizeFeature } = require("../utils/AddFarmUtil");
+const { normalizeFiles, chunkArray, MAX_BATCH_SIZE,normalizeFeature, SLOT_KEYS,validateDailyPricing } = require("../utils/AddFarmUtil");
 const { sendNotification } = require("../services/OneSignal");
 
 // Register  Apis
@@ -597,16 +597,429 @@ exports.changePassword = async (req, res) => {
 
 // New Updaete Major
 
-const MAX_BATCH_SIZE = 5; // batch 5 images at a time
+// const MAX_BATCH_SIZE = 5; // batch 5 images at a time
 
-const normalizeFiles = (files) =>
-  !files ? [] : Array.isArray(files) ? files : [files];
-const chunkArray = (arr, size) => {
-  const chunks = [];
-  for (let i = 0; i < arr.length; i += size)
-    chunks.push(arr.slice(i, i + size));
-  return chunks;
-};
+// const normalizeFiles = (files) =>
+//   !files ? [] : Array.isArray(files) ? files : [files];
+// const chunkArray = (arr, size) => {
+//   const chunks = [];
+//   for (let i = 0; i < arr.length; i += size)
+//     chunks.push(arr.slice(i, i + size));
+//   return chunks;
+// };
+
+
+
+// exports.addOrUpdateFarm = async (req, res) => {
+//   try {
+//     // === Parse stringified JSON ===
+//     if (req.body.areaImages && typeof req.body.areaImages === "string") {
+//       try {
+//         req.body.areaImages = JSON.parse(req.body.areaImages);
+//       } catch {
+//         return res
+//           .status(400)
+//           .json({
+//             success: false,
+//             message: "Invalid JSON format for areaImages",
+//           });
+//       }
+//     }
+//     [
+//       "rules",
+//       "address",
+//       "propertyDetails",
+//       "mealsOffered",
+//       "kitchenOffered",
+//       "barbequeCharcoal",
+//     ].forEach((key) => {
+//       if (req.body[key] && typeof req.body[key] === "string") {
+//         try {
+//           req.body[key] = JSON.parse(req.body[key]);
+//         } catch {}
+//       }
+//     });
+
+//     // Types handling
+//     if (req.body.Types?.length) {
+//       req.body.types = req.body.Types;
+//       delete req.body.Types;
+//     }
+
+//     // === Validate farm data ===
+//     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
+//       req.body,
+//       { abortEarly: false, allowUnknown: true }
+//     );
+//     if (error)
+//       return res
+//         .status(400)
+//         .json({
+//           success: false,
+//           message: "Validation failed",
+//           errors: error.details.map((e) => e.message),
+//         });
+
+//     const ownerId = req.user.id;
+//     value.owner = ownerId;
+//     const farmId = value.farmId;
+
+//     // === Vendor checks ===
+//     const vendor = await Vendor.findById(ownerId);
+//     if (!vendor)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Vendor not found." });
+//     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked)
+//       return res
+//         .status(403)
+//         .json({
+//           success: false,
+//           message: "Vendor is not eligible to create/update farms.",
+//         });
+
+//     value.kitchenOffered = normalizeFeature(value.kitchenOffered, {
+//       withDesc: true,
+//       bookingModes: value.bookingModes || {},
+//     });
+//     value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, {
+//       withDesc: false,
+//       bookingModes: value.bookingModes || {},
+//     });
+
+//     // === Validate relations ===
+//     if (value.farmCategory?.length) {
+//       const categoryExists = await FarmCategory.find({
+//         _id: { $in: value.farmCategory },
+//       });
+//       if (categoryExists.length !== value.farmCategory.length)
+//         return res
+//           .status(400)
+//           .json({
+//             success: false,
+//             message: "One or more farmCategory IDs are invalid.",
+//           });
+//     }
+//     if (value.facilities?.length) {
+//       const validFacilities = await Facility.find({
+//         _id: { $in: value.facilities },
+//       });
+//       if (validFacilities.length !== value.facilities.length)
+//         return res
+//           .status(400)
+//           .json({
+//             success: false,
+//             message: "One or more facilities IDs are invalid.",
+//           });
+//     }
+// if (value.types?.length) {
+//   const incomingTypes = value.types.filter(Boolean);
+//   const invalidIds = incomingTypes.filter(
+//     (id) => !mongoose.Types.ObjectId.isValid(id)
+//   );
+//   if (invalidIds.length) {
+//     return res.status(400).json({
+//       success: false,
+//       message: "One or more type IDs are invalid.",
+//       errors: invalidIds,
+//     });
+//   }
+
+//   const found = await FarmType.find(
+//     { _id: { $in: incomingTypes } },
+//     { _id: 1 }
+//   ).lean();
+
+//   if (found.length !== incomingTypes.length) {
+//     const foundSet = new Set(found.map((t) => String(t._id)));
+//     const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
+//     return res.status(400).json({
+//       success: false,
+//       message: "One or more type IDs do not exist.",
+//       errors: missing,
+//     });
+//   }
+
+//   value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
+// }
+
+//     if (value.rules && !Array.isArray(value.rules)) value.rules = [value.rules];
+//     if (value.propertyDetails && typeof value.propertyDetails !== "object")
+//       return res
+//         .status(400)
+//         .json({
+//           success: false,
+//           message: "propertyDetails must be an object.",
+//         });
+
+//     if (value.address) {
+//       if (typeof value.address !== "object")
+//         return res
+//           .status(400)
+//           .json({ success: false, message: "Address must be an object." });
+//       if (value.address.mapLink) {
+//         const urlRegex =
+//           /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
+//         if (!urlRegex.test(value.address.mapLink))
+//           return res
+//             .status(400)
+//             .json({
+//               success: false,
+//               message: "Invalid URL format for mapLink",
+//             });
+//       }
+//       value.location = {
+//         ...value.address,
+//         mapLink: value.address.mapLink || null,
+//         createdBy: req.user.id,
+//       };
+//       delete value.address;
+//     }
+
+//     // === MAIN IMAGES ===
+//     if (req.files?.images || req.files?.image || req.body.images) {
+//       const imagesArray = normalizeFiles(
+//         req.files?.images || req.files?.image || req.body.images
+//       );
+//       const oldImages = farmId
+//         ? (await Farm.findOne({ _id: farmId, owner: ownerId }))?.images || []
+//         : [];
+
+//       const uploadedUrls = [];
+//       const batches = chunkArray(imagesArray, MAX_BATCH_SIZE);
+//       for (const batch of batches) {
+//         // === Local Upload (commented for now) ===
+
+//         const urls = await uploadFilesToLocal(batch, "farms", []);
+//         uploadedUrls.push(...urls);
+
+//         // === Cloudinary Upload ===
+//         // const urls = await uploadFilesToCloudinary(batch, "farms");
+//       }
+//       value.images = uploadedUrls;
+//     }
+
+//     // === AREA IMAGES ===
+//     if (value.areaImages) {
+//       const areaImagesData = [];
+//       for (let i = 0; i < value.areaImages.length; i++) {
+//         const area = value.areaImages[i];
+//         const filesArray = normalizeFiles(
+//           req.files?.[`areaImages[${i}][images]`]
+//         );
+//         const base64Array = Array.isArray(area.images) ? area.images : [];
+//         const allFiles = [...base64Array, ...filesArray];
+
+//         const uploadedUrls = [];
+//         const batches = chunkArray(allFiles, MAX_BATCH_SIZE);
+//         for (const batch of batches) {
+//           // === Local Upload (commented for now) ===
+//           const urls = await uploadFilesToLocal(batch, `farms/${area.areaType}`, []);
+//           uploadedUrls.push(...urls);
+
+//           // === Cloudinary Upload ===
+//           // const urls = await uploadFilesToCloudinary(
+//           //   batch,
+//           //   `farms/${area.areaType}`
+//           // );
+//           // uploadedUrls.push(...urls);
+//         }
+//         areaImagesData.push({ areaType: area.areaType, images: uploadedUrls });
+//       }
+//       value.areaImages = areaImagesData;
+//     }
+
+//     // === DAILY PRICING VALIDATION ===
+//     // === DAILY PRICING VALIDATION ===
+//     if (value.dailyPricing?.length) {
+//       const validateDailyPricing = (dailyPricing) => {
+//         const seenDates = new Set();
+//         const timeRegex =
+//           /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
+//         const isBlank = (v) => v === "" || v == null;
+
+//         const toMinutes = (timeStr) => {
+//           if (/AM|PM/i.test(timeStr)) {
+//             const [, hh, mm, meridian] = timeStr.match(
+//               /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
+//             );
+//             let h = parseInt(hh, 10),
+//               m = parseInt(mm, 10);
+//             if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
+//             if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
+//             return h * 60 + m;
+//           } else {
+//             const [h, m] = timeStr.split(":").map(Number);
+//             return h * 60 + m;
+//           }
+//         };
+
+//         const buildInterval = (slot, checkIn, checkOut) => {
+//           // both empty/null => skip silently
+//           if (isBlank(checkIn) && isBlank(checkOut)) return null;
+//           // one provided but the other missing => error
+//           if (isBlank(checkIn) || isBlank(checkOut)) {
+//             throw new Error(
+//               `${slot} requires both checkIn and checkOut when one is provided.`
+//             );
+//           }
+//           // both provided => must be valid format
+//           if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
+//             throw new Error(`Invalid time format for ${slot}.`);
+//           }
+
+//           const start = toMinutes(checkIn);
+//           let end = toMinutes(checkOut);
+//           if (
+//             ["night_slot", "full_day", "full_night"].includes(slot) &&
+//             end <= start
+//           )
+//             end += 1440;
+//           else if (end <= start)
+//             throw new Error(`${slot} checkOut must be after checkIn.`);
+
+//           return { slot, start, end };
+//         };
+
+//         dailyPricing.forEach((entry) => {
+//           const isoDate = new Date(entry.date).toISOString().split("T")[0];
+//           if (seenDates.has(isoDate))
+//             throw new Error(`Duplicate pricing for ${isoDate}`);
+//           seenDates.add(isoDate);
+
+//           // timings optional
+//           if (!entry.timings) entry.timings = {};
+//           const t = entry.timings;
+
+//           const intervals = [];
+//           if (t.full_day) {
+//             const iv = buildInterval(
+//               "full_day",
+//               t.full_day.checkIn,
+//               t.full_day.checkOut
+//             );
+//             if (iv) intervals.push(iv);
+//           }
+//           if (t.day_slot) {
+//             const iv = buildInterval(
+//               "day_slot",
+//               t.day_slot.checkIn,
+//               t.day_slot.checkOut
+//             );
+//             if (iv) intervals.push(iv);
+//           }
+//           if (t.night_slot) {
+//             const iv = buildInterval(
+//               "night_slot",
+//               t.night_slot.checkIn,
+//               t.night_slot.checkOut
+//             );
+//             if (iv) intervals.push(iv);
+//           }
+//           if (t.full_night) {
+//             const iv = buildInterval(
+//               "full_night",
+//               t.full_night.checkIn,
+//               t.full_night.checkOut
+//             );
+//             if (iv) intervals.push(iv);
+//           }
+
+//           // normalize feature flags for the day
+//           entry.kitchenOffered = normalizeFeature(entry.kitchenOffered || {}, {
+//             withDesc: true,
+//             bookingModes: value.bookingModes,
+//           });
+//           entry.barbequeCharcoal = normalizeFeature(
+//             entry.barbequeCharcoal || {},
+//             { withDesc: false, bookingModes: value.bookingModes }
+//           );
+
+//           // ensure mealsOffered skeleton for enabled bookingModes
+//           entry.mealsOffered = entry.mealsOffered || {};
+//           Object.keys(value.bookingModes || {}).forEach((slot) => {
+//             if (!entry.mealsOffered[slot]) {
+//               entry.mealsOffered[slot] = {
+//                 isOffered: false,
+//                 meals: {
+//                   breakfast: { isAvailable: false, value: [] },
+//                   lunch: { isAvailable: false, value: [] },
+//                   hi_tea: { isAvailable: false, value: [] },
+//                   dinner: { isAvailable: false, value: [] },
+//                 },
+//               };
+//             }
+//           });
+//         });
+
+//         return dailyPricing;
+//       };
+
+//       try {
+//         value.dailyPricing = validateDailyPricing(value.dailyPricing);
+//       } catch (e) {
+//         return res.status(400).json({ success: false, message: e.message });
+//       }
+//     }
+
+//     // === CREATE OR UPDATE FARM ===
+//     let farmDoc;
+//     if (farmId) {
+//       farmDoc = await Farm.findOneAndUpdate(
+//         { _id: farmId, owner: ownerId },
+//         { $set: value },
+//         { new: true }
+//       );
+//       if (!farmDoc)
+//         return res
+//           .status(404)
+//           .json({ success: false, message: "Farm not found." });
+//     } else {
+//       if (value.name) {
+//         const duplicate = await Farm.findOne({
+//           name: value.name,
+//           owner: ownerId,
+//         });
+//         if (duplicate)
+//           return res
+//             .status(409)
+//             .json({
+//               success: false,
+//               message: "A farm with this name already exists.",
+//             });
+//       }
+//       farmDoc = await new Farm(value).save();
+//     }
+
+//     const populatedFarm = await Farm.findById(farmDoc._id)
+//       .populate("farmCategory", "_id name")
+//       .populate("facilities", "_id name")
+//       .populate("types", "_id name");
+
+//     const farmResponse = {
+//       ...populatedFarm.toObject(),
+//       Types: populatedFarm.types,
+//     };
+//     delete farmResponse.types;
+
+//     return res.status(farmId ? 200 : 201).json({
+//       success: true,
+//       message: farmId
+//         ? "Farm updated successfully."
+//         : "Farm created successfully.",
+//       data: farmResponse,
+//     });
+//   } catch (err) {
+//     console.error("[AddOrUpdateFarm Error]", err);
+//     return res
+//       .status(500)
+//       .json({
+//         success: false,
+//         message: "Internal server error",
+//         error: err.message,
+//       });
+//   }
+// };
 
 
 
@@ -617,12 +1030,10 @@ exports.addOrUpdateFarm = async (req, res) => {
       try {
         req.body.areaImages = JSON.parse(req.body.areaImages);
       } catch {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Invalid JSON format for areaImages",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Invalid JSON format for areaImages",
+        });
       }
     }
     [
@@ -652,13 +1063,11 @@ exports.addOrUpdateFarm = async (req, res) => {
       { abortEarly: false, allowUnknown: true }
     );
     if (error)
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Validation failed",
-          errors: error.details.map((e) => e.message),
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: error.details.map((e) => e.message),
+      });
 
     const ownerId = req.user.id;
     value.owner = ownerId;
@@ -667,25 +1076,15 @@ exports.addOrUpdateFarm = async (req, res) => {
     // === Vendor checks ===
     const vendor = await Vendor.findById(ownerId);
     if (!vendor)
-      return res
-        .status(404)
-        .json({ success: false, message: "Vendor not found." });
+      return res.status(404).json({ success: false, message: "Vendor not found." });
     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked)
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Vendor is not eligible to create/update farms.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Vendor is not eligible to create/update farms.",
+      });
 
-    value.kitchenOffered = normalizeFeature(value.kitchenOffered, {
-      withDesc: true,
-      bookingModes: value.bookingModes || {},
-    });
-    value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, {
-      withDesc: false,
-      bookingModes: value.bookingModes || {},
-    });
+    // NOTE: moved normalization down — DO NOT normalize top-level features here.
+    // We'll normalize AFTER building/merging aggregated slots from dailyPricing.
 
     // === Validate relations ===
     if (value.farmCategory?.length) {
@@ -693,80 +1092,69 @@ exports.addOrUpdateFarm = async (req, res) => {
         _id: { $in: value.farmCategory },
       });
       if (categoryExists.length !== value.farmCategory.length)
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "One or more farmCategory IDs are invalid.",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "One or more farmCategory IDs are invalid.",
+        });
     }
     if (value.facilities?.length) {
       const validFacilities = await Facility.find({
         _id: { $in: value.facilities },
       });
       if (validFacilities.length !== value.facilities.length)
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "One or more facilities IDs are invalid.",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "One or more facilities IDs are invalid.",
+        });
     }
-if (value.types?.length) {
-  const incomingTypes = value.types.filter(Boolean);
-  const invalidIds = incomingTypes.filter(
-    (id) => !mongoose.Types.ObjectId.isValid(id)
-  );
-  if (invalidIds.length) {
-    return res.status(400).json({
-      success: false,
-      message: "One or more type IDs are invalid.",
-      errors: invalidIds,
-    });
-  }
+    if (value.types?.length) {
+      const incomingTypes = value.types.filter(Boolean);
+      const invalidIds = incomingTypes.filter(
+        (id) => !mongoose.Types.ObjectId.isValid(id)
+      );
+      if (invalidIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: "One or more type IDs are invalid.",
+          errors: invalidIds,
+        });
+      }
 
-  const found = await FarmType.find(
-    { _id: { $in: incomingTypes } },
-    { _id: 1 }
-  ).lean();
+      const found = await FarmType.find(
+        { _id: { $in: incomingTypes } },
+        { _id: 1 }
+      ).lean();
 
-  if (found.length !== incomingTypes.length) {
-    const foundSet = new Set(found.map((t) => String(t._id)));
-    const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
-    return res.status(400).json({
-      success: false,
-      message: "One or more type IDs do not exist.",
-      errors: missing,
-    });
-  }
+      if (found.length !== incomingTypes.length) {
+        const foundSet = new Set(found.map((t) => String(t._id)));
+        const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
+        return res.status(400).json({
+          success: false,
+          message: "One or more type IDs do not exist.",
+          errors: missing,
+        });
+      }
 
-  value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
-}
+      value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
+    }
 
     if (value.rules && !Array.isArray(value.rules)) value.rules = [value.rules];
     if (value.propertyDetails && typeof value.propertyDetails !== "object")
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "propertyDetails must be an object.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "propertyDetails must be an object.",
+      });
 
     if (value.address) {
       if (typeof value.address !== "object")
-        return res
-          .status(400)
-          .json({ success: false, message: "Address must be an object." });
+        return res.status(400).json({ success: false, message: "Address must be an object." });
       if (value.address.mapLink) {
-        const urlRegex =
-          /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
+        const urlRegex = /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
         if (!urlRegex.test(value.address.mapLink))
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: "Invalid URL format for mapLink",
-            });
+          return res.status(400).json({
+            success: false,
+            message: "Invalid URL format for mapLink",
+          });
       }
       value.location = {
         ...value.address,
@@ -788,13 +1176,8 @@ if (value.types?.length) {
       const uploadedUrls = [];
       const batches = chunkArray(imagesArray, MAX_BATCH_SIZE);
       for (const batch of batches) {
-        // === Local Upload (commented for now) ===
-
         const urls = await uploadFilesToLocal(batch, "farms", []);
         uploadedUrls.push(...urls);
-
-        // === Cloudinary Upload ===
-        // const urls = await uploadFilesToCloudinary(batch, "farms");
       }
       value.images = uploadedUrls;
     }
@@ -804,162 +1187,134 @@ if (value.types?.length) {
       const areaImagesData = [];
       for (let i = 0; i < value.areaImages.length; i++) {
         const area = value.areaImages[i];
-        const filesArray = normalizeFiles(
-          req.files?.[`areaImages[${i}][images]`]
-        );
+        const filesArray = normalizeFiles(req.files?.[`areaImages[${i}][images]`]);
         const base64Array = Array.isArray(area.images) ? area.images : [];
         const allFiles = [...base64Array, ...filesArray];
 
         const uploadedUrls = [];
         const batches = chunkArray(allFiles, MAX_BATCH_SIZE);
         for (const batch of batches) {
-          // === Local Upload (commented for now) ===
           const urls = await uploadFilesToLocal(batch, `farms/${area.areaType}`, []);
           uploadedUrls.push(...urls);
-
-          // === Cloudinary Upload ===
-          // const urls = await uploadFilesToCloudinary(
-          //   batch,
-          //   `farms/${area.areaType}`
-          // );
-          // uploadedUrls.push(...urls);
         }
         areaImagesData.push({ areaType: area.areaType, images: uploadedUrls });
       }
       value.areaImages = areaImagesData;
     }
 
-    // === DAILY PRICING VALIDATION ===
-    // === DAILY PRICING VALIDATION ===
+    // === DAILY PRICING VALIDATION & NORMALIZATION ===
     if (value.dailyPricing?.length) {
-      const validateDailyPricing = (dailyPricing) => {
-        const seenDates = new Set();
-        const timeRegex =
-          /^((0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM))$|^([01]\d|2[0-3]):([0-5]\d)$/i;
-        const isBlank = (v) => v === "" || v == null;
-
-        const toMinutes = (timeStr) => {
-          if (/AM|PM/i.test(timeStr)) {
-            const [, hh, mm, meridian] = timeStr.match(
-              /(0?[1-9]|1[0-2]):([0-5]\d)\s?(AM|PM)/i
-            );
-            let h = parseInt(hh, 10),
-              m = parseInt(mm, 10);
-            if (meridian.toUpperCase() === "PM" && h !== 12) h += 12;
-            if (meridian.toUpperCase() === "AM" && h === 12) h = 0;
-            return h * 60 + m;
-          } else {
-            const [h, m] = timeStr.split(":").map(Number);
-            return h * 60 + m;
-          }
-        };
-
-        const buildInterval = (slot, checkIn, checkOut) => {
-          // both empty/null => skip silently
-          if (isBlank(checkIn) && isBlank(checkOut)) return null;
-          // one provided but the other missing => error
-          if (isBlank(checkIn) || isBlank(checkOut)) {
-            throw new Error(
-              `${slot} requires both checkIn and checkOut when one is provided.`
-            );
-          }
-          // both provided => must be valid format
-          if (!timeRegex.test(checkIn) || !timeRegex.test(checkOut)) {
-            throw new Error(`Invalid time format for ${slot}.`);
-          }
-
-          const start = toMinutes(checkIn);
-          let end = toMinutes(checkOut);
-          if (
-            ["night_slot", "full_day", "full_night"].includes(slot) &&
-            end <= start
-          )
-            end += 1440;
-          else if (end <= start)
-            throw new Error(`${slot} checkOut must be after checkIn.`);
-
-          return { slot, start, end };
-        };
-
-        dailyPricing.forEach((entry) => {
-          const isoDate = new Date(entry.date).toISOString().split("T")[0];
-          if (seenDates.has(isoDate))
-            throw new Error(`Duplicate pricing for ${isoDate}`);
-          seenDates.add(isoDate);
-
-          // timings optional
-          if (!entry.timings) entry.timings = {};
-          const t = entry.timings;
-
-          const intervals = [];
-          if (t.full_day) {
-            const iv = buildInterval(
-              "full_day",
-              t.full_day.checkIn,
-              t.full_day.checkOut
-            );
-            if (iv) intervals.push(iv);
-          }
-          if (t.day_slot) {
-            const iv = buildInterval(
-              "day_slot",
-              t.day_slot.checkIn,
-              t.day_slot.checkOut
-            );
-            if (iv) intervals.push(iv);
-          }
-          if (t.night_slot) {
-            const iv = buildInterval(
-              "night_slot",
-              t.night_slot.checkIn,
-              t.night_slot.checkOut
-            );
-            if (iv) intervals.push(iv);
-          }
-          if (t.full_night) {
-            const iv = buildInterval(
-              "full_night",
-              t.full_night.checkIn,
-              t.full_night.checkOut
-            );
-            if (iv) intervals.push(iv);
-          }
-
-          // normalize feature flags for the day
-          entry.kitchenOffered = normalizeFeature(entry.kitchenOffered || {}, {
-            withDesc: true,
-            bookingModes: value.bookingModes,
-          });
-          entry.barbequeCharcoal = normalizeFeature(
-            entry.barbequeCharcoal || {},
-            { withDesc: false, bookingModes: value.bookingModes }
-          );
-
-          // ensure mealsOffered skeleton for enabled bookingModes
-          entry.mealsOffered = entry.mealsOffered || {};
-          Object.keys(value.bookingModes || {}).forEach((slot) => {
-            if (!entry.mealsOffered[slot]) {
-              entry.mealsOffered[slot] = {
-                isOffered: false,
-                meals: {
-                  breakfast: { isAvailable: false, value: [] },
-                  lunch: { isAvailable: false, value: [] },
-                  hi_tea: { isAvailable: false, value: [] },
-                  dinner: { isAvailable: false, value: [] },
-                },
-              };
-            }
-          });
-        });
-
-        return dailyPricing;
-      };
-
       try {
-        value.dailyPricing = validateDailyPricing(value.dailyPricing);
+        // pass bookingModes so slots respect global bookingModes
+        value.dailyPricing = validateDailyPricing(
+          value.dailyPricing,
+          value.bookingModes || {}
+        );
+
+        // --- derive & aggregate top-level feature slots from dailyPricing ---
+        // buildAggregatedSlots aggregates per-slot prices & availability across dailyPricing
+        const buildAggregatedSlots = (dailyPricing, featureKey, take = "latest") => {
+          const result = {};
+          for (const slot of SLOT_KEYS) {
+            const vals = [];
+            let firstDesc = "";
+            let anyAvailable = false;
+            for (const d of dailyPricing) {
+              const feat = d[featureKey];
+              if (!feat) continue;
+              const s = feat[slot];
+              if (!s) continue;
+              if (s.isAvailable) anyAvailable = true;
+              if (typeof s.price === "number") vals.push(s.price);
+              if (!firstDesc && s.description) firstDesc = s.description;
+            }
+
+            let aggPrice = 0;
+            if (vals.length) {
+              if (take === "min") aggPrice = Math.min(...vals);
+              else if (take === "max") aggPrice = Math.max(...vals);
+              else if (take === "avg") aggPrice = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+              else aggPrice = vals[vals.length - 1]; // latest
+            }
+
+            result[slot] = {
+              isAvailable: !!anyAvailable,
+              price: aggPrice,
+            };
+            if (featureKey === "kitchenOffered") result[slot].description = firstDesc || "";
+          }
+          return result;
+        };
+
+        // derive booleans
+        const anyDayHasKitchen = value.dailyPricing.some((d) => !!d.kitchenOfferedActive);
+        const anyDayHasBarbeque = value.dailyPricing.some((d) => !!d.barbequeCharcoalActive);
+
+        // aggregated slots (use "latest" by default — change to "min"/"max"/"avg" if needed)
+        const aggregatedKitchenSlots = buildAggregatedSlots(value.dailyPricing, "kitchenOffered", "latest");
+        const aggregatedBarbequeSlots = buildAggregatedSlots(value.dailyPricing, "barbequeCharcoal", "latest");
+
+        // IMPORTANT: merge in a way that prefers **client-provided raw slots** if they actually supplied them,
+        // but avoid letting previously-normalized default zeros override aggregated slots.
+        // We expect `value.kitchenOffered`/`value.barbequeCharcoal` may be provided raw in the request.
+        // Use request-provided raw slots (if present) to override aggregated; otherwise aggregated wins.
+
+        const providedKitchenRawSlots = (req.body.kitchenOffered && req.body.kitchenOffered.slots) || null;
+        const providedBarbequeRawSlots = (req.body.barbequeCharcoal && req.body.barbequeCharcoal.slots) || null;
+
+        // merge/assign top-level kitchenOffered
+        if (!value.kitchenOffered || typeof value.kitchenOffered !== "object") {
+          // no top-level provided -> use aggregated
+          value.kitchenOffered = { isAvailable: !!anyDayHasKitchen, slots: aggregatedKitchenSlots };
+        } else {
+          // top-level object exists (from validated value). Merge so that **client raw slots override aggregated** if provided.
+          value.kitchenOffered.slots = {
+            ...aggregatedKitchenSlots,
+            ...(providedKitchenRawSlots || {}),
+          };
+          // if client explicitly set isAvailable, prefer that; otherwise set from aggregated boolean
+          if (typeof value.kitchenOffered.isAvailable !== "boolean") {
+            value.kitchenOffered.isAvailable = !!anyDayHasKitchen;
+          } else {
+            // if client set isAvailable false but any day has it, we keep client's choice (do not force)
+          }
+        }
+
+        // merge/assign top-level barbequeCharcoal
+        if (!value.barbequeCharcoal || typeof value.barbequeCharcoal !== "object") {
+          value.barbequeCharcoal = { isAvailable: !!anyDayHasBarbeque, slots: aggregatedBarbequeSlots };
+        } else {
+          value.barbequeCharcoal.slots = {
+            ...aggregatedBarbequeSlots,
+            ...(providedBarbequeRawSlots || {}),
+          };
+          if (typeof value.barbequeCharcoal.isAvailable !== "boolean") {
+            value.barbequeCharcoal.isAvailable = !!anyDayHasBarbeque;
+          }
+        }
+
+        // now re-normalize top-level shapes so bookingModes are applied properly
+        value.kitchenOffered = normalizeFeature(value.kitchenOffered, {
+          withDesc: true,
+          bookingModes: value.bookingModes || {},
+        });
+        value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, {
+          withDesc: false,
+          bookingModes: value.bookingModes || {},
+        });
       } catch (e) {
         return res.status(400).json({ success: false, message: e.message });
       }
+    } else {
+      // no dailyPricing provided -> still normalize top-level if present (use request raw)
+      value.kitchenOffered = normalizeFeature(value.kitchenOffered || {}, {
+        withDesc: true,
+        bookingModes: value.bookingModes || {},
+      });
+      value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal || {}, {
+        withDesc: false,
+        bookingModes: value.bookingModes || {},
+      });
     }
 
     // === CREATE OR UPDATE FARM ===
@@ -971,9 +1326,7 @@ if (value.types?.length) {
         { new: true }
       );
       if (!farmDoc)
-        return res
-          .status(404)
-          .json({ success: false, message: "Farm not found." });
+        return res.status(404).json({ success: false, message: "Farm not found." });
     } else {
       if (value.name) {
         const duplicate = await Farm.findOne({
@@ -981,12 +1334,10 @@ if (value.types?.length) {
           owner: ownerId,
         });
         if (duplicate)
-          return res
-            .status(409)
-            .json({
-              success: false,
-              message: "A farm with this name already exists.",
-            });
+          return res.status(409).json({
+            success: false,
+            message: "A farm with this name already exists.",
+          });
       }
       farmDoc = await new Farm(value).save();
     }
@@ -1004,20 +1355,16 @@ if (value.types?.length) {
 
     return res.status(farmId ? 200 : 201).json({
       success: true,
-      message: farmId
-        ? "Farm updated successfully."
-        : "Farm created successfully.",
+      message: farmId ? "Farm updated successfully." : "Farm created successfully.",
       data: farmResponse,
     });
   } catch (err) {
     console.error("[AddOrUpdateFarm Error]", err);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        message: "Internal server error",
-        error: err.message,
-      });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
   }
 };
 exports.unblockDate = async (req, res) => {
