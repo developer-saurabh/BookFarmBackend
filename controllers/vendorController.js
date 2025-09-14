@@ -1380,6 +1380,7 @@ exports.addOrUpdateFarm = async (req, res) => {
         });
       }
     }
+
     [
       "rules",
       "address",
@@ -1438,6 +1439,7 @@ exports.addOrUpdateFarm = async (req, res) => {
           message: "One or more farmCategory IDs are invalid.",
         });
     }
+
     if (value.facilities?.length) {
       const validFacilities = await Facility.find({
         _id: { $in: value.facilities },
@@ -1448,6 +1450,7 @@ exports.addOrUpdateFarm = async (req, res) => {
           message: "One or more facilities IDs are invalid.",
         });
     }
+
     if (value.types?.length) {
       const incomingTypes = value.types.filter(Boolean);
       const invalidIds = incomingTypes.filter(
@@ -1543,16 +1546,42 @@ exports.addOrUpdateFarm = async (req, res) => {
       value.areaImages = areaImagesData;
     }
 
+    // --- Helper: ensure bookingModesForValidation contains slot keys ---
+    const bookingModesForValidation =
+      value.bookingModes && Object.keys(value.bookingModes).length
+        ? value.bookingModes
+        : { full_day: true, day_slot: true, night_slot: true, full_night: true };
+
+    // --- Helper: honor client top-level availability (disables all slots & zeroes prices) ---
+    const honorClientTopLevelAvailability = (normalizedObj, rawClientObj) => {
+      if (!normalizedObj || !rawClientObj) return normalizedObj;
+      if (Object.prototype.hasOwnProperty.call(rawClientObj, "isAvailable") &&
+          typeof rawClientObj.isAvailable === "boolean") {
+        const topAvail = !!rawClientObj.isAvailable;
+        normalizedObj.isAvailable = topAvail;
+        if (!topAvail) {
+          for (const s of SLOT_KEYS) {
+            if (!normalizedObj.slots[s]) {
+              normalizedObj.slots[s] = { isAvailable: false, price: 0 };
+            } else {
+              normalizedObj.slots[s].isAvailable = false;
+              normalizedObj.slots[s].price = 0;
+            }
+            if ("description" in normalizedObj.slots[s]) {
+              normalizedObj.slots[s].description = "";
+            }
+          }
+        }
+      }
+      return normalizedObj;
+    };
+
     // === DAILY PRICING VALIDATION & NORMALIZATION ===
     if (value.dailyPricing?.length) {
       try {
         // validate & normalize dailyPricing (this respects bookingModes)
-const bookingModesForValidation =
-  value.bookingModes && Object.keys(value.bookingModes).length
-    ? value.bookingModes
-    : { full_day: true, day_slot: true, night_slot: true, full_night: true };
+        value.dailyPricing = validateDailyPricing(value.dailyPricing, bookingModesForValidation);
 
-value.dailyPricing = validateDailyPricing(value.dailyPricing, bookingModesForValidation);
         // helper to aggregate per-slot from dailyPricing
         const buildAggregatedSlots = (dailyPricing, featureKey, take = "latest") => {
           const result = {};
@@ -1598,9 +1627,6 @@ value.dailyPricing = validateDailyPricing(value.dailyPricing, bookingModesForVal
         const providedBarbequeRawSlots = (req.body.barbequeCharcoal && req.body.barbequeCharcoal.slots) || null;
 
         // Merge logic:
-        // - aggregated slots are baseline
-        // - if client provided top-level raw slots, we let them override aggregated per-slot (so client intent wins)
-        // - top-level isAvailable default comes from aggregated unless client explicitly set it
         if (!value.kitchenOffered || typeof value.kitchenOffered !== "object") {
           value.kitchenOffered = { isAvailable: !!anyDayHasKitchen, slots: aggregatedKitchenSlots };
         } else {
@@ -1631,15 +1657,18 @@ value.dailyPricing = validateDailyPricing(value.dailyPricing, bookingModesForVal
 
         value.kitchenOffered = normalizeFeature(value.kitchenOffered, {
           withDesc: true,
-          bookingModes: value.bookingModes || {},
+          bookingModes: value.bookingModes || bookingModesForValidation,
           overrideBookingModes: kitchenOverride,
         });
+        // honor explicit top-level boolean if client gave one
+        value.kitchenOffered = honorClientTopLevelAvailability(value.kitchenOffered, req.body.kitchenOffered);
 
         value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, {
           withDesc: false,
-          bookingModes: value.bookingModes || {},
+          bookingModes: value.bookingModes || bookingModesForValidation,
           overrideBookingModes: barbOverride,
         });
+        value.barbequeCharcoal = honorClientTopLevelAvailability(value.barbequeCharcoal, req.body.barbequeCharcoal);
       } catch (e) {
         return res.status(400).json({ success: false, message: e.message });
       }
@@ -1650,20 +1679,21 @@ value.dailyPricing = validateDailyPricing(value.dailyPricing, bookingModesForVal
       const clientSentBarb = Object.prototype.hasOwnProperty.call(req.body, "barbequeCharcoal");
 
       if (clientSentKitchen) {
-        // client explicitly provided top-level -> allow override of bookingModes
         value.kitchenOffered = normalizeFeature(value.kitchenOffered || {}, {
           withDesc: true,
-          bookingModes: value.bookingModes || {},
+          bookingModes: value.bookingModes || bookingModesForValidation,
           overrideBookingModes: true,
         });
+        value.kitchenOffered = honorClientTopLevelAvailability(value.kitchenOffered, req.body.kitchenOffered);
       }
 
       if (clientSentBarb) {
         value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal || {}, {
           withDesc: false,
-          bookingModes: value.bookingModes || {},
+          bookingModes: value.bookingModes || bookingModesForValidation,
           overrideBookingModes: true,
         });
+        value.barbequeCharcoal = honorClientTopLevelAvailability(value.barbequeCharcoal, req.body.barbequeCharcoal);
       }
     }
 
@@ -1702,7 +1732,6 @@ value.dailyPricing = validateDailyPricing(value.dailyPricing, bookingModesForVal
       .populate("types", "_id name");
 
     if (!populatedFarm) {
-      // Very unlikely, but guard against it and return a clear error
       console.error("[AddOrUpdateFarm] populatedFarm is null for id:", farmDoc._id);
       return res.status(500).json({ success: false, message: "Failed to load farm after save." });
     }
