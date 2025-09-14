@@ -56,42 +56,47 @@ const safeNum = (v, fallback = 0) => {
  * - bookingModes: global booking modes to honor (slot disabled if bookingModes[slot] === false)
  * - overrideBookingModes: if true, do NOT force-disable slots when bookingModes[slot] === false (client intent wins)
  */
-const normalizeFeature = (input = {}, { withDesc = false, bookingModes = {}, overrideBookingModes = false } = {}) => {
-  const out = {
-    isAvailable: !!(input && input.isAvailable),
-    slots: {},
-  };
+function normalizeFeature(
+  feature = {},
+  { withDesc = false, bookingModes = {}, overrideBookingModes = false } = {}
+) {
+   const slots = {};
+  // If bookingModes is empty, default to all known SLOT_KEYS so feature slots are preserved.
+  const modeKeys = (bookingModes && Object.keys(bookingModes).length) ? Object.keys(bookingModes) : SLOT_KEYS.slice();
+  let anyAvailable = feature.isAvailable || false;
 
-  for (const slot of SLOT_KEYS) {
-    const raw = (input?.slots?.[slot]) || {};
 
-    // if overrideBookingModes true, don't apply bookingModes gating; otherwise require bookingModes[slot] !== false
-    const bookingModeAllows = overrideBookingModes ? true : (bookingModes[slot] !== false);
+  for (const mode of modeKeys) {
+    // ✅ Always include the slot, not just active ones
+    const src = feature.slots?.[mode] || {};
+    const isActive = bookingModes[mode] || overrideBookingModes;
 
-    const effectiveAvailable = !!raw.isAvailable && out.isAvailable && bookingModeAllows;
-    const slotObj = {
-      isAvailable: effectiveAvailable,
-      price: effectiveAvailable ? safeNum(raw.price, 0) : 0,
+    slots[mode] = {
+      isAvailable: src.isAvailable || false,
+      price: typeof src.price === "number" ? src.price : 0,
     };
 
     if (withDesc) {
-      slotObj.description = effectiveAvailable ? (raw.description ?? "") : "";
+      slots[mode].description = src.description || "";
     }
 
-    out.slots[slot] = slotObj;
-  }
+    if (slots[mode].isAvailable) {
+      anyAvailable = true;
+    }
 
-  // if top-level isAvailable false, ensure slots are zeroed
-  if (!out.isAvailable) {
-    for (const s of SLOT_KEYS) {
-      out.slots[s].isAvailable = false;
-      out.slots[s].price = 0;
-      if (withDesc) out.slots[s].description = "";
+    // If the slot is inactive in bookingModes but still provided, keep it
+    if (!isActive && !overrideBookingModes) {
+      slots[mode].isAvailable = slots[mode].isAvailable; // don’t zero it out
     }
   }
 
-  return out;
-};
+  return {
+    isAvailable: anyAvailable,
+    slots,
+  };
+}
+
+
 
 /**
  * Convert normalized feature to flattened shape (used by dailyPricing entries)

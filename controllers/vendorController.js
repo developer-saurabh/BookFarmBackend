@@ -20,7 +20,7 @@ const FarmType = require("../models/TypeModel");
 const moment = require("moment");
 const { normalizeFiles, chunkArray, MAX_BATCH_SIZE,normalizeFeature, SLOT_KEYS,validateDailyPricing } = require("../utils/AddFarmUtil");
 const { sendNotification } = require("../services/OneSignal");
-
+const _ = require("lodash");
 // Register  Apis
 
 exports.registerVendor = async (req, res) => {
@@ -1023,6 +1023,350 @@ exports.changePassword = async (req, res) => {
 
 
 
+// exports.addOrUpdateFarm = async (req, res) => {
+//   try {
+//     // === Parse stringified JSON ===
+//     if (req.body.areaImages && typeof req.body.areaImages === "string") {
+//       try {
+//         req.body.areaImages = JSON.parse(req.body.areaImages);
+//       } catch {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Invalid JSON format for areaImages",
+//         });
+//       }
+//     }
+//     [
+//       "rules",
+//       "address",
+//       "propertyDetails",
+//       "mealsOffered",
+//       "kitchenOffered",
+//       "barbequeCharcoal",
+//     ].forEach((key) => {
+//       if (req.body[key] && typeof req.body[key] === "string") {
+//         try {
+//           req.body[key] = JSON.parse(req.body[key]);
+//         } catch {}
+//       }
+//     });
+
+//     // Types handling (client may send "Types")
+//     if (req.body.Types?.length) {
+//       req.body.types = req.body.Types;
+//       delete req.body.Types;
+//     }
+
+//     // === Validate farm data ===
+//     const { error, value } = VendorValiidation.farmAddValidationSchema.validate(
+//       req.body,
+//       { abortEarly: false, allowUnknown: true }
+//     );
+//     if (error)
+//       return res.status(400).json({
+//         success: false,
+//         message: "Validation failed",
+//         errors: error.details.map((e) => e.message),
+//       });
+
+//     const ownerId = req.user.id;
+//     value.owner = ownerId;
+//     const farmId = value.farmId;
+
+//     // === Vendor checks ===
+//     const vendor = await Vendor.findById(ownerId);
+//     if (!vendor)
+//       return res.status(404).json({ success: false, message: "Vendor not found." });
+//     if (!vendor.isVerified || !vendor.isActive || vendor.isBlocked)
+//       return res.status(403).json({
+//         success: false,
+//         message: "Vendor is not eligible to create/update farms.",
+//       });
+
+//     // ---- Validate relations ----
+//     if (value.farmCategory?.length) {
+//       const categoryExists = await FarmCategory.find({
+//         _id: { $in: value.farmCategory },
+//       });
+//       if (categoryExists.length !== value.farmCategory.length)
+//         return res.status(400).json({
+//           success: false,
+//           message: "One or more farmCategory IDs are invalid.",
+//         });
+//     }
+//     if (value.facilities?.length) {
+//       const validFacilities = await Facility.find({
+//         _id: { $in: value.facilities },
+//       });
+//       if (validFacilities.length !== value.facilities.length)
+//         return res.status(400).json({
+//           success: false,
+//           message: "One or more facilities IDs are invalid.",
+//         });
+//     }
+//     if (value.types?.length) {
+//       const incomingTypes = value.types.filter(Boolean);
+//       const invalidIds = incomingTypes.filter(
+//         (id) => !mongoose.Types.ObjectId.isValid(id)
+//       );
+//       if (invalidIds.length) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "One or more type IDs are invalid.",
+//           errors: invalidIds,
+//         });
+//       }
+
+//       const found = await FarmType.find(
+//         { _id: { $in: incomingTypes } },
+//         { _id: 1 }
+//       ).lean();
+
+//       if (found.length !== incomingTypes.length) {
+//         const foundSet = new Set(found.map((t) => String(t._id)));
+//         const missing = incomingTypes.filter((id) => !foundSet.has(String(id)));
+//         return res.status(400).json({
+//           success: false,
+//           message: "One or more type IDs do not exist.",
+//           errors: missing,
+//         });
+//       }
+
+//       value.types = incomingTypes.map((id) => new mongoose.Types.ObjectId(id));
+//     }
+
+//     if (value.rules && !Array.isArray(value.rules)) value.rules = [value.rules];
+//     if (value.propertyDetails && typeof value.propertyDetails !== "object")
+//       return res.status(400).json({
+//         success: false,
+//         message: "propertyDetails must be an object.",
+//       });
+
+//     if (value.address) {
+//       if (typeof value.address !== "object")
+//         return res.status(400).json({ success: false, message: "Address must be an object." });
+//       if (value.address.mapLink) {
+//         const urlRegex = /^(https?:\/\/)([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w\.-]*)*\/?$/i;
+//         if (!urlRegex.test(value.address.mapLink))
+//           return res.status(400).json({
+//             success: false,
+//             message: "Invalid URL format for mapLink",
+//           });
+//       }
+//       value.location = {
+//         ...value.address,
+//         mapLink: value.address.mapLink || null,
+//         createdBy: req.user.id,
+//       };
+//       delete value.address;
+//     }
+
+//     // === MAIN IMAGES ===
+//     if (req.files?.images || req.files?.image || req.body.images) {
+//       const imagesArray = normalizeFiles(
+//         req.files?.images || req.files?.image || req.body.images
+//       );
+//       const oldImages = farmId
+//         ? (await Farm.findOne({ _id: farmId, owner: ownerId }))?.images || []
+//         : [];
+
+//       const uploadedUrls = [];
+//       const batches = chunkArray(imagesArray, MAX_BATCH_SIZE);
+//       for (const batch of batches) {
+//         const urls = await uploadFilesToLocal(batch, "farms", []);
+//         uploadedUrls.push(...urls);
+//       }
+//       value.images = uploadedUrls;
+//     }
+
+//     // === AREA IMAGES ===
+//     if (value.areaImages) {
+//       const areaImagesData = [];
+//       for (let i = 0; i < value.areaImages.length; i++) {
+//         const area = value.areaImages[i];
+//         const filesArray = normalizeFiles(req.files?.[`areaImages[${i}][images]`]);
+//         const base64Array = Array.isArray(area.images) ? area.images : [];
+//         const allFiles = [...base64Array, ...filesArray];
+
+//         const uploadedUrls = [];
+//         const batches = chunkArray(allFiles, MAX_BATCH_SIZE);
+//         for (const batch of batches) {
+//           const urls = await uploadFilesToLocal(batch, `farms/${area.areaType}`, []);
+//           uploadedUrls.push(...urls);
+//         }
+//         areaImagesData.push({ areaType: area.areaType, images: uploadedUrls });
+//       }
+//       value.areaImages = areaImagesData;
+//     }
+
+//     // === DAILY PRICING VALIDATION & NORMALIZATION ===
+//     if (value.dailyPricing?.length) {
+//       try {
+//         // validate & normalize dailyPricing (this respects bookingModes)
+//         value.dailyPricing = validateDailyPricing(value.dailyPricing, value.bookingModes || {});
+
+//         // helper to aggregate per-slot from dailyPricing
+//         const buildAggregatedSlots = (dailyPricing, featureKey, take = "latest") => {
+//           const result = {};
+//           for (const slot of SLOT_KEYS) {
+//             const vals = [];
+//             let firstDesc = "";
+//             let anyAvailable = false;
+//             for (const d of dailyPricing) {
+//               const feat = d[featureKey];
+//               if (!feat) continue;
+//               const s = feat[slot];
+//               if (!s) continue;
+//               if (s.isAvailable) anyAvailable = true;
+//               if (typeof s.price === "number") vals.push(s.price);
+//               if (!firstDesc && s.description) firstDesc = s.description;
+//             }
+
+//             let aggPrice = 0;
+//             if (vals.length) {
+//               if (take === "min") aggPrice = Math.min(...vals);
+//               else if (take === "max") aggPrice = Math.max(...vals);
+//               else if (take === "avg") aggPrice = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+//               else aggPrice = vals[vals.length - 1]; // latest
+//             }
+
+//             result[slot] = {
+//               isAvailable: !!anyAvailable,
+//               price: aggPrice,
+//             };
+//             if (featureKey === "kitchenOffered") result[slot].description = firstDesc || "";
+//           }
+//           return result;
+//         };
+
+//         const anyDayHasKitchen = value.dailyPricing.some((d) => !!d.kitchenOfferedActive);
+//         const anyDayHasBarbeque = value.dailyPricing.some((d) => !!d.barbequeCharcoalActive);
+
+//         const aggregatedKitchenSlots = buildAggregatedSlots(value.dailyPricing, "kitchenOffered", "latest");
+//         const aggregatedBarbequeSlots = buildAggregatedSlots(value.dailyPricing, "barbequeCharcoal", "latest");
+
+//         // if client provided raw top-level kitchen/barbeque in request body, capture it
+//         const providedKitchenRawSlots = (req.body.kitchenOffered && req.body.kitchenOffered.slots) || null;
+//         const providedBarbequeRawSlots = (req.body.barbequeCharcoal && req.body.barbequeCharcoal.slots) || null;
+
+//         // Merge logic:
+//         // - aggregated slots are baseline
+//         // - if client provided top-level raw slots, we let them override aggregated per-slot (so client intent wins)
+//         // - top-level isAvailable default comes from aggregated unless client explicitly set it
+//         if (!value.kitchenOffered || typeof value.kitchenOffered !== "object") {
+//           value.kitchenOffered = { isAvailable: !!anyDayHasKitchen, slots: aggregatedKitchenSlots };
+//         } else {
+//           value.kitchenOffered.slots = {
+//             ...aggregatedKitchenSlots,
+//             ...(providedKitchenRawSlots || {}),
+//           };
+//           if (typeof value.kitchenOffered.isAvailable !== "boolean") {
+//             value.kitchenOffered.isAvailable = !!anyDayHasKitchen;
+//           }
+//         }
+
+//         if (!value.barbequeCharcoal || typeof value.barbequeCharcoal !== "object") {
+//           value.barbequeCharcoal = { isAvailable: !!anyDayHasBarbeque, slots: aggregatedBarbequeSlots };
+//         } else {
+//           value.barbequeCharcoal.slots = {
+//             ...aggregatedBarbequeSlots,
+//             ...(providedBarbequeRawSlots || {}),
+//           };
+//           if (typeof value.barbequeCharcoal.isAvailable !== "boolean") {
+//             value.barbequeCharcoal.isAvailable = !!anyDayHasBarbeque;
+//           }
+//         }
+
+//         // Now normalize top-level — allow client override of bookingModes if they sent top-level object.
+//         const kitchenOverride = !!req.body.kitchenOffered;
+//         const barbOverride = !!req.body.barbequeCharcoal;
+
+//         value.kitchenOffered = normalizeFeature(value.kitchenOffered, {
+//           withDesc: true,
+//           bookingModes: value.bookingModes || {},
+//           overrideBookingModes: kitchenOverride,
+//         });
+
+//         value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal, {
+//           withDesc: false,
+//           bookingModes: value.bookingModes || {},
+//           overrideBookingModes: barbOverride,
+//         });
+//       } catch (e) {
+//         return res.status(400).json({ success: false, message: e.message });
+//       }
+//     } else {
+//       // no dailyPricing provided -> normalize top-level using request presence to decide override
+//       const kitchenOverride = !!req.body.kitchenOffered;
+//       const barbOverride = !!req.body.barbequeCharcoal;
+
+//       value.kitchenOffered = normalizeFeature(value.kitchenOffered || {}, {
+//         withDesc: true,
+//         bookingModes: value.bookingModes || {},
+//         overrideBookingModes: kitchenOverride,
+//       });
+//       value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal || {}, {
+//         withDesc: false,
+//         bookingModes: value.bookingModes || {},
+//         overrideBookingModes: barbOverride,
+//       });
+//     }
+// // prevent overwrite when not provided
+// if (!("kitchenOffered" in value)) delete value.kitchenOffered;
+// if (!("barbequeCharcoal" in value)) delete value.barbequeCharcoal;
+//     // === CREATE OR UPDATE FARM ===
+  
+//     // === CREATE OR UPDATE FARM ===
+//     let farmDoc;
+//     if (farmId) {
+//       const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
+//       if (!existingFarm) {
+//         return res.status(404).json({ success: false, message: "Farm not found." });
+//       }
+
+//       // Merge only provided fields into existing farm
+//          _.merge(existingFarm, value);
+//       farmDoc = await existingFarm.save();
+//     } else {
+//       if (value.name) {
+//         const duplicate = await Farm.findOne({ name: value.name, owner: ownerId });
+//         if (duplicate) {
+//           return res.status(409).json({
+//             success: false,
+//             message: "A farm with this name already exists.",
+//           });
+//         }
+//       }
+//       farmDoc = await new Farm(value).save();
+//     }
+
+
+//     const populatedFarm = await Farm.findById(farmDoc._id)
+//       .populate("farmCategory", "_id name")
+//       .populate("facilities", "_id name")
+//       .populate("types", "_id name");
+
+//     const farmResponse = {
+//       ...populatedFarm.toObject(),
+//       Types: populatedFarm.types,
+//     };
+//     delete farmResponse.types;
+
+//     return res.status(farmId ? 200 : 201).json({
+//       success: true,
+//       message: farmId ? "Farm updated successfully." : "Farm created successfully.",
+//       data: farmResponse,
+//     });
+//   } catch (err) {
+//     console.error("[AddOrUpdateFarm Error]", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//       error: err.message,
+//     });
+//   }
+// };
+
 exports.addOrUpdateFarm = async (req, res) => {
   try {
     // === Parse stringified JSON ===
@@ -1203,8 +1547,12 @@ exports.addOrUpdateFarm = async (req, res) => {
     if (value.dailyPricing?.length) {
       try {
         // validate & normalize dailyPricing (this respects bookingModes)
-        value.dailyPricing = validateDailyPricing(value.dailyPricing, value.bookingModes || {});
+const bookingModesForValidation =
+  value.bookingModes && Object.keys(value.bookingModes).length
+    ? value.bookingModes
+    : { full_day: true, day_slot: true, night_slot: true, full_night: true };
 
+value.dailyPricing = validateDailyPricing(value.dailyPricing, bookingModesForValidation);
         // helper to aggregate per-slot from dailyPricing
         const buildAggregatedSlots = (dailyPricing, featureKey, take = "latest") => {
           const result = {};
@@ -1296,51 +1644,68 @@ exports.addOrUpdateFarm = async (req, res) => {
         return res.status(400).json({ success: false, message: e.message });
       }
     } else {
-      // no dailyPricing provided -> normalize top-level using request presence to decide override
-      const kitchenOverride = !!req.body.kitchenOffered;
-      const barbOverride = !!req.body.barbequeCharcoal;
+      // no dailyPricing provided -> only normalize top-level IF client actually sent top-level data.
+      // (Otherwise leave existing DB fields untouched.)
+      const clientSentKitchen = Object.prototype.hasOwnProperty.call(req.body, "kitchenOffered");
+      const clientSentBarb = Object.prototype.hasOwnProperty.call(req.body, "barbequeCharcoal");
 
-      value.kitchenOffered = normalizeFeature(value.kitchenOffered || {}, {
-        withDesc: true,
-        bookingModes: value.bookingModes || {},
-        overrideBookingModes: kitchenOverride,
-      });
-      value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal || {}, {
-        withDesc: false,
-        bookingModes: value.bookingModes || {},
-        overrideBookingModes: barbOverride,
-      });
+      if (clientSentKitchen) {
+        // client explicitly provided top-level -> allow override of bookingModes
+        value.kitchenOffered = normalizeFeature(value.kitchenOffered || {}, {
+          withDesc: true,
+          bookingModes: value.bookingModes || {},
+          overrideBookingModes: true,
+        });
+      }
+
+      if (clientSentBarb) {
+        value.barbequeCharcoal = normalizeFeature(value.barbequeCharcoal || {}, {
+          withDesc: false,
+          bookingModes: value.bookingModes || {},
+          overrideBookingModes: true,
+        });
+      }
     }
+
+    // prevent overwrite when client didn't provide the keys (use req.body presence)
+    if (!Object.prototype.hasOwnProperty.call(req.body, "kitchenOffered")) delete value.kitchenOffered;
+    if (!Object.prototype.hasOwnProperty.call(req.body, "barbequeCharcoal")) delete value.barbequeCharcoal;
 
     // === CREATE OR UPDATE FARM ===
     let farmDoc;
     if (farmId) {
-      farmDoc = await Farm.findOneAndUpdate(
-        { _id: farmId, owner: ownerId },
-        { $set: value },
-        { new: true }
-      );
-      if (!farmDoc)
+      const existingFarm = await Farm.findOne({ _id: farmId, owner: ownerId });
+      if (!existingFarm) {
         return res.status(404).json({ success: false, message: "Farm not found." });
+      }
+
+      // Merge only provided fields into existing farm
+      _.merge(existingFarm, value);
+      farmDoc = await existingFarm.save();
     } else {
       if (value.name) {
-        const duplicate = await Farm.findOne({
-          name: value.name,
-          owner: ownerId,
-        });
-        if (duplicate)
+        const duplicate = await Farm.findOne({ name: value.name, owner: ownerId });
+        if (duplicate) {
           return res.status(409).json({
             success: false,
             message: "A farm with this name already exists.",
           });
+        }
       }
       farmDoc = await new Farm(value).save();
     }
 
+    // Important: use correct _id here and guard for null
     const populatedFarm = await Farm.findById(farmDoc._id)
       .populate("farmCategory", "_id name")
       .populate("facilities", "_id name")
       .populate("types", "_id name");
+
+    if (!populatedFarm) {
+      // Very unlikely, but guard against it and return a clear error
+      console.error("[AddOrUpdateFarm] populatedFarm is null for id:", farmDoc._id);
+      return res.status(500).json({ success: false, message: "Failed to load farm after save." });
+    }
 
     const farmResponse = {
       ...populatedFarm.toObject(),
@@ -1362,6 +1727,13 @@ exports.addOrUpdateFarm = async (req, res) => {
     });
   }
 };
+
+
+
+
+
+
+
 exports.unblockDate = async (req, res) => {
   const vendorId = req.user.id;
 
