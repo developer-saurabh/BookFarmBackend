@@ -241,9 +241,312 @@ const validateDailyPricing = (dailyPricing, bookingModes = {}) => {
   return out;
 };
 
+const fs = require('fs');
+const path = require('path');
+const { Readable } = require('stream');
+
+const DEFAULT_OPTIONS = {
+  maxFiles: 50, // safety cap
+  maxSizeBytes: 10 * 1024 * 1024, // 10 MB default per file
+  allowedMimeTypes: null, // array of allowed mime strings or null for any
+  throwOnInvalid: false, // if true, throws on first invalid file; else returns only valid ones
+};
+
+/* --- Helpers --- */
+
+const isDataUrl = (str) => typeof str === 'string' && /^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/.test(str);
+
+const parseDataUrl = (dataUrl) => {
+  // returns { buffer, mimetype }
+  const match = dataUrl.match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) return null;
+  const mimetype = match[1];
+  const base64 = match[2];
+  const buffer = Buffer.from(base64, 'base64');
+  return { buffer, mimetype };
+};
+
+const looksLikeUrl = (str) => typeof str === 'string' && /^(https?:)?\/\//i.test(str);
+
+const sanitizeFilename = (name = '') => {
+  // remove suspicious chars, force safe name
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200) || `file_${Date.now()}`;
+};
+
+const ensureArray = (val) => (Array.isArray(val) ? val : val == null ? [] : [val]);
+
+const buildFilenameFrom = (obj, fallbackExt = '') => {
+  if (obj.originalname) return sanitizeFilename(obj.originalname);
+  if (obj.name) return sanitizeFilename(obj.name);
+  if (obj.mimetype) return sanitizeFilename(`file.${obj.mimetype.split('/')[1] || 'bin'}`);
+  return sanitizeFilename(`file${fallbackExt}`);
+};
+
+/* --- Normalizer function --- */
+
+function normalizeFiles(input, options = {}) {
+  const cfg = { ...DEFAULT_OPTIONS, ...(options || {}) };
+  const out = [];
+
+  if (!input) return out;
+
+  // if input is an object like req.files (fieldname -> file or files)
+  // Accept objects that look like multer's req.files where keys are arrays/single
+  if (typeof input === 'object' && !Buffer.isBuffer(input) && !Array.isArray(input) && !isDataUrl(input) && !looksLikeUrl(input) && (input.fieldname || input.size || input.name || input.path || input.tempFilePath || input.data)) {
+    // Single file-like object
+    input = [input];
+  }
+
+  // If input is an object mapping fields -> array of files
+  if (typeof input === 'object' && !Array.isArray(input) && !Buffer.isBuffer(input) && !isDataUrl(input) && !looksLikeUrl(input)) {
+    // maybe it's { field1: [..], field2: {...} } — flatten values
+    const vals = Object.values(input);
+    if (vals.length && (Array.isArray(vals[0]) || vals[0] && typeof vals[0] === 'object' && ('buffer' in vals[0] || 'data' in vals[0] || 'tempFilePath' in vals[0] || 'path' in vals[0] || 'name' in vals[0]))) {
+      input = vals.flat();
+    }
+  }
+
+  // Ensure an array
+  const candidates = ensureArray(input).flat();
+
+  for (const cand of candidates) {
+    try {
+      // Skip null/undefined/empty
+      if (cand == null || cand === '') continue;
+
+      // 1) If it's already a Buffer
+      if (Buffer.isBuffer(cand)) {
+        if (cand.length === 0) continue;
+        const filename = `file_${Date.now()}`;
+        if (cand.length > cfg.maxSizeBytes) {
+          if (cfg.throwOnInvalid) throw new Error('File exceeds max allowed size');
+          continue;
+        }
+        out.push({
+          kind: 'buffer',
+          filename,
+          mimetype: null,
+          size: cand.length,
+          buffer: cand,
+        });
+        continue;
+      }
+
+      // 2) data URL (base64)
+      if (typeof cand === 'string' && isDataUrl(cand)) {
+        const parsed = parseDataUrl(cand);
+        if (!parsed) {
+          if (cfg.throwOnInvalid) throw new Error('Invalid data URL');
+          continue;
+        }
+        if (cfg.allowedMimeTypes && !cfg.allowedMimeTypes.includes(parsed.mimetype)) {
+          if (cfg.throwOnInvalid) throw new Error(`Disallowed mimetype: ${parsed.mimetype}`);
+          continue;
+        }
+        if (parsed.buffer.length > cfg.maxSizeBytes) {
+          if (cfg.throwOnInvalid) throw new Error('File exceeds max allowed size');
+          continue;
+        }
+        out.push({
+          kind: 'buffer',
+          filename: `upload_${Date.now()}.${(parsed.mimetype.split('/')[1] || 'bin')}`,
+          mimetype: parsed.mimetype,
+          size: parsed.buffer.length,
+          buffer: parsed.buffer,
+        });
+        continue;
+      }
+
+      // 3) plain URL string (we do not fetch it; return as URL descriptor)
+      if (typeof cand === 'string' && looksLikeUrl(cand)) {
+        out.push({
+          kind: 'url',
+          url: cand,
+          filename: sanitizeFilename(path.basename(new URL(cand, 'http://example.com').pathname) || `remote_${Date.now()}`),
+        });
+        continue;
+      }
+
+      // 4) string that's not data-url: maybe a local path
+      if (typeof cand === 'string') {
+        // treat as path if exists on disk
+        if (fs.existsSync(cand)) {
+          const stat = fs.statSync(cand);
+          const stream = fs.createReadStream(cand);
+          const filename = path.basename(cand);
+          if (stat.size > cfg.maxSizeBytes) {
+            if (cfg.throwOnInvalid) throw new Error('File exceeds max allowed size');
+            continue;
+          }
+          out.push({
+            kind: 'stream',
+            filename: sanitizeFilename(filename),
+            mimetype: null,
+            size: stat.size,
+            stream,
+            path: cand,
+          });
+          continue;
+        } else {
+          // fallback: unknown string — skip or add as fake url
+          // (we already handled looksLikeUrl above)
+          if (cfg.throwOnInvalid) throw new Error('Unsupported string input for file');
+          continue;
+        }
+      }
+
+      // 5) If object looks like multer file (has buffer or path or stream info)
+      if (typeof cand === 'object') {
+        // common fields: fieldname, originalname, mimetype, buffer, size, path, tempFilePath (express-fileupload)
+        const fieldname = cand.fieldname || cand.field || undefined;
+        const filename = buildFilenameFrom(cand);
+        const mimetype = cand.mimetype || cand.type || null;
+        const size = cand.size || (cand.buffer ? cand.buffer.length : undefined);
+
+        if (cand.buffer) {
+          // multer when configured with storage: memoryStorage()
+          if (size && size > cfg.maxSizeBytes) {
+            if (cfg.throwOnInvalid) throw new Error('File exceeds max allowed size');
+            continue;
+          }
+          if (cfg.allowedMimeTypes && mimetype && !cfg.allowedMimeTypes.includes(mimetype)) {
+            if (cfg.throwOnInvalid) throw new Error(`Disallowed mimetype: ${mimetype}`);
+            continue;
+          }
+          out.push({
+            kind: 'buffer',
+            filename: sanitizeFilename(filename),
+            fieldname,
+            mimetype,
+            size,
+            buffer: cand.buffer,
+          });
+          continue;
+        }
+
+        if (cand.data && Buffer.isBuffer(cand.data)) {
+          // express-fileupload might set file.data
+          const buf = cand.data;
+          if (buf.length > cfg.maxSizeBytes) {
+            if (cfg.throwOnInvalid) throw new Error('File exceeds max allowed size');
+            continue;
+          }
+          out.push({
+            kind: 'buffer',
+            filename: sanitizeFilename(filename),
+            fieldname,
+            mimetype,
+            size: buf.length,
+            buffer: buf,
+          });
+          continue;
+        }
+
+        // If object has a tempFilePath (express-fileupload with useTempFiles)
+        if (cand.tempFilePath && fs.existsSync(cand.tempFilePath)) {
+          const stat = fs.statSync(cand.tempFilePath);
+          if (stat.size > cfg.maxSizeBytes) {
+            if (cfg.throwOnInvalid) throw new Error('File exceeds max allowed size');
+            continue;
+          }
+          out.push({
+            kind: 'stream',
+            filename: sanitizeFilename(filename),
+            fieldname,
+            mimetype,
+            size: stat.size,
+            stream: fs.createReadStream(cand.tempFilePath),
+            path: cand.tempFilePath,
+          });
+          continue;
+        }
+
+        // If object has a path (disk storage)
+        if (cand.path && fs.existsSync(cand.path)) {
+          const stat = fs.statSync(cand.path);
+          if (stat.size > cfg.maxSizeBytes) {
+            if (cfg.throwOnInvalid) throw new Error('File exceeds max allowed size');
+            continue;
+          }
+          out.push({
+            kind: 'stream',
+            filename: sanitizeFilename(filename),
+            fieldname,
+            mimetype,
+            size: stat.size,
+            stream: fs.createReadStream(cand.path),
+            path: cand.path,
+          });
+          continue;
+        }
+
+        // If object has base64 string under .base64 or .data (string)
+        if (typeof cand.base64 === 'string' && isDataUrl(cand.base64)) {
+          const parsed = parseDataUrl(cand.base64);
+          if (!parsed) {
+            if (cfg.throwOnInvalid) throw new Error('Invalid data URL in object.base64');
+            continue;
+          }
+          if (parsed.buffer.length > cfg.maxSizeBytes) {
+            if (cfg.throwOnInvalid) throw new Error('File exceeds max allowed size');
+            continue;
+          }
+          out.push({
+            kind: 'buffer',
+            filename: sanitizeFilename(filename),
+            fieldname,
+            mimetype: parsed.mimetype,
+            size: parsed.buffer.length,
+            buffer: parsed.buffer,
+          });
+          continue;
+        }
+
+        // If object has url property -> treat as remote URL descriptor
+        if (cand.url && looksLikeUrl(cand.url)) {
+          out.push({
+            kind: 'url',
+            url: cand.url,
+            filename: sanitizeFilename(path.basename(new URL(cand.url, 'http://example.com').pathname) || filename),
+            fieldname,
+          });
+          continue;
+        }
+
+        // Unknown object shape -> skip or throw
+        if (cfg.throwOnInvalid) throw new Error('Unsupported file object shape');
+        continue;
+      }
+
+      // If we reached here: unsupported input type
+      if (cfg.throwOnInvalid) throw new Error('Unsupported file input type');
+    } catch (err) {
+      if (cfg.throwOnInvalid) throw err;
+      // otherwise ignore invalid candidate and continue
+      continue;
+    }
+
+    // stop early if we reached maxFiles
+    if (out.length >= cfg.maxFiles) break;
+  }
+
+  // Final safety truncate to maxFiles
+  return out.slice(0, cfg.maxFiles);
+}
+
+function chunkArray(arr, size = 20) {
+  if (!Array.isArray(arr)) return [];
+  if (typeof size !== 'number' || size <= 0) throw new TypeError('size must be a positive number');
+  const res = [];
+  for (let i = 0; i < arr.length; i += size) {
+    res.push(arr.slice(i, i + size));
+  }
+  return res;
+}
+
 module.exports = {
-  SLOT_KEYS,
-  safeNum,
+  SLOT_KEYS,normalizeFiles,  MAX_BATCH_SIZE: 20,
+  safeNum,chunkArray,
   normalizeFeature,
   mapNormalizedFeatureToFlat,
   validateDailyPricing,
