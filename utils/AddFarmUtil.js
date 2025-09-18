@@ -545,7 +545,7 @@ function chunkArray(arr, size = 20) {
 }
 
 module.exports = {
-  SLOT_KEYS,normalizeFiles,  MAX_BATCH_SIZE: 20,
+  SLOT_KEYS,normalizeFiles,  MAX_BATCH_SIZE: 50,
   safeNum,chunkArray,
   normalizeFeature,
   mapNormalizedFeatureToFlat,
