@@ -15,6 +15,7 @@ const { sendNotification } = require("../services/OneSignal");
 
 // sendInquiry — Map<Number> safe + daily-zeros fallback to default
 
+
 // exports.sendInquiry = async (req, res) => {
 //   try {
 //     // ✅ Validate
@@ -54,7 +55,7 @@ const { sendNotification } = require("../services/OneSignal");
 //       kitchen,
 //       additionalInfo1,
 //       additionalInfo2,
-//         Total_Price_By_Customer
+//       Total_Price_By_Customer
 //     } = value;
 
 //     // ✅ Date normalize (midnight) + yyyy-mm-dd (local)
@@ -62,6 +63,14 @@ const { sendNotification } = require("../services/OneSignal");
 //     if (isNaN(normalizedDate))
 //       return res.status(400).json({ error: "Invalid date." });
 //     normalizedDate.setHours(0, 0, 0, 0);
+
+//     // 🆕 Reject past dates (only allow today & future)
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
+//     if (normalizedDate < today) {
+//       return res.status(400).json({ error: "Cannot submit inquiry for past dates." });
+//     }
+
 //     const isoDateStr = new Date(
 //       normalizedDate.getTime() - normalizedDate.getTimezoneOffset() * 60000
 //     )
@@ -71,20 +80,11 @@ const { sendNotification } = require("../services/OneSignal");
 //     // ✅ Farm
 //     const farmDoc = await Farm.findById(farm_id);
 //     if (!farmDoc) return res.status(404).json({ error: "Farm not found" });
-//     console.log("Farm doc printing",farmDoc)
-// const ownerDoc = await Vendor.findById(farmDoc.owner);
-// console.log("Farm doc printing owner",farmDoc.owner)
-// const ownerPlayerIds = ownerDoc?.playerIds || [];
-// console.log("onwe player id printing",ownerPlayerIds)
-
-//     // ✅ Capacity
-//     // if (Number(Guest_Count) > Number(farmDoc.capacity || 0)) {
-//     //   return res
-//     //     .status(400)
-//     //     .json({
-//     //       error: `Guest count (${Guest_Count}) exceeds the farm's capacity (${farmDoc.capacity}).`,
-//     //     });
-//     // }
+//     console.log("Farm doc printing", farmDoc)
+//     const ownerDoc = await Vendor.findById(farmDoc.owner);
+//     console.log("Farm doc printing owner", farmDoc.owner)
+//     const ownerPlayerIds = ownerDoc?.playerIds || [];
+//     console.log("onwe player id printing", ownerPlayerIds)
 
 //     // ✅ Duplicate inquiry guard
 //     const existingInquiry = await FarmBooking.findOne({
@@ -296,65 +296,63 @@ const { sendNotification } = require("../services/OneSignal");
 //     // 📝 SAVE
 //     // =========================
 //     const priceBreakdownMap = new Map(Object.entries(priceBreakdownObj));
-// const inquiry = new FarmBooking({
-//   Booking_id: generateBookingId(),
-//   customerName,
-//   customerPhone,
-//   customerEmail,
-//   customer: customerId,
-//   farm: farm_id,
-//   date: normalizedDate,
-//   bookingModes,
-//   Group_Category,
-//   Guest_Count,
+//     const inquiry = new FarmBooking({
+//       Booking_id: generateBookingId(),
+//       customerName,
+//       customerPhone,
+//       customerEmail,
+//       customer: customerId,
+//       farm: farm_id,
+//       date: normalizedDate,
+//       bookingModes,
+//       Group_Category,
+//       Guest_Count,
 
-//   // Optional extras
-//   barbequeCharcoal: barbequeCharcoal ?? false,
-//   kitchen: kitchen ?? false,
+//       // Optional extras
+//       barbequeCharcoal: barbequeCharcoal ?? false,
+//       kitchen: kitchen ?? false,
 
-//   status: "pending",
-//   paymentStatus: "unpaid",
-//   totalPrice, // system-calculated
-//   totalPriceByCustomer: Total_Price_By_Customer ,
-//   priceBreakdown: priceBreakdownMap,
-//   meta: { pricingDetails },
-//   farmSnapshot: {
-//     name: farmDoc.name,
-//     location: {
-//       address: farmDoc.location?.address,
-//       city: farmDoc.location?.city,
-//       state: farmDoc.location?.state,
-//       pinCode: farmDoc.location?.pinCode,
-//       areaName: farmDoc.location?.areaName,
-//     },
-//   },
-// });
-
-
-//     await inquiry.save();
-// try {
-//   if (ownerPlayerIds.length > 0) {
-//     // const title = "New Booking Inquiry 📝";
-//     // const message = `You have a new inquiry for farm "${farmDoc.name}" on ${isoDateStr}.`;
-//     const title = "New Farm Inquiry Received 📝";
-// const message = `You have received a new inquiry for "${farmDoc.name}" on ${isoDateStr}. Please check your App for details.`;
-
-//     await sendNotification({
-//       playerIds: ownerPlayerIds,
-//       title,
-//       message,
-//       data: {
-//         inquiryId: inquiry._id,
-//         farmId: farmDoc._id,
-//         date: isoDateStr,
+//       status: "pending",
+//       paymentStatus: "unpaid",
+//       totalPrice, // system-calculated
+//       totalPriceByCustomer: Total_Price_By_Customer,
+//       priceBreakdown: priceBreakdownMap,
+//       meta: { pricingDetails },
+//       farmSnapshot: {
+//         name: farmDoc.name,
+//         location: {
+//           address: farmDoc.location?.address,
+//           city: farmDoc.location?.city,
+//           state: farmDoc.location?.state,
+//           pinCode: farmDoc.location?.pinCode,
+//           areaName: farmDoc.location?.areaName,
+//         },
 //       },
 //     });
-//   } else {
-//     console.warn("⚠️ Farm owner has no OneSignal player IDs.");
-//   }
-// } catch (notifErr) {
-//   console.error("🚨 Failed to send owner notification:", notifErr.message);
-// }
+
+//     await inquiry.save();
+//     try {
+//       if (ownerPlayerIds.length > 0) {
+//         const title = "New Farm Inquiry Received 📝";
+//         const message = `You have received a new inquiry for "${farmDoc.name}" on ${isoDateStr}. Please check your App for details.`;
+
+//         await sendNotification({
+//           playerIds: ownerPlayerIds,
+//           title,
+//           message,
+//           data: {
+//             inquiryId: inquiry._id,
+//             farmId: farmDoc._id,
+//             date: isoDateStr,
+//           },
+//         });
+//       } else {
+//         console.warn("⚠️ Farm owner has no OneSignal player IDs.");
+//       }
+//     } catch (notifErr) {
+//       console.error("🚨 Failed to send owner notification:", notifErr.message);
+//     }
+
 //     // =========================
 //     // 📤 RESPONSE (normalize Map→object)
 //     // =========================
@@ -379,9 +377,8 @@ const { sendNotification } = require("../services/OneSignal");
 // };
 
 
-// send Inquiry with validation of prev date 
 
-
+// AFTER BUG Of Price
 exports.sendInquiry = async (req, res) => {
   try {
     // ✅ Validate
@@ -541,7 +538,7 @@ exports.sendInquiry = async (req, res) => {
     }
 
     // =========================
-    // 💰 PRICING
+    // 💰 PRICING (UPDATED: capacity-aware + farm-level capacity fallback)
     // =========================
     const priceBreakdownObj = {}; // plain object first
     const pricingDetails = {}; // optional: rich details
@@ -594,25 +591,36 @@ exports.sendInquiry = async (req, res) => {
           });
       }
 
+      // defaults
       let base = 0;
       let perGuest = 0;
+      let capacity = undefined; // optional numeric capacity
 
+      // ----- PARSING & FALLBACK -----
       if (typeof cfg === "number") {
+        // cfg is numeric base price; try to pull capacity / pricePerGuest from
+        // defaultPricing[mode] or matchedDaily.slots[mode] if those are objects.
         base = num(cfg, 0);
-      } else if (typeof cfg === "object") {
+
+        // fallback object sources to look for additional metadata
+        const fallback = (defaultPricing?.[mode] && typeof defaultPricing[mode] === "object")
+          ? defaultPricing[mode]
+          : (matchedDaily?.slots?.[mode] && typeof matchedDaily.slots[mode] === "object")
+            ? matchedDaily.slots[mode]
+            : null;
+
+        if (fallback) {
+          perGuest = num(fallback.pricePerGuest, 0);
+          const parsedCap = Number(fallback.capacity);
+          if (Number.isFinite(parsedCap)) capacity = parsedCap;
+        }
+      } else if (typeof cfg === "object" && cfg !== null) {
         base = num(cfg.price, 0);
         perGuest = num(cfg.pricePerGuest, 0);
-
-        // 👇 if daily override sets both to 0, fallback to default
-        if (base === 0 && perGuest === 0 && defaultPricing?.[mode] != null) {
-          const def = defaultPricing[mode];
-          if (typeof def === "number") {
-            base = num(def, 0);
-            perGuest = 0;
-          } else if (typeof def === "object") {
-            base = num(def.price, 0);
-            perGuest = num(def.pricePerGuest, 0);
-          }
+        // robust capacity parsing (handles string numbers)
+        if (cfg.capacity != null) {
+          const parsedCap = Number(cfg.capacity);
+          if (Number.isFinite(parsedCap)) capacity = parsedCap;
         }
       } else {
         return res
@@ -622,14 +630,57 @@ exports.sendInquiry = async (req, res) => {
           });
       }
 
+      // If daily override gave zeros, fall back to default pricing and capacity
+      if (base === 0 && perGuest === 0 && defaultPricing?.[mode] != null) {
+        const def = defaultPricing[mode];
+        if (typeof def === "number") {
+          base = num(def, 0);
+          perGuest = 0;
+        } else if (typeof def === "object" && def !== null) {
+          base = num(def.price, 0);
+          perGuest = num(def.pricePerGuest, 0);
+          if (capacity == null && def.capacity != null) {
+            const parsedDefCap = Number(def.capacity);
+            if (Number.isFinite(parsedDefCap)) capacity = parsedDefCap;
+          }
+        }
+      }
+
+      // NEW: fallback to farm-level capacity if slot-level capacity not present
+      if (capacity == null && farmDoc && farmDoc.capacity != null) {
+        const parsedFarmCap = Number(farmDoc.capacity);
+        if (Number.isFinite(parsedFarmCap)) capacity = parsedFarmCap;
+      }
+      // ----- END PARSING & FALLBACK -----
+
       const guests = num(Guest_Count, 0);
-      const subtotal = base + perGuest * guests;
+
+      // FINAL capacity-aware pricing logic (user requested)
+      // - if capacity defined:
+      //     - guests <= capacity => subtotal = base
+      //     - guests > capacity  => subtotal = base + (guests - capacity) * perGuest
+      // - if capacity NOT defined => legacy: base + perGuest * guests
+      let subtotal;
+      if (typeof capacity === "number") {
+        if (guests <= capacity) {
+          subtotal = base;
+        } else {
+          const extra = guests - capacity;
+          subtotal = base + extra * perGuest;
+        }
+      } else {
+        // no capacity info — fallback to legacy behaviour
+        subtotal = base + perGuest * guests;
+      }
+
+      console.log(`[PRICING DEBUG] mode=${mode} base=${base} perGuest=${perGuest} capacity=${capacity} guests=${guests}`);
 
       priceBreakdownObj[mode] = num(subtotal, 0);
       pricingDetails[mode] = {
         source: matchedDaily ? "daily-override" : "default",
         base,
         perGuest,
+        capacity: capacity != null ? capacity : "unlimited",
         guests,
         subtotal,
       };
@@ -675,7 +726,7 @@ exports.sendInquiry = async (req, res) => {
       Guest_Count,
 
       // Optional extras
-      barbequeCharcoal: barbequeCharcoal ?? false,
+      barbequeueCharcoal: barbequeCharcoal ?? false,
       kitchen: kitchen ?? false,
 
       status: "pending",
@@ -741,6 +792,10 @@ exports.sendInquiry = async (req, res) => {
     return res.status(500).json({ error: "Server error. Try again later." });
   }
 };
+
+
+
+
 
 
 
