@@ -2560,13 +2560,19 @@ exports.getVendorFarmBookings = async (req, res) => {
     if (status) query.status = status;
 
     // ✅ 4. Search by customer name or phone
-    if (search && search.trim() !== "") {
-      query.$or = [
+     if (search && search.trim() !== "") {
+      const searchConditions = [
         { customerName: { $regex: search.trim(), $options: "i" } },
         { customerPhone: { $regex: search.trim(), $options: "i" } },
       ];
-    }
 
+      // 🔹 Added: allow searching by booking_id (numeric match only)
+      if (!isNaN(search.trim())) {
+        searchConditions.push({ Booking_id: Number(search.trim()) }); // <-- Added line
+      }
+
+      query.$or = searchConditions; // <-- Updated line
+    }
     // ✅ 5. Filter by date range
     if (startDate && endDate) {
       query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
