@@ -37,7 +37,7 @@ const farmBookingSchema = new mongoose.Schema({
 
   // 📅 Booking Details
   date: { type: Date, required: true },
-
+  RegistrationDate: { type: Date, default: Date.now } ,
 
   // 📦 Booking Mode
     bookingModes: {
