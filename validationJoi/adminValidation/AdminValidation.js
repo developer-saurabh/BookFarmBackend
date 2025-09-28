@@ -210,7 +210,7 @@ bookingId: Joi.alternatives().try(
       'any.only': 'Booking source must be either "website" or "whatsapp".',
       'string.base': 'Booking source must be a string.'
     })
-});
+}).unknown(true);;
 
 exports. customerQuerySchema = Joi.object({
   search: Joi.string().allow('').optional(),

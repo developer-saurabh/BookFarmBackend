@@ -946,6 +946,76 @@ exports.getAllCategories = async (req, res) => {
 
 // all bookings , update booking status 
 
+// exports.getAllBookings = async (req, res) => {
+//   try {
+//     // ✅ Validate input
+//     const { error, value } = AdminValidation.getAllBookingsSchema.validate(req.body);
+//     if (error) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Validation failed',
+//         errors: error.details.map(e => e.message)
+//       });
+//     }
+
+//     // ✅ Normalize pagination with fallback defaults
+//     const page = parseInt(value.page) || 1;
+//     const limit = parseInt(value.limit) || 10;
+//     const { bookingId, date, booking_source_type } = value;
+
+//     // ✅ Build filter
+//     const filter = {};
+
+//     if (bookingId) {
+//       filter.Booking_id = bookingId;
+//     }
+
+//     if (date) {
+//       const bookingDate = new Date(date);
+//       const startOfDay = new Date(bookingDate.setHours(0, 0, 0, 0));
+//       const endOfDay = new Date(bookingDate.setHours(23, 59, 59, 999));
+//       filter.date = { $gte: startOfDay, $lte: endOfDay };
+//     }
+
+//     if (booking_source_type) {
+//       filter.bookingSource = booking_source_type;
+//     }
+
+//     // ✅ Fetch bookings with pagination
+//     const total = await FarmBooking.countDocuments(filter);
+//  const bookings = await FarmBooking.find(filter)
+//   .populate('farm', 'name location')
+//   .populate('customer', 'name phone email')
+//   .sort({ createdAt: -1 })
+//   .skip((page - 1) * limit)
+//   .limit(limit)
+//   .lean();
+//   const updatedBookings = bookings.map(b => {
+//   if (!b.farm && b.farmSnapshot) {
+//     b.farm = b.farmSnapshot; // fallback display
+//     b.farm.isDeleted = true;
+//   }
+//   return b;
+// });
+//   //  console.log("booking ddata printing",bookings)
+//   return res.status(200).json({
+//   success: true,
+//   message: 'Bookings retrieved successfully',
+//   total,
+//   page,
+//   limit,
+//   data: updatedBookings
+// });
+
+//   } catch (err) {
+//     console.error('[getAllBookings Error]', err);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Something went wrong while fetching bookings. Please try again later.'
+//     });
+//   }
+// };
+
 exports.getAllBookings = async (req, res) => {
   try {
     // ✅ Validate input
@@ -961,7 +1031,7 @@ exports.getAllBookings = async (req, res) => {
     // ✅ Normalize pagination with fallback defaults
     const page = parseInt(value.page) || 1;
     const limit = parseInt(value.limit) || 10;
-    const { bookingId, date, booking_source_type } = value;
+    const { bookingId, date, booking_source_type, name, phone } = value; // ⬅️ Added "phone"
 
     // ✅ Build filter
     const filter = {};
@@ -981,31 +1051,51 @@ exports.getAllBookings = async (req, res) => {
       filter.bookingSource = booking_source_type;
     }
 
+    // ✅ Customer filters (name + phone)
+    let customerFilter = {}; // ⬅️ Added combined customer filter
+    if (name) {
+      customerFilter.name = { $regex: name, $options: "i" }; // case-insensitive name search
+    }
+    if (phone) {
+      customerFilter.phone = { $regex: phone, $options: "i" }; // partial phone match
+    }
+
     // ✅ Fetch bookings with pagination
     const total = await FarmBooking.countDocuments(filter);
- const bookings = await FarmBooking.find(filter)
-  .populate('farm', 'name location')
-  .populate('customer', 'name phone email')
-  .sort({ createdAt: -1 })
-  .skip((page - 1) * limit)
-  .limit(limit)
-  .lean();
-  const updatedBookings = bookings.map(b => {
-  if (!b.farm && b.farmSnapshot) {
-    b.farm = b.farmSnapshot; // fallback display
-    b.farm.isDeleted = true;
-  }
-  return b;
-});
-  //  console.log("booking ddata printing",bookings)
-  return res.status(200).json({
-  success: true,
-  message: 'Bookings retrieved successfully',
-  total,
-  page,
-  limit,
-  data: updatedBookings
-});
+    const bookings = await FarmBooking.find(filter)
+      .populate({
+        path: 'farm',
+        select: 'name location'
+      })
+      .populate({
+        path: 'customer',
+        select: 'name phone email',
+        match: customerFilter // ⬅️ Apply customer name/phone filters
+      })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    // ✅ Remove bookings where customer did not match the filter
+    const filteredBookings = bookings.filter(b => b.customer); // ⬅️ Ensures name/phone filter works
+
+    const updatedBookings = filteredBookings.map(b => {
+      if (!b.farm && b.farmSnapshot) {
+        b.farm = b.farmSnapshot; // fallback display
+        b.farm.isDeleted = true;
+      }
+      return b;
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Bookings retrieved successfully',
+      total,
+      page,
+      limit,
+      data: updatedBookings
+    });
 
   } catch (err) {
     console.error('[getAllBookings Error]', err);
@@ -1015,6 +1105,8 @@ exports.getAllBookings = async (req, res) => {
     });
   }
 };
+
+
 exports.updateBookingStatusByAdmin = async (req, res) => {
   try {
     const adminId = req.user.id; // from token
